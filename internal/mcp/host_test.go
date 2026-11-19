@@ -347,3 +347,37 @@ func TestConfirmMarksTheNamedTools(t *testing.T) {
 		t.Errorf("confirm: off %v, on %v", off.Confirm, on.Confirm)
 	}
 }
+
+// PG-09 Setup tools never reach a model: not in the tool list, not callable
+// by name, whatever tools says; the page gets their schema and calls them.
+func TestPG09_SetupToolsNeverReachAModel(t *testing.T) {
+	ha := fakemcp.HA("ok")
+	t.Cleanup(ha.Close)
+	h := start(t, mcp.Options{Servers: []config.MCPServer{
+		{Name: "ha", Transport: config.TransportHTTP, URL: ha.Endpoint(), Setup: []config.SetupTool{{Tool: "HassTurnOff", Label: "Aus"}}},
+	}})
+	if _, ok := h.Lookup("ha__HassTurnOff"); ok {
+		t.Fatal("a setup tool is in the model's list")
+	}
+	for _, tl := range h.Tools() {
+		if tl.Name == "HassTurnOff" {
+			t.Fatal("a setup tool is among the tools")
+		}
+	}
+	if _, err := h.Call(context.Background(), "ha__HassTurnOff", json.RawMessage(`{"name":"Licht"}`)); !errors.Is(err, mcp.ErrUnknownTool) {
+		t.Fatalf("a model's call: %v", err)
+	}
+	if _, ok := h.Lookup("ha__HassTurnOn"); !ok {
+		t.Fatal("the other tools are gone")
+	}
+	def, ok := h.SetupTool("ha", "HassTurnOff")
+	if !ok || len(def.Schema) == 0 {
+		t.Fatalf("setup tool for the page: %v %+v", ok, def)
+	}
+	if _, err := h.CallSetup(context.Background(), "ha", "HassTurnOff", json.RawMessage(`{"name":"Licht"}`)); err != nil {
+		t.Fatalf("the page's call: %v", err)
+	}
+	if _, err := h.CallSetup(context.Background(), "ha", "HassTurnOn", nil); !errors.Is(err, mcp.ErrUnknownTool) {
+		t.Fatalf("a tool that is no setup tool: %v", err)
+	}
+}

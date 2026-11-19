@@ -1,6 +1,6 @@
 # Programs for skills – spec
 
-Status 2026-11-19: specified; steps 1 to 3 built. Scenarios: [skill-programs.feature](skill-programs.feature).
+Status 2026-11-19: specified; steps 1 to 4 built. Scenarios: [skill-programs.feature](skill-programs.feature).
 
 ## Goal
 
@@ -193,6 +193,11 @@ SHA-256 of each program (a few ms). Per setup click: one tool call. No model cal
    server's working folder is the skill's folder. A skill switched off loses its program at the next start (got
    again when switched on), not its folder.
 4. **The setup** in Mira: `setup` in the skill, the service's endpoint, the section on the page. PG-09 to PG-11.
+   Built 2026-11-19: `setup` is a field of the server's entry (`config.MCPServer`), so it also works under
+   `mcp_servers`; the host keeps a setup tool's definition apart and never in a model's list; the section is on a
+   switched-on skill's entry with its program, its version (or "wird geladen") and its folder. The labels are not
+   translated yet ([Skill languages](skill-languages.md) does not know them). The form is checked by the page's
+   script check, not in a browser test.
 5. **`rewe` switches over**: `program`, `{{ data }}`, `setup`; `konto` goes, `programm` optional. RW-07 and RW-08
    adjusted; the REWE evals run again (the eval runner keeps its wrapper through `programm`).
 6. **The guide** (de and en): switching on, "Einrichten", the login with Chrome's console.

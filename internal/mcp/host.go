@@ -175,6 +175,9 @@ type server struct {
 	// unlisted are the satellites whose tools could not be listed last
 	// time, with why (docs/spec/fallbacks.md, row 6).
 	unlisted map[string]error
+	// setup are the server's setup tools as it lists them, for the page
+	// only (docs/spec/skill-programs.md).
+	setup map[string]prompt.ToolDef
 }
 
 // Host owns the server connections.
@@ -575,14 +578,20 @@ func (h *Host) listOne(ctx context.Context, cfg config.MCPServer, session *sdk.C
 		if err != nil {
 			return nil, fmt.Errorf("list tools: %w", err)
 		}
-		if len(cfg.Tools) > 0 && !slices.Contains(cfg.Tools, t.Name) {
-			continue // not among the tools Mira takes from this server
-		}
 		schema, err := json.Marshal(t.InputSchema)
 		if err != nil || string(schema) == "null" {
 			schema = []byte(`{"type":"object","properties":{}}`)
 		}
 		def := prompt.ToolDef{Server: cfg.Name, Name: t.Name, Description: t.Description, Schema: schema}
+		// A setup tool is for the page, never for a model, whatever tools
+		// says (docs/spec/skill-programs.md).
+		if cfg.IsSetup(t.Name) {
+			h.keepSetup(cfg.Name, def)
+			continue
+		}
+		if len(cfg.Tools) > 0 && !slices.Contains(cfg.Tools, t.Name) {
+			continue // not among the tools Mira takes from this server
+		}
 		readOnly := cfg.ReadOnly || h.readOnly[def.QualifiedName()] ||
 			(t.Annotations != nil && t.Annotations.ReadOnlyHint)
 		out = append(out, Tool{ToolDef: def, ReadOnly: readOnly, WebContent: cfg.WebContent, Skill: cfg.Skill,
@@ -974,4 +983,42 @@ func (b bearer) RoundTrip(r *http.Request) (*http.Response, error) {
 	r = r.Clone(r.Context())
 	r.Header.Set("Authorization", "Bearer "+b.token)
 	return b.next.RoundTrip(r)
+}
+
+// keepSetup remembers a setup tool's definition for the page.
+func (h *Host) keepSetup(serverName string, def prompt.ToolDef) {
+	s := h.byName[serverName]
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.setup == nil {
+		s.setup = map[string]prompt.ToolDef{}
+	}
+	s.setup[def.Name] = def
+}
+
+// SetupTool is a setup tool of a server as the server listed it: its
+// description and input schema, for the page's form. False while the
+// server has not listed it (not connected, or an older program).
+func (h *Host) SetupTool(serverName, tool string) (prompt.ToolDef, bool) {
+	s := h.byName[serverName]
+	if s == nil {
+		return prompt.ToolDef{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	def, ok := s.setup[tool]
+	return def, ok
+}
+
+// CallSetup calls a setup tool of a server, for an admin on the page; a
+// tool that is not among the server's setup is refused.
+func (h *Host) CallSetup(ctx context.Context, serverName, tool string, args json.RawMessage) (Result, error) {
+	s := h.byName[serverName]
+	if s == nil || !s.cfg.IsSetup(tool) {
+		return Result{}, fmt.Errorf("%w: %s", ErrUnknownTool, serverName+prompt.ServerSeparator+tool)
+	}
+	return h.callOn(ctx, s, serverName+prompt.ServerSeparator+tool, tool, args)
 }

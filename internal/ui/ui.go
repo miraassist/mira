@@ -118,6 +118,8 @@ type Options struct {
 	Editor Editor
 	// Connections are the skills' logins at services (docs/spec/oauth.md).
 	Connections Connections
+	// Setup calls a skill's setup tools (docs/spec/skill-programs.md).
+	Setup Setup
 	// Tokens are the named access tokens (docs/spec/access-tokens.md); nil
 	// without them.
 	Tokens Tokens
@@ -188,6 +190,7 @@ func New(opts Options) *Handler {
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/voice/{person}/assign", Summary: "Assign a heard sample to a person", Request: VoiceAssign{}, Response: OK{}, Errors: []int{400, 403, 404, 409, 502}}), h.authAnyone(h.assign))
 	// The stored agent runs, for debugging (agents.go).
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/catalog", Summary: "The skills, agents and models", Response: Catalog{}, Errors: []int{403}}), h.auth(h.catalog))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/skills/{skill}/setup/{tool}", Summary: "Call a skill's setup tool (admins only, never a model)", Request: SetupCall{}, Response: SetupResult{}, Errors: []int{400, 403, 404, 502, 503}}), h.auth(h.callSetup))
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/schedules", Summary: "The skills' and Mira's jobs at a time", Response: ScheduleList{}, Errors: []int{403, 500, 503}}), h.auth(h.schedules))
 	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/schedules/{skill}/{name}", Summary: "Change a job's time", Request: ScheduleEdit{}, Response: Saved{}, Errors: []int{400, 403, 503}}), h.auth(h.changeSchedule))
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/schedules/{skill}/{name}/run", Summary: "Run a job now", Response: Started{}, Status: http.StatusAccepted, Errors: []int{400, 403, 409, 503}}), h.auth(h.runSchedule))

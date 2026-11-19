@@ -32,13 +32,16 @@ const (
 )
 
 // Retry is how long Mira waits after a failed download before trying again.
-var Retry = 10 * time.Minute
+const Retry = 10 * time.Minute
 
 // Manager keeps the programs of the switched-on skills.
 type Manager struct {
 	dir    string
 	client *http.Client
 	log    *slog.Logger
+
+	// retry is Retry; tests shorten it.
+	retry time.Duration
 
 	mu       sync.Mutex
 	problems map[string]skills.Problem // by skill
@@ -50,7 +53,7 @@ func New(dir string, log *slog.Logger) *Manager {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Manager{dir: dir, client: &http.Client{Timeout: timeout}, log: log.With("component", "programs"),
+	return &Manager{dir: dir, client: &http.Client{Timeout: timeout}, log: log.With("component", "programs"), retry: Retry,
 		problems: map[string]skills.Problem{}, loading: map[string]bool{}}
 }
 
@@ -87,11 +90,11 @@ func (m *Manager) Start(ctx context.Context, list []skills.Program, ready func(s
 					}
 					return
 				}
-				m.log.Warn("program not downloaded", "skill", p.Skill, "url", p.URL, "error", err, "retry", Retry)
+				m.log.Warn("program not downloaded", "skill", p.Skill, "url", p.URL, "error", err, "retry", m.retry)
 				select {
 				case <-ctx.Done():
 					return
-				case <-time.After(Retry):
+				case <-time.After(m.retry):
 				}
 			}
 		}()

@@ -197,8 +197,8 @@ type app struct {
 	oauth        *oauth.Manager
 	// programs gets the programs skills bring (docs/spec/skill-programs.md).
 	programs *programs.Manager
-	remote       *a2a.Host // the skills' remote agents (docs/spec/remote-agents.md)
-	engine       *conversation.Engine
+	remote   *a2a.Host // the skills' remote agents (docs/spec/remote-agents.md)
+	engine   *conversation.Engine
 
 	// live is the config the proactive parts run with: mira.yaml, what the
 	// page saved into it since, and what Home Assistant sent, held in
@@ -1500,7 +1500,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	uiOpts := ui.Options{
 		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
 		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log, Version: version,
-		SetExposed: a.setExposed, SetLogins: a.setLogins, Phone: a.phonePage, Connections: connections{a: a},
+		SetExposed: a.setExposed, SetLogins: a.setLogins, Phone: a.phonePage, Connections: connections{a: a}, Setup: setupCalls{a: a},
 		Tokens: a.tokens,
 		Persons: func() []string {
 			keys := make([]string, 0, len(a.persons()))

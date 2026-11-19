@@ -390,7 +390,48 @@ let skillFocus = null;
 function openSkill(name) { skillFocus = name; go("skills"); }
 
 class MiraSkills extends EditPage {
-  static properties = { ...EditPage.properties, busy: { state: true }, switchError: { state: true } };
+  static properties = { ...EditPage.properties, busy: { state: true }, switchError: { state: true },
+    setupVals: { state: true }, setupRes: { state: true }, setupBusy: { state: true } };
+  constructor() { super(); this.setupVals = {}; this.setupRes = {}; this.setupBusy = null; }
+  // The setup of a skill's program (docs/spec/skill-programs.md): a button
+  // per setup tool, its fields from the tool's input schema, its answer
+  // below. Only for admins (the catalog is); never a model.
+  setup(s) {
+    return html`<div class="setup"><h4>${T.setup_head}</h4><p class="hint">${T.setup_hint}</p>
+      ${s.setup.map(x => this.setupEntry(s, x))}</div>`;
+  }
+  setupEntry(s, x) {
+    const key = s.name + "/" + x.tool, vals = this.setupVals[key] || {}, res = this.setupRes[key];
+    const schema = x.schema ? (typeof x.schema === "string" ? JSON.parse(x.schema) : x.schema) : null;
+    const props = (schema && schema.properties) || {}, required = (schema && schema.required) || [];
+    const set = (name, v) => { this.setupVals = { ...this.setupVals, [key]: { ...vals, [name]: v } }; };
+    const field = (name, p) => {
+      const label = html`<span>${name}${required.includes(name) ? " *" : ""}</span>`;
+      if (p.type === "boolean") return html`<label class="setup-field">${label}<input type="checkbox" .checked=${!!vals[name]} @change=${e => set(name, e.target.checked)}></label>`;
+      if (Array.isArray(p.enum)) return html`<label class="setup-field">${label}<select @change=${e => set(name, e.target.value)}>
+        <option value=""></option>${p.enum.map(o => html`<option .selected=${vals[name] === o}>${o}</option>`)}</select></label>`;
+      const num = p.type === "integer" || p.type === "number";
+      return html`<label class="setup-field">${label}<input type=${num ? "number" : "text"} .value=${vals[name] ?? ""}
+        placeholder=${p.description || ""} @input=${e => set(name, num && e.target.value !== "" ? Number(e.target.value) : e.target.value)}></label>`;
+    };
+    const missing = required.some(n => vals[n] === undefined || vals[n] === "");
+    return html`<div class="setup-entry">
+      ${x.description ? html`<div class="hint">${x.description}</div>` : nothing}
+      ${!schema ? html`<div class="warn">${T.setup_offline}</div>` : nothing}
+      ${Object.entries(props).map(([n, p]) => field(n, p))}
+      <div class="actions left"><button class="secondary" ?disabled=${!schema || missing || this.setupBusy === key}
+        @click=${e => { e.preventDefault(); this.callSetup(s, x, vals); }}>${x.label}</button></div>
+      ${res ? setupAnswer(res) : nothing}</div>`;
+  }
+  async callSetup(s, x, vals) {
+    const key = s.name + "/" + x.tool;
+    this.setupBusy = key;
+    try {
+      const r = await api("POST", "/v1/ui/skills/" + encodeURIComponent(s.name) + "/setup/" + encodeURIComponent(x.tool), { args: vals });
+      this.setupRes = { ...this.setupRes, [key]: r };
+    } catch (err) { this.setupRes = { ...this.setupRes, [key]: { text: err.message, is_error: true } }; }
+    this.setupBusy = null;
+  }
   // A skill opened from a schedule: unfolded and shown once the list is
   // there; only the page shown takes it (it may be built twice on the way).
   updated() {
@@ -458,6 +499,8 @@ class MiraSkills extends EditPage {
             ${f.description}${f.check ? html` · ${T.cat_check} <code>${f.check}</code>` : nothing}${f.agent ? html` · ${T.cat_filled_by} <code>${f.agent}</code>` : nothing}</div>`)}
           ${t.finish ? html`<div>${T.cat_finish}: <code>${t.finish}</code>${t.confirm ? html` · ${T.cat_confirm}` : nothing}</div>` : nothing}
           <div class="hint">${T.cat_timeout} ${t.timeout}</div>`) : nothing}
+        ${s.program ? row(T.cat_program, html`<code>${s.program.name}</code> ${s.program.version}${s.program.loading ? html` · <span class="warn">${T.cat_program_loading}</span>` : nothing}`) : nothing}
+        ${s.data_dir ? row(T.cat_data_dir, html`<code>${s.data_dir}</code>`) : nothing}
         ${m ? row(T.cat_mcp, html`
           <div>${m.connected ? badge(T.cat_connected) : badge(T.cat_mcp_down, true)} ${m.transport || "http"} <code>${m.address}</code></div>
           ${m.error ? html`<div class="msg err">${m.error}</div>` : nothing}
@@ -470,10 +513,27 @@ class MiraSkills extends EditPage {
           ${s.phonebook.link ? html`<div><a href=${s.phonebook.link} target="_blank" rel="noopener">${T.cat_phonebook_open}</a> <span class="hint">${T.cat_phonebook_hint}</span></div>` : nothing}`) : nothing}
         ${(s.agents || []).length ? row(T.cat_agents, html`${s.agents.map((a, i) => html`${i ? ", " : ""}<a href="#agents" @click=${e => { e.preventDefault(); go("agents"); }}><code>${a}</code></a>`)}`) : nothing}
       </table>
+      ${(s.setup || []).length && s.state === "active" ? this.setup(s) : nothing}
       ${s.guide ? html`<details class="profile"><summary>${T.cat_guide}</summary><pre>${s.guide}</pre></details>` : nothing}`);
   }
 }
 customElements.define("mira-skills", MiraSkills);
+
+// setupAnswer shows a setup tool's answer: JSON as a short list, addresses
+// as links, an error in red.
+function setupAnswer(r) {
+  if (r.is_error) return html`<div class="msg err">${r.text}</div>`;
+  let v;
+  try { v = JSON.parse(r.text); } catch { return html`<pre class="setup-answer">${r.text}</pre>`; }
+  const value = x => typeof x === "string" && /^https?:\/\//.test(x)
+    ? html`<a href=${x} target="_blank" rel="noopener">${x.length > 60 ? x.slice(0, 60) + "…" : x}</a>`
+    : typeof x === "object" && x !== null ? JSON.stringify(x) : String(x);
+  const obj = o => html`<div>${Object.entries(o).map(([k, x], i) => html`${i ? " · " : ""}<code>${k}</code> ${value(x)}`)}</div>`;
+  if (Array.isArray(v)) return html`<div class="setup-answer">${v.length ? v.map(x => typeof x === "object" && x ? obj(x) : html`<div>${value(x)}</div>`) : T.setup_empty}</div>`;
+  if (typeof v === "object" && v) return html`<div class="setup-answer">${Object.entries(v).map(([k, x]) =>
+    html`<div><code>${k}</code>: ${Array.isArray(x) ? (x.length ? x.map(y => html`<div>– ${value(y)}</div>`) : "–") : value(x)}</div>`)}</div>`;
+  return html`<div class="setup-answer">${value(v)}</div>`;
+}
 
 // ---- Schedules ------------------------------------------------------------
 // What Mira does at fixed times (docs/spec/schedules.md): one folding entry

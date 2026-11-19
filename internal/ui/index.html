@@ -67,6 +67,13 @@ mira-nav .group-title { font-weight: 700; margin: 0 8px 0 2px; }
 h3.subhead { margin: 18px 0 6px; color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: .04em; }
 table.facts th { width: 11em; }
 @media (max-width: 600px) { table.facts th { width: auto; } }
+.setup { border-top: 1px solid var(--border, #ddd); margin-top: 12px; padding-top: 8px; }
+.setup h4 { margin: 0 0 4px; }
+.setup-entry { margin: 10px 0; }
+.setup-field { display: flex; gap: 8px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
+.setup-field span { min-width: 6em; font-family: monospace; }
+.setup-field input[type=text], .setup-field input[type=number] { flex: 1; min-width: 12em; }
+.setup-answer { font-size: 13px; margin-top: 6px; overflow-wrap: anywhere; }
 main { max-width: 940px; margin: 0 auto; padding: 20px 16px 48px; }
 section.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--shadow); }
 h2 { font-size: 17px; font-weight: 750; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -817,6 +824,9 @@ const I18N = {
   "ed_book_ok": (n, books, ms) => `Gelesen: ${n} Kontakte aus ${books.join(", ")}, nach ${(ms / 1000).toFixed(1).replace(".", ",")} s.`,
   "cat_phonebook": "Telefonbuch", "cat_phonebook_unread": "noch nicht gelesen", "cat_phonebook_read": "gelesen",
   "cat_phonebook_open": "Zur FRITZ!Box", "cat_phonebook_hint": "Die Kontakte stehen dort, Mira zeigt sie hier nicht.",
+  "cat_program": "Programm", "cat_program_loading": "wird geladen", "cat_data_dir": "Ordner des Skills",
+  "setup_head": "Einrichten", "setup_hint": "Nur für Admins: Diese Schritte richten das Programm des Skills ein. Ein Modell bekommt sie nie.",
+  "setup_offline": "Das Programm ist noch nicht verbunden; die Felder kommen, sobald es läuft.", "setup_empty": "nichts",
   "ed_pending": "neu, gilt nach dem Neustart",
   "ed_delete_confirm": n => `„${n}“ wirklich löschen?`,
   "ed_name": "Name",
@@ -1359,6 +1369,9 @@ const I18N = {
   "ed_book_ok": (n, books, ms) => `Read: ${n} contacts from ${books.join(", ")}, after ${(ms / 1000).toFixed(1)} s.`,
   "cat_phonebook": "Phone book", "cat_phonebook_unread": "not read yet", "cat_phonebook_read": "read",
   "cat_phonebook_open": "Open the FRITZ!Box", "cat_phonebook_hint": "The contacts are kept there; Mira does not show them here.",
+  "cat_program": "Program", "cat_program_loading": "being downloaded", "cat_data_dir": "The skill's folder",
+  "setup_head": "Set up", "setup_hint": "Admins only: these steps set up the skill's program. A model never gets them.",
+  "setup_offline": "The program is not connected yet; the fields come once it runs.", "setup_empty": "nothing",
   "ed_pending": "new, holds after the restart",
   "ed_delete_confirm": n => `Really delete "${n}"?`,
   "ed_name": "Name",

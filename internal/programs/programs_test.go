@@ -106,7 +106,9 @@ func TestPG02_AWrongSumIsNeverStarted(t *testing.T) {
 	m := New(dir, nil)
 	want := sum([]byte("good"))
 	p := program(srv.URL+"/korb_amd64", want, "0.9.0")
-	m.Start(context.Background(), []skills.Program{p}, func(string) { t.Error("started") })
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	m.Start(ctx, []skills.Program{p}, func(string) { t.Error("started") })
 	deadline := time.Now().Add(5 * time.Second)
 	for len(m.Problems()) == 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
@@ -152,9 +154,6 @@ func TestPG04_ANewVersionComesWithTheSkillOnly(t *testing.T) {
 
 // PG-05 A failed download is said and tried again later, not in a loop.
 func TestPG05_AFailedDownloadIsTriedAgainLater(t *testing.T) {
-	old := Retry
-	Retry = 200 * time.Millisecond
-	t.Cleanup(func() { Retry = old })
 	var fail atomic.Bool
 	fail.Store(true)
 	var hits atomic.Int32
@@ -169,6 +168,7 @@ func TestPG05_AFailedDownloadIsTriedAgainLater(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	m := New(t.TempDir(), nil)
+	m.retry = 200 * time.Millisecond
 	ready := make(chan string, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)

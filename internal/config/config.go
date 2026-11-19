@@ -459,6 +459,10 @@ type MCPServer struct {
 	// Confirm names the server's tools that run only after the user's yes
 	// (docs/spec/rewe.md, decision 5): call.tool.confirm for the hooks.
 	Confirm []string `yaml:"confirm"`
+	// Setup are tools of a skill's server only an admin calls on Mira's
+	// page, never a model (docs/spec/skill-programs.md): a login, a choice
+	// of market.
+	Setup []SetupTool `yaml:"setup"`
 	// Conversation false keeps a skill's server out of the conversation:
 	// only the skill's agents and schedules get its tools. Default true.
 	Conversation *bool `yaml:"conversation"`
@@ -1179,4 +1183,21 @@ func (c Config) SessionTTL(ch Channel) Duration {
 		return c.Sessions.TelegramTTL
 	}
 	return c.Sessions.VoiceTTL
+}
+
+// SetupTool is one entry of a skill server's setup: the tool and its button.
+type SetupTool struct {
+	Tool        string `yaml:"tool"`
+	Label       string `yaml:"label"`
+	Description string `yaml:"description"`
+}
+
+// IsSetup says whether a tool of the server is for the setup only.
+func (s MCPServer) IsSetup(tool string) bool {
+	for _, t := range s.Setup {
+		if t.Tool == tool {
+			return true
+		}
+	}
+	return false
 }

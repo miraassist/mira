@@ -2502,6 +2502,39 @@ paths:
                             - transport
                             - connected
                             - conversation
+                        setup:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              tool:
+                                type: string
+                              label:
+                                type: string
+                              description:
+                                type: string
+                              schema: true
+                            required:
+                              - tool
+                              - label
+                        program:
+                          type:
+                            - "null"
+                            - object
+                          properties:
+                            name:
+                              type: string
+                            version:
+                              type: string
+                            loading:
+                              type: boolean
+                          required:
+                            - name
+                            - version
+                        data_dir:
+                          type: string
                         connection:
                           type: string
                         agents:
@@ -6240,6 +6273,86 @@ paths:
                 $ref: '#/components/schemas/Error'
         "409":
           description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/skills/{skill}/setup/{tool}:
+    post:
+      tags:
+        - page
+      summary: Call a skill's setup tool (admins only, never a model)
+      operationId: postV1UiSkillsSkillSetupTool
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: tool
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                args:
+                  type: object
+                  additionalProperties: true
+              required:
+                - args
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text:
+                    type: string
+                  is_error:
+                    type: boolean
+                required:
+                  - text
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
           content:
             application/json:
               schema:

@@ -127,3 +127,26 @@ func TestPG06_NotForThisArchitecture(t *testing.T) {
 		t.Errorf("reserved: %v", problems)
 	}
 }
+
+// PG-09 A tool both under tools and setup would reach a model: a problem.
+func TestPG09_ASetupToolUnderToolsIsAProblem(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "laden"), 0o755)
+	os.WriteFile(filepath.Join(dir, "laden", "SKILL.md"), []byte(`---
+name: laden
+description: Einkaufen
+metadata:
+  mira:
+    mcp:
+      url: https://example.org/mcp
+      tools: [status, login_start]
+      setup:
+        - { tool: login_start, label: Anmelden }
+---
+x
+`), 0o644)
+	_, problems := loadOne(t, dir, nil, Options{})
+	if len(problems) != 1 || !strings.Contains(problems[0].Text(i18n.DE), "login_start") {
+		t.Fatalf("problems %v", problems)
+	}
+}

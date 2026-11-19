@@ -95,6 +95,12 @@ type SkillInfo struct {
 	Schedules []ScheduleInfo `json:"schedules,omitempty"`
 	Target    *TargetInfo    `json:"target,omitempty"`
 	MCP       *MCPInfo       `json:"mcp,omitempty"`
+	// Setup are the skill's setup tools (docs/spec/skill-programs.md);
+	// Program is its program's version and whether it is still being got.
+	Setup   []SetupInfo  `json:"setup,omitempty"`
+	Program *ProgramInfo `json:"program,omitempty"`
+	// DataDir is the skill's own folder.
+	DataDir string `json:"data_dir,omitempty"`
 	// Connection is the state of the skill's login at a service (none,
 	// connected, expired; docs/spec/oauth.md); empty for a skill without.
 	Connection string   `json:"connection,omitempty"`
@@ -155,6 +161,13 @@ type FieldInfo struct {
 }
 
 // MCPInfo is a skill's MCP server and how it is doing.
+// ProgramInfo is a skill's program as the page shows it.
+type ProgramInfo struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Loading bool   `json:"loading,omitempty"`
+}
+
 type MCPInfo struct {
 	Transport    string   `json:"transport"`
 	Address      string   `json:"address,omitempty"`
