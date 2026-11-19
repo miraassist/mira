@@ -168,9 +168,8 @@ the errors below.
   denies the tools anyway (the server is not `read_only`).
 - **Where rewe-cli lives** (decided 2026-11-19): public at [miraassist/rewe-cli](https://github.com/miraassist/rewe-cli),
   with a fresh history; a tag builds the binaries for Linux and macOS (amd64, arm64) with their SHA-256 sums.
-- **Mira loads the program herself** when the skill is switched on (the maintainer's wish, 2026-11-19): a spec of its
-  own, after two questions are settled: where the program and korb's account live in Mira's container, and how the
-  REWE login works without a terminal.
+- **Mira loads the program herself** when the skill is switched on, and the setup (login, delivery service) happens on
+  Mira's page: [Programs for skills](skill-programs.md) (specified 2026-11-19).
 
 ## Errors
 
