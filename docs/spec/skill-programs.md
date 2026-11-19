@@ -26,11 +26,12 @@ in on a computer and copies its config folder after it.
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Where the program and the skill's state live | Under Mira's config folder (the folder of `mira.yaml`: `/config` in the HA app, the mapped folder of a container): `programs/` and `skill-data/<skill>/`. No new volume and no new mapping; in the HA app it is in the backups. Not chosen: Mira's data folder (`/data`), which a container of one's own does not map today |
+| 1 | Where the program and the skill's state live | Under Mira's config folder (the folder of `mira.yaml`: `/config` in the HA app, the mapped folder of a container): `programs/` and `skill-data/<skill>/`, the same in both, no difference between app and container. No new volume and no new mapping; in the HA app it is in the backups. Not chosen: Mira's data folder (`/data`), which a container of one's own does not map today. Programs may run from there (checked 2026-11-19, below) |
 | 2 | Which architecture | Mira's own (`amd64`, `arm64`), from the running service; the skill does not ask the user |
 | 3 | Who does a program's first-run work | The program. korb fetches the REWE certificate itself on first use and checks it (rewe-cli 0.8.0) |
 | 4 | The setup without a terminal | On Mira's page, admins only: tools of the skill's server listed under `setup`, never offered to a model; forms from their input schemas. Not chosen: program commands in the skill (a convention of its own for output and errors, where MCP has one); the login in Mira's OAuth (korb rotates its tokens itself, under a file lock); the login in a chat with an admin (the redirect address would pass through the model, against [REWE shopping](rewe.md), decision 2) |
 | 5 | Where rewe-cli comes from | Its releases at [miraassist/rewe-cli](https://github.com/miraassist/rewe-cli) (a tag builds Linux and macOS, amd64 and arm64, with `SHA256SUMS`); the binaries hold no certificate |
+| 6 | `rewe` a shipped skill or one of the subscription | Shipped, public, for now. A skill of the subscription ([Skill source](skill-source.md)) would bring its program from the skill server with it (Not part of it); the CLI stays public on GitHub either way: the open program and the skill together are the value |
 
 ## In the skill
 
@@ -141,8 +142,9 @@ login is the owner's, not the model's).
 
 - **The program is code Mira runs**, in the HA app beside `/config` with all of Home Assistant's secrets. The sum in
   the skill is what is trusted: a program whose sum does not match is never written under its name or started. Who
-  can change the skill's file (Mira's release, a skill source's signature, [Skill source](skill-source.md)) decides
-  which program runs; that is the same trust as for the skill's prose and tools today.
+  can change the skill's file decides which program runs: Mira's release for a shipped skill; for a skill of a skill
+  source the source over HTTPS with its key ([Skill source](skill-source.md); its skills are not signed). That is the
+  same trust as for the skill's prose and tools today.
 - **No newer program by itself** (above): a compromised release changes nothing until a skill names its sum.
 - **The skill's folder** holds the program's state, for korb the REWE session, readable for whoever reads the config
   folder (as `mira.yaml` and its secrets).
@@ -165,9 +167,11 @@ SHA-256 of each program (a few ms). Per setup click: one tool call. No model cal
 
 ## Checks on the test HA before building
 
-1. **`noexec`**: can the HA app run a file from `/config` (the app's `addon_config`)? Supervisor mounts it; if it is
-   `noexec`, the programs go to `/data/programs` in the HA app (decision 1 would then hold for the folder of the
-   skills only), and the spec is changed before building.
+1. **`noexec`** (checked in the sources 2026-11-19): Supervisor mounts an app's `addon_config` and `/data` as plain
+   bind mounts without options (`supervisor/docker/app.py`, `DockerMount` has no `noexec`; Docker cannot set it on a
+   bind mount, the source's options hold), and HAOS mounts its data partition, where both live beside the images of
+   all apps, with `Options=commit=30` only (`mnt-data.mount` in `home-assistant/operating-system`): programs may run
+   from `/config`. To be seen once on HAOS when step 3 is built.
 2. **The image**: a static Go binary (korb, `CGO_ENABLED=0`) runs in Mira's distroless image as root, and as
    `nonroot` in a container of one's own.
 3. **The download** from GitHub's releases from inside the HA app (redirect to `objects.githubusercontent.com`).
@@ -189,5 +193,7 @@ SHA-256 of each program (a few ms). Per setup click: one tool call. No model cal
 - Programs for skills of the HA side (skill scripts run in Home Assistant).
 - Updating a program without a new skill file, and a program's own updater.
 - Other kinds than a single executable file (archives, interpreters, containers).
+- A program that comes from the skill server with a skill of the subscription (decision 6): when a skill of the
+  source needs one; then `url` may name the source and its key goes with the download.
 - A setup wizard with conditions ("first the login, then the service"): the order of the buttons and the program's
   `status` say it.
