@@ -438,6 +438,9 @@ type MCPServer struct {
 	Command   string       `yaml:"command"`
 	Args      []string     `yaml:"args"`
 	Env       []string     `yaml:"env"`
+	// Dir is a stdio server's working folder: a skill's own folder
+	// (docs/spec/skill-programs.md); empty: Mira's.
+	Dir string `yaml:"-"`
 	// ReadOnly marks every tool of this server as safe for background jobs.
 	// Servers that are not read-only are hidden from watchers entirely.
 	ReadOnly bool `yaml:"read_only"`

@@ -952,6 +952,7 @@ func DialTransport(ctx context.Context, client *sdk.Client, cfg config.MCPServer
 	case config.TransportStdio:
 		cmd := exec.Command(cfg.Command, cfg.Args...)
 		cmd.Env = StdioEnv(os.Environ(), cfg.Env)
+		cmd.Dir = cfg.Dir
 		cmd.Stderr = os.Stderr
 		t, err := stdioTransport(cmd, slog.Default().With("component", "mcp", "server", cfg.Name))
 		if err != nil {

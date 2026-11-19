@@ -74,6 +74,9 @@ const (
 	KindScriptSave    = "scriptsave"
 	KindScriptTool    = "scripttool"
 	KindScriptTools   = "scripttools"
+	// Programs for skills (docs/spec/skill-programs.md): the download.
+	KindProgramDownload = "programdownload"
+	KindProgramSum      = "programsum"
 )
 
 // Text is the problem in a language, without the skill's name.
@@ -132,6 +135,15 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"mcpcommand":          "Der Abschnitt mcp mit transport stdio braucht ein Programm (command).",
 		"mcptransport":        "transport „%s“ im Abschnitt mcp geht nicht; möglich sind http und stdio.",
 		"mcpconfirm":          "Diese Werkzeuge stehen unter confirm, aber nicht unter tools: %s. Nimm sie unter tools auf oder aus confirm heraus.",
+		"programfields":       "Der Abschnitt program braucht name, version, url und sha256.",
+		"programname":         "name und version im Abschnitt program dürfen nur Buchstaben, Ziffern, Punkt, Binde- und Unterstrich enthalten: %q, %q.",
+		"programarch":         "%s gibt es nicht für diese Architektur (%s): unter sha256 fehlt sie.",
+		"programurl":          "Die Adresse des Programms muss mit https beginnen: %s",
+		"programsumformat":    "sha256 für %s ist keine SHA-256-Summe (64 Hex-Zeichen).",
+		"programdownload":     "Das Programm ließ sich nicht von %s laden: %v. Mira versucht es in 10 Minuten wieder.",
+		"programsum":          "Das Programm von %s ist nicht das erwartete (SHA-256 erwartet %s, bekommen %s). Es wird weder gespeichert noch gestartet.",
+		"skilldata":           "Der Ordner des Skills ließ sich nicht anlegen: %v",
+		"reservedsetting":     "Die Einstellung %q heißt wie ein Platzhalter von Mira (data, arch). Nenn sie anders.",
 		"mcpdown":             "Der MCP-Server des Skills ist nicht erreichbar (%s). Der Skill ist da, aber ohne seine Werkzeuge; Mira versucht es weiter.",
 		"mcptools":            "Diese Werkzeuge nennt der Skill unter tools, der Server hat sie aber nicht: %s. Die übrigen gehen.",
 		"oauthurl":            "Der Abschnitt oauth braucht authorize_url und token_url, beide als https-Adresse.",
@@ -227,6 +239,15 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"mcpcommand":          "The mcp section with transport stdio needs a program (command).",
 		"mcptransport":        "transport \"%s\" in the mcp section does not work; possible are http and stdio.",
 		"mcpconfirm":          "These tools are under confirm but not under tools: %s. Add them to tools or take them out of confirm.",
+		"programfields":       "The section program needs name, version, url and sha256.",
+		"programname":         "name and version in the section program may hold only letters, digits, dot, hyphen and underscore: %q, %q.",
+		"programarch":         "%s is not available for this architecture (%s): sha256 lacks it.",
+		"programurl":          "The program's address must start with https: %s",
+		"programsumformat":    "sha256 for %s is no SHA-256 sum (64 hex characters).",
+		"programdownload":     "The program could not be downloaded from %s: %v. Mira tries again in 10 minutes.",
+		"programsum":          "The program from %s is not the expected one (SHA-256 expected %s, got %s). It is neither kept nor started.",
+		"skilldata":           "The skill's folder could not be created: %v",
+		"reservedsetting":     "The setting %q has the name of a placeholder of Mira's (data, arch). Name it differently.",
 		"mcpdown":             "The skill's MCP server cannot be reached (%s). The skill is there, but without its tools; Mira keeps trying.",
 		"mcptools":            "The skill names these tools under tools, but the server does not have them: %s. The others work.",
 		"oauthurl":            "The oauth section needs authorize_url and token_url, both as https addresses.",

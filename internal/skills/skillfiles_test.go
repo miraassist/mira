@@ -14,7 +14,7 @@ import (
 // loadDir loads the skill in the folder dir, as Load does.
 func loadDir(dir string, values map[string]any) (Skill, *Problem) {
 	parent := filepath.Dir(dir)
-	return load(Root{Name: parent, FS: os.DirFS(parent)}, filepath.Base(dir), values)
+	return load(Root{Name: parent, FS: os.DirFS(parent)}, filepath.Base(dir), values, Options{})
 }
 
 const zuRuhig = `---

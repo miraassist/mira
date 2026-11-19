@@ -47,6 +47,7 @@ import (
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/phone"
 	"github.com/miraassist/mira/internal/profile"
+	"github.com/miraassist/mira/internal/programs"
 	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/radio"
 	"github.com/miraassist/mira/internal/routes"
@@ -194,6 +195,8 @@ type app struct {
 	toolsChanged chan struct{}
 	mcp          *mcp.Host
 	oauth        *oauth.Manager
+	// programs gets the programs skills bring (docs/spec/skill-programs.md).
+	programs *programs.Manager
 	remote       *a2a.Host // the skills' remote agents (docs/spec/remote-agents.md)
 	engine       *conversation.Engine
 
@@ -307,7 +310,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	// A skill that cannot start is left out and reported (log, and the
 	// integration shows it as a repair); the service starts all the same.
-	all, problems := skills.LoadFrom(a.skillRoots, enabled)
+	// A skill's program and its own folder live beside mira.yaml
+	// (docs/spec/skill-programs.md, decision 1).
+	var skillOpts skills.Options
+	if opts.configPath != "" {
+		base := filepath.Dir(opts.configPath)
+		skillOpts = skills.Options{DataRoot: filepath.Join(base, "skill-data"), ProgramRoot: filepath.Join(base, "programs")}
+	}
+	all, problems := skills.LoadWith(a.skillRoots, enabled, skillOpts)
 	problems = append(sourceProblems, problems...)
 	a.skillsOn = all
 	// A skill may bring its MCP server (docs/spec/skill-mcp.md): it is
@@ -366,6 +376,21 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			}
 		},
 	})
+	// The skills' programs: one that is there starts with its server; the
+	// others are downloaded in the background and their server connected
+	// then (docs/spec/skill-programs.md).
+	if skillOpts.ProgramRoot != "" {
+		var progs []skills.Program
+		for _, sk := range all {
+			if sk.Program != nil && sk.MCP != nil && sk.MCP.Command == filepath.Join(skillOpts.ProgramRoot, sk.Program.FileName()) {
+				progs = append(progs, *sk.Program)
+			}
+		}
+		a.programs = programs.New(skillOpts.ProgramRoot, a.log)
+		a.programs.Start(context.WithoutCancel(ctx), progs, func(skill string) {
+			a.mcp.Reconnect(context.WithoutCancel(ctx), skill)
+		})
+	}
 	// Built before Home Assistant connects: the structure cache's change
 	// handler refreshes it.
 	// Layer 4 is Home Assistant's prompt from the MCP server "ha"; nothing
@@ -1859,6 +1884,12 @@ var promptProblem = map[i18n.Lang]string{
 
 func (a *app) allProblems() []haconv.Problem {
 	out := append([]haconv.Problem(nil), a.problems...)
+	// A skill's program that could not be got (docs/spec/skill-programs.md).
+	if a.programs != nil {
+		for _, p := range a.programs.Problems() {
+			out = append(out, haconv.Problem{Source: "skill", Name: p.Skill, Text: p.Text(a.lang)})
+		}
+	}
 	// A skill's blueprint or automation that did not reach Home Assistant
 	// (docs/spec/skill-files.md, Errors): the skill runs without it.
 	if a.skillHA != nil {

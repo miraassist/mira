@@ -24,6 +24,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -93,6 +94,14 @@ type Skill struct {
 	// MCP is the skill's MCP server, named after the skill, with its
 	// settings filled in (docs/spec/skill-mcp.md); nil for none.
 	MCP *config.MCPServer
+	// Program is the program the skill brings for its MCP server
+	// (metadata.mira.program, docs/spec/skill-programs.md), for Mira's
+	// architecture; nil for none.
+	Program *Program
+	// DataDir is the skill's own folder (<config>/skill-data/<skill>,
+	// {{ data }}); empty when the skill has no stdio server or no folder
+	// was asked for.
+	DataDir string
 	// OAuth is the skill's login at a service, with its settings filled in
 	// (docs/spec/oauth.md); nil for none.
 	OAuth *OAuth
@@ -358,6 +367,7 @@ type frontmatter struct {
 			Agents    map[string]yaml.Node `yaml:"agents"`
 			Privacy   string               `yaml:"privacy"`
 			MCP       *config.MCPServer    `yaml:"mcp"`
+			Program   *programSection      `yaml:"program"`
 			OAuth     *OAuth               `yaml:"oauth"`
 			Language  string               `yaml:"language"`
 			Chapter   string               `yaml:"chapter"`
@@ -401,11 +411,26 @@ func Load(dirs []string, enabled map[string]map[string]any) ([]Skill, []Problem)
 	return LoadFrom(Roots(dirs), enabled)
 }
 
+// Options are where the skills' programs and folders live
+// (docs/spec/skill-programs.md); the zero value creates nothing.
+type Options struct {
+	// DataRoot holds a folder per skill with a stdio server
+	// (<config>/skill-data); empty: {{ data }} is empty.
+	DataRoot string
+	// ProgramRoot holds the downloaded programs (<config>/programs).
+	ProgramRoot string
+}
+
+// LoadFrom is LoadWith without programs and folders.
+func LoadFrom(roots []Root, enabled map[string]map[string]any) ([]Skill, []Problem) {
+	return LoadWith(roots, enabled, Options{})
+}
+
 // LoadFrom is Load over roots: the skill directories, then a source's skills
 // (docs/spec/skill-source.md, B). A source's skill with the name of a skill
 // in a folder before it is left out, with a problem naming both (decision
 // 12); the folder's is the one loaded.
-func LoadFrom(roots []Root, enabled map[string]map[string]any) ([]Skill, []Problem) {
+func LoadWith(roots []Root, enabled map[string]map[string]any, opts Options) ([]Skill, []Problem) {
 	var out []Skill
 	var problems []Problem
 	for i, r := range roots {
@@ -440,7 +465,7 @@ func LoadFrom(roots []Root, enabled map[string]map[string]any) ([]Skill, []Probl
 			problems = append(problems, Problem{Skill: name, kind: "nofolder", args: []any{name, strings.Join(where, ", ")}})
 			continue
 		}
-		s, p := load(*root, name, enabled[name])
+		s, p := load(*root, name, enabled[name], opts)
 		if p != nil {
 			p.Skill = name
 			problems = append(problems, *p)
@@ -474,7 +499,7 @@ func find(dirs []string, name string) string {
 	return ""
 }
 
-func load(root Root, name string, values map[string]any) (Skill, *Problem) {
+func load(root Root, name string, values map[string]any, opts Options) (Skill, *Problem) {
 	files, err := fs.Sub(root.FS, name)
 	if err != nil {
 		return Skill{}, problem("unreadable", err)
@@ -542,6 +567,32 @@ func load(root Root, name string, values map[string]any) (Skill, *Problem) {
 		if decl.Required && vals[k] == "" {
 			return Skill{}, problem("required", k, decl.Description, meta.Name)
 		}
+	}
+	// Mira's own placeholders (docs/spec/skill-programs.md): the skill's
+	// folder and the architecture.
+	for _, k := range []string{placeholderData, placeholderArch} {
+		if _, ok := m.Settings[k]; ok {
+			return Skill{}, problem("reservedsetting", k)
+		}
+	}
+	stdio := m.MCP != nil && (m.MCP.Transport == config.TransportStdio || (m.MCP.Transport == "" && (m.MCP.Command != "" || m.Program != nil)))
+	if stdio && opts.DataRoot != "" {
+		s.DataDir = filepath.Join(opts.DataRoot, meta.Name)
+		if err := os.MkdirAll(s.DataDir, 0o700); err != nil {
+			return Skill{}, problem("skilldata", err)
+		}
+		if err := os.Chmod(s.DataDir, 0o700); err != nil {
+			return Skill{}, problem("skilldata", err)
+		}
+	}
+	vals[placeholderData], vals[placeholderArch] = s.DataDir, Arch
+	m.Settings = withBuiltins(m.Settings)
+	if m.Program != nil {
+		prog, p := programOf(meta.Name, *m.Program)
+		if p != nil {
+			return Skill{}, p
+		}
+		s.Program = &prog
 	}
 	named := map[string]bool{}
 	for i, sc := range m.Schedules {
@@ -671,9 +722,16 @@ func load(root Root, name string, values map[string]any) (Skill, *Problem) {
 		if oauth && s.OAuth == nil {
 			return Skill{}, problem("oauthmcp")
 		}
-		srv, p := mcpServer(meta.Name, *m.MCP, vals)
+		fallback := ""
+		if s.Program != nil {
+			fallback = filepath.Join(opts.ProgramRoot, s.Program.FileName())
+		}
+		srv, p := mcpServer(meta.Name, *m.MCP, vals, fallback)
 		if p != nil {
 			return Skill{}, p
+		}
+		if srv.Transport == config.TransportStdio {
+			srv.Dir = s.DataDir
 		}
 		if oauth {
 			srv.Token, srv.OAuth = "", true
@@ -872,7 +930,7 @@ func fill(body string, vals map[string]string, decl map[string]Setting) string {
 // mcpServer is a skill's mcp section as a server of its own: named after the
 // skill, with every setting filled in, secret ones too (they go to the
 // connection, never into a prompt).
-func mcpServer(name string, srv config.MCPServer, vals map[string]string) (config.MCPServer, *Problem) {
+func mcpServer(name string, srv config.MCPServer, vals map[string]string, program string) (config.MCPServer, *Problem) {
 	all := func(s string) string {
 		return placeholder.ReplaceAllStringFunc(s, func(m string) string {
 			return vals[placeholder.FindStringSubmatch(m)[1]]
@@ -880,6 +938,11 @@ func mcpServer(name string, srv config.MCPServer, vals map[string]string) (confi
 	}
 	srv.Name, srv.Skill = name, name
 	srv.URL, srv.Token, srv.Command = all(srv.URL), all(srv.Token), all(srv.Command)
+	// An own program (a setting with a path) wins; empty, the skill's
+	// program (docs/spec/skill-programs.md).
+	if strings.TrimSpace(srv.Command) == "" && program != "" {
+		srv.Command = program
+	}
 	for i := range srv.Args {
 		srv.Args[i] = all(srv.Args[i])
 	}
@@ -1037,4 +1100,78 @@ func availableChapters(files fs.FS, language, chapter string) map[string]string 
 		}
 	}
 	return out
+}
+
+// Mira's own placeholders in a skill (docs/spec/skill-programs.md).
+const (
+	placeholderData = "data"
+	placeholderArch = "arch"
+)
+
+// Arch is the architecture programs are got for: Mira's own. A variable for
+// the tests.
+var Arch = runtime.GOARCH
+
+// withBuiltins adds Mira's placeholders to the declared settings, so fill
+// replaces them; neither is secret.
+func withBuiltins(decl map[string]Setting) map[string]Setting {
+	out := make(map[string]Setting, len(decl)+2)
+	for k, v := range decl {
+		out[k] = v
+	}
+	out[placeholderData] = Setting{}
+	out[placeholderArch] = Setting{}
+	return out
+}
+
+// Program is a skill's program for Mira's architecture
+// (docs/spec/skill-programs.md).
+type Program struct {
+	Skill, Name, Version string
+	// URL is the address with {{ arch }} filled in.
+	URL string
+	// SHA256 is the sum for Mira's architecture, lower-case hex.
+	SHA256 string
+}
+
+// FileName is the program's file under programs/: name, version and the
+// start of its sum, so a new version or sum is a new file.
+func (p Program) FileName() string {
+	return p.Name + "-" + p.Version + "-" + p.SHA256[:12]
+}
+
+type programSection struct {
+	Name    string            `yaml:"name"`
+	Version string            `yaml:"version"`
+	URL     string            `yaml:"url"`
+	SHA256  map[string]string `yaml:"sha256"`
+}
+
+var (
+	programWord = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	sha256Hex   = regexp.MustCompile(`^[0-9a-f]{64}$`)
+)
+
+// programOf checks a skill's program section and picks Mira's architecture.
+func programOf(skill string, sec programSection) (Program, *Problem) {
+	if sec.Name == "" || sec.Version == "" || strings.TrimSpace(sec.URL) == "" || len(sec.SHA256) == 0 {
+		return Program{}, problem("programfields")
+	}
+	if !programWord.MatchString(sec.Name) || !programWord.MatchString(sec.Version) {
+		return Program{}, problem("programname", sec.Name, sec.Version)
+	}
+	url := strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(sec.URL), "{{ arch }}", Arch), "{{arch}}", Arch)
+	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://127.0.0.1") && !strings.HasPrefix(url, "http://localhost") {
+		return Program{}, problem("programurl", url)
+	}
+	for arch, sum := range sec.SHA256 {
+		if !sha256Hex.MatchString(strings.ToLower(strings.TrimSpace(sum))) {
+			return Program{}, problem("programsumformat", arch)
+		}
+	}
+	sum, ok := sec.SHA256[Arch]
+	if !ok {
+		return Program{}, problem("programarch", sec.Name, Arch)
+	}
+	return Program{Skill: skill, Name: sec.Name, Version: sec.Version, URL: url, SHA256: strings.ToLower(strings.TrimSpace(sum))}, nil
 }

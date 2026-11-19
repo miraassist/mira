@@ -1,6 +1,6 @@
 # Programs for skills – spec
 
-Status 2026-11-19: specified, not built. Scenarios: [skill-programs.feature](skill-programs.feature).
+Status 2026-11-19: specified; steps 1 to 3 built. Scenarios: [skill-programs.feature](skill-programs.feature).
 
 ## Goal
 
@@ -180,9 +180,18 @@ SHA-256 of each program (a few ms). Per setup click: one tool call. No model cal
 
 1. **korb's setup tools** (rewe-cli 0.9.0, released): `login_start`, `login_complete`, `store_search`, `store_set`,
    tested against `korb-fake`. PG-12, PG-13 in rewe-cli.
+   Built 2026-11-19: released as v0.9.0 (Linux and macOS, amd64 and arm64, `SHA256SUMS`). `status` now names a
+   missing login and a missing service apart (before, without a service it said nothing of the login).
 2. **The checks** above on the test HA (and HAOS if it differs), written into this spec.
+   Done 2026-11-19 as far as possible without HAOS: `noexec` in the sources (above); the released korb runs in
+   Mira's image `ghcr.io/miraassist/mira:0.27.0` as root and as `nonroot` from a mounted folder, and fetches its
+   certificate from GitHub inside it (the image's CA certificates suffice). On HAOS itself: when step 5 runs there.
 3. **The program and the folder** in Mira: `program`, `{{ arch }}`, `{{ data }}`, download, check, keep, clean up,
    problems. PG-01 to PG-08, against a local HTTP server in the Go tests.
+   Built 2026-11-19 (`internal/programs`, `skills.LoadWith`): the programs are got at Mira's start, as the skills
+   are loaded only then; a program no switched-on skill names is deleted at that start (not one start later). The
+   server's working folder is the skill's folder. A skill switched off loses its program at the next start (got
+   again when switched on), not its folder.
 4. **The setup** in Mira: `setup` in the skill, the service's endpoint, the section on the page. PG-09 to PG-11.
 5. **`rewe` switches over**: `program`, `{{ data }}`, `setup`; `konto` goes, `programm` optional. RW-07 and RW-08
    adjusted; the REWE evals run again (the eval runner keeps its wrapper through `programm`).

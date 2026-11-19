@@ -82,7 +82,7 @@ func (f File) Check(name string, settings map[string]any, l i18n.Lang) error {
 	if f.Dir != "" {
 		root = Root{Name: filepath.Dir(f.Dir), FS: overlay{base: os.DirFS(filepath.Dir(f.Dir)), top: edited}}
 	}
-	if _, p := load(root, name, settings); p != nil {
+	if _, p := load(root, name, settings, Options{}); p != nil {
 		return errors.New(p.Text(l))
 	}
 	return nil
