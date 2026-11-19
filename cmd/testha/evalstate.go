@@ -170,6 +170,17 @@ func (r *evalRun) setUp(ctx context.Context, sc Scenario) error {
 	if err := r.agent(ctx, "POST", "/v1/eval/reset", body, nil); err != nil {
 		return err
 	}
+	if sc.usesRewe() {
+		if r.rewe == nil {
+			return fmt.Errorf("no korb in this run")
+		}
+		if err := r.ha(ctx, "GET", "/api/states/"+reweList, nil, nil); err != nil {
+			return fmt.Errorf("%s is missing in the test HA; go run ./cmd/testha up creates it: %w", reweList, err)
+		}
+		if err := r.rewe.start(ctx, sc.Setup.Rewe); err != nil {
+			return err
+		}
+	}
 	if sc.checksRemote() {
 		// What the fake A2A agent received counts from this run on.
 		if err := r.call(ctx, "POST", a2aFakeURL+"/fake/reset", "", nil, nil); err != nil {
@@ -271,6 +282,7 @@ type todoItem struct {
 	UID     string `json:"uid"`
 	Summary string `json:"summary"`
 	Due     string `json:"due"`
+	Status  string `json:"status"`
 }
 
 func (r *evalRun) todoItems(ctx context.Context, list string) ([]todoItem, error) {

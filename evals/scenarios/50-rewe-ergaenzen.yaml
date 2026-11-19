@@ -1,0 +1,22 @@
+name: rewe-ergaenzen
+description: "RW-16: Eine offene Bestellung ergänzen: ändern, Butter dazu, neuer Betrag, nach dem Ja abgeschickt"
+skills: [rewe]
+setup:
+  rewe:
+    open_order:
+      - { search: Kaffee, qty: 7 }
+steps:
+  - say: Pack noch Butter zur REWE-Bestellung
+    expect:
+      result:
+        - rewe_basket: { contains: Kerrygold }
+      behaviour:
+        must: ["tool:rewe__modification_start"]
+      answer:
+        contains: ["?", "Euro"]
+  - say: Ja
+    expect:
+      result:
+        - rewe_orders: { count: 1, contains: Kerrygold }
+      behaviour:
+        must: ["tool:rewe__modification_submit"]

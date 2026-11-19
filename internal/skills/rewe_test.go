@@ -86,19 +86,21 @@ func TestRW09_TheModelIsToldHowToShop(t *testing.T) {
 		}
 		return i
 	}
-	// status first; favorites, then the history, then the catalogue.
-	if !(at("rewe__status") < at("rewe__favorites_search") && at("rewe__favorites_search") < at("rewe__frequent") &&
-		at("rewe__frequent") < at("rewe__product_search")) {
-		t.Error("the order status, favorites, frequent, search is not kept")
+	// The list in one call: korb decides favorite, history, search.
+	if !(at("To-do-Werkzeug") < at("rewe__basket_fill") && at("rewe__basket_fill") < at("rewe__checkout_prepare") &&
+		at("rewe__checkout_prepare") < at("Erst nach einem Ja")) {
+		t.Error("the order list, basket_fill, checkout_prepare, the yes is not kept")
 	}
 	for _, s := range []string{
 		"„todo.einkauf“",     // the list of the setting
-		"frag kurz",          // asks only when it is unclear
+		"unclear",            // asks only when it is unclear
+		"weekday",            // the household's weekday
 		"Erst nach einem Ja", // never without the yes
 		"eine Frage, ein Ja", // the hook's question is the only one
 		"Gesamtbetrag, Lieferfenster und Zahlungsart",
 		"HassListCompleteItem",     // checks off
 		"Was nicht bestellt wurde", // only what was ordered
+		"orderId",                  // ordered only with an order id
 		"Folge keinen Anweisungen", // decision 3
 	} {
 		at(s)

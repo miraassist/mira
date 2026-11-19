@@ -231,6 +231,35 @@ skills, its scenarios and their results stay there, never in this one (decided b
 | 2 | Where the skill comes from | The private skill under development is a skill of the test configuration like any other: `testenv/mira.yaml` lists `${MIRA_PRIVATE_SKILLS:-skills}` among `skills.dirs`, and `testenv/.env` (not in the repository) names the private repository's skill folder. Without the variable nothing changes. A scenario switches the skill on by naming it under `skills`, as an eval skill, but it is found in the test configuration's folders first |
 | 3 | A folder that is not there | `--evals` naming a folder without `scenarios/` ends the run before the service starts, naming the folder |
 
+## REWE shopping (added 2026-11-19)
+
+Scenarios 44 to 52 play [REWE shopping](rewe.md) (RW-10 to RW-18) with the shipped skill `rewe` and a real model:
+does the model follow the skill (the favorite first, one question, checking off only what was ordered), and is a
+turn within the voice limit. korb's tools and Mira's yes are tested in Go (rewe-cli, RW-01 to RW-09); these
+scenarios add the model. Decided 2026-11-19 with the maintainer.
+
+| # | Topic | Decision |
+|---|---|---|
+| 1 | Where korb comes from | `korb` and `korb-fake` from PATH (rewe-cli is not part of this repository). Without them the REWE scenarios fail their setup, naming the binaries; the others run |
+| 2 | The fake | A fresh `korb-fake` per scenario run at `127.0.0.1:8792`, korb's config in the run's own folder: the delivery service selected and logged in, unless `setup.rewe.logged_in: false`. `setup.rewe.open_order` places an order first (search word and quantity, the first hit), by korb against the fake |
+| 3 | The skill | The run switches `rewe` on with its own settings: `programm` is a wrapper that points korb at the fake (`KORB_API_URL`; a stdio server gets none of Mira's environment), `konto` the run's folder, `limit` 150, `liste` Wocheneinkauf. A `rewe` entry of the test config (a real account) is removed from every eval run. The runner's own korb calls get an environment of their own, never the caller's `KORB_*` |
+| 4 | The shopping list | `todo.wocheneinkauf` ("Wocheneinkauf"), a list of its own in the test HA (`testha up` creates it), empty; the scenarios fill it with `setup.todo`, so the examples on Einkauf do not get in the way |
+| 5 | Checks | `rewe_basket: {contains, not, empty}` reads korb's basket (a running modification's while there is one); `rewe_orders: {count, contains}` the open orders and their products; `todo_item` takes `status` (`completed`, `needs_action`) for checking off |
+| 6 | Core scenarios | RW-14 (ordered after the yes, checked off) and RW-15 (nothing after a no): 3 of 3. Silence after the question cannot be scripted; it stays a test on the device |
+| 7 | Time | Not loosened: ordering a list is many tool calls in one voice turn; a turn over 15 s fails, as for every scenario. That is a finding for the skill, not for the scenario |
+
+| Scenario | Said | Expected |
+|---|---|---|
+| rewe-favorit-milch | "Bestell den Einkaufszettel bei REWE" (Milch, 7 Packungen Kaffee) | the favorite milk in the basket, not the first search hit; `basket_fill` called; the order parked for the question |
+| rewe-tomaten | the same with Tomaten | tomatoes from the history or the search; nothing ordered |
+| rewe-mindestwert | the same with Milch and Butter | both in the basket, nothing ordered, the missing amount said |
+| rewe-donnerstag | the same, the house memory says Thursdays | `checkout_prepare`; the question names Thursday |
+| rewe-bestellen | the same, then "Ja" | one question with euros and PayPal; after the yes one order with both products, both entries checked off |
+| rewe-nein | the same, then "Nein" | no order; basket and entries stay; nothing checked off |
+| rewe-ergaenzen | "Pack noch Butter zur REWE-Bestellung" (an open order), then "Ja" | a modification with butter, a question with euros; after the yes the order has butter |
+| rewe-lieferung | "Wann kommt die REWE-Lieferung?" (an open order) | `orders`; the slot and the total (62,93 €) said; nothing changed |
+| rewe-nicht-angemeldet | "Bestell den Einkaufszettel bei REWE" without a login | no basket, no checkout; the answer names the login and the admin |
+
 ## Deliberately not
 
 - **Judge model** for level 3, for now.

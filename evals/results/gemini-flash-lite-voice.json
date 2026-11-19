@@ -4909,6 +4909,1038 @@
           ]
         }
       ]
+    },
+    {
+      "name": "rewe-favorit-milch",
+      "description": "RW-10: Milch auf dem Zettel wird die Lieblingsmilch aus den Favoriten, nicht der erste Suchtreffer und nicht die meistgekaufte",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Bestell den Einkaufszettel bei REWE",
+          "median_seconds": 4.246084113,
+          "max_seconds": 4.8966130329999995,
+          "model_ms_median": 4202,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 320462,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68 Euro 12, Freitag 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 3.731129257,
+              "model_ms": 3680,
+              "rounds": 6,
+              "tokens": 106822,
+              "trace": [
+                "round:flashlite:478ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:529ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:757ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:518ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:829ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:569ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "Insgesamt 68 Euro 12 Cent, Lieferung am Freitag zwischen 10 und 14 Uhr mit PayPal. Soll ich bestellen?",
+              "seconds": 4.246084113,
+              "model_ms": 4202,
+              "rounds": 6,
+              "tokens": 106816,
+              "trace": [
+                "round:flashlite:700ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:596ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:582ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:538ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:590ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:1196ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68 Euro 12 Cent, Freitag von 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 4.8966130329999995,
+              "model_ms": 4856,
+              "rounds": 6,
+              "tokens": 106824,
+              "trace": [
+                "round:flashlite:709ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:685ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:631ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:1651ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:605ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:575ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rewe-tomaten",
+      "description": "RW-11: Was kein Favorit ist, kommt aus der Bestellhistorie oder der Suche",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Bestell den Einkaufszettel bei REWE",
+          "median_seconds": 5.071424236,
+          "max_seconds": 5.3049867,
+          "model_ms_median": 5020,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 338845,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68,22 Euro, Freitag 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 5.071424236,
+              "model_ms": 5020,
+              "rounds": 6,
+              "tokens": 106760,
+              "trace": [
+                "round:flashlite:559ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:616ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:869ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:565ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:976ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:1435ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68 Euro 22, Freitag 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 3.838381504,
+              "model_ms": 3790,
+              "rounds": 6,
+              "tokens": 106771,
+              "trace": [
+                "round:flashlite:728ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:611ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:537ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:629ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:645ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:640ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68,22 Euro, Freitag 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 5.3049867,
+              "model_ms": 5251,
+              "rounds": 7,
+              "tokens": 125314,
+              "trace": [
+                "round:flashlite:1201ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:616ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:681ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:592ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:499ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:1086ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:576ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rewe-mindestwert",
+      "description": "RW-12: Unter dem Mindestbestellwert sagt Mira, was fehlt, und bestellt nicht",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Bestell den Einkaufszettel bei REWE",
+          "median_seconds": 2.422914951,
+          "max_seconds": 2.924579885,
+          "model_ms_median": 2389,
+          "rating": "good"
+        }
+      ],
+      "tokens": 208986,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "Der Mindestbestellwert von 60 Euro ist noch nicht erreicht, es fehlen noch 55 Euro 2 Seiten.",
+              "seconds": 2.924579885,
+              "model_ms": 2889,
+              "rounds": 4,
+              "tokens": 69670,
+              "trace": [
+                "round:flashlite:470ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:904ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:615ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:900ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "Der Mindestbestellwert von sechzig Euro ist noch nicht erreicht, es fehlen noch fünfundfünfzig Euro und zwei Cent.",
+              "seconds": 2.422864395,
+              "model_ms": 2388,
+              "rounds": 4,
+              "tokens": 69664,
+              "trace": [
+                "round:flashlite:526ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:537ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:547ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:778ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "Der Mindestbestellwert von 60 Euro ist noch nicht erreicht, es fehlen noch 55 Euro. Soll ich etwas aus deinen Favoriten vorschlagen?",
+              "seconds": 2.422914951,
+              "model_ms": 2389,
+              "rounds": 4,
+              "tokens": 69652,
+              "trace": [
+                "round:flashlite:626ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:424ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:631ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:708ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rewe-donnerstag",
+      "description": "RW-13: Der Wunsch des Haushalts aus dem Gedächtnis bestimmt das Lieferfenster",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Bestell den Einkaufszettel bei REWE",
+          "median_seconds": 4.236733872,
+          "max_seconds": 5.2872783850000005,
+          "model_ms_median": 4192,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 321008,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68 Euro 12, Donnerstag, 26. November, 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 5.2872783850000005,
+              "model_ms": 5240,
+              "rounds": 6,
+              "tokens": 107003,
+              "trace": [
+                "round:flashlite:507ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:1677ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:623ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:535ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:1226ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:672ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68 Euro 12, Donnerstag 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 4.236733872,
+              "model_ms": 4192,
+              "rounds": 6,
+              "tokens": 106988,
+              "trace": [
+                "round:flashlite:567ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:528ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:1188ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:625ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:693ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:591ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "Das macht 68 Euro 12 für Milch und Kaffeebohnen, Lieferung am Donnerstag von 10 bis 14 Uhr über PayPal. Soll ich bestellen?",
+              "seconds": 3.393007742,
+              "model_ms": 3348,
+              "rounds": 6,
+              "tokens": 107017,
+              "trace": [
+                "round:flashlite:514ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:530ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:628ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:587ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:474ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:615ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rewe-bestellen",
+      "description": "RW-14: Eine Frage mit Betrag, Lieferfenster und Zahlungsart; nach dem Ja ist bestellt und der Zettel abgehakt",
+      "core": true,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Bestell den Einkaufszettel bei REWE",
+          "median_seconds": 3.677053426,
+          "max_seconds": 5.445346933,
+          "model_ms_median": 3635,
+          "rating": "usable"
+        },
+        {
+          "say": "Ja",
+          "median_seconds": 1.878088344,
+          "max_seconds": 2.444334388,
+          "model_ms_median": 1837,
+          "rating": "good"
+        }
+      ],
+      "tokens": 491097,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "[zügig] Das kostet 68 Euro 12, kommt am Freitag zwischen 10 und 14 Uhr und wird über PayPal bezahlt. Soll ich bestellen?",
+              "seconds": 3.677053426,
+              "model_ms": 3635,
+              "rounds": 6,
+              "tokens": 106835,
+              "trace": [
+                "round:flashlite:518ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:626ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:550ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:537ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:552ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:852ms"
+              ]
+            },
+            {
+              "say": "Ja",
+              "text": "[zügig] Ist bestellt.",
+              "seconds": 1.8132121159999999,
+              "model_ms": 1774,
+              "rounds": 3,
+              "tokens": 56891,
+              "trace": [
+                "round:flashlite:656ms",
+                "tool:rewe__order",
+                "round:flashlite:578ms",
+                "tool:ha__todo__HassListCompleteItem",
+                "tool:ha__todo__HassListCompleteItem",
+                "round:flashlite:540ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68 Euro 12, Freitag 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 3.605299095,
+              "model_ms": 3561,
+              "rounds": 6,
+              "tokens": 106817,
+              "trace": [
+                "round:flashlite:529ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:491ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:594ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:579ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:577ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:791ms"
+              ]
+            },
+            {
+              "say": "Ja",
+              "text": "Bestellt.",
+              "seconds": 1.878088344,
+              "model_ms": 1837,
+              "rounds": 3,
+              "tokens": 56853,
+              "trace": [
+                "round:flashlite:488ms",
+                "tool:rewe__order",
+                "round:flashlite:652ms",
+                "tool:ha__todo__HassListCompleteItem",
+                "tool:ha__todo__HassListCompleteItem",
+                "round:flashlite:697ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68 Euro 12, Freitag von 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 5.445346933,
+              "model_ms": 5397,
+              "rounds": 6,
+              "tokens": 106839,
+              "trace": [
+                "round:flashlite:527ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:510ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:829ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:536ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:812ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:2183ms"
+              ]
+            },
+            {
+              "say": "Ja",
+              "text": "Bestellt.",
+              "seconds": 2.444334388,
+              "model_ms": 2406,
+              "rounds": 3,
+              "tokens": 56862,
+              "trace": [
+                "round:flashlite:1039ms",
+                "tool:rewe__order",
+                "round:flashlite:747ms",
+                "tool:ha__todo__HassListCompleteItem",
+                "tool:ha__todo__HassListCompleteItem",
+                "round:flashlite:620ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rewe-nein",
+      "description": "RW-15: Nach einem Nein ist nichts bestellt, der Korb bleibt und der Zettel auch",
+      "core": true,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Bestell den Einkaufszettel bei REWE",
+          "median_seconds": 4.898888,
+          "max_seconds": 4.926195435,
+          "model_ms_median": 4851,
+          "rating": "usable"
+        },
+        {
+          "say": "Nein",
+          "median_seconds": 1.2833627060000001,
+          "max_seconds": 1.374425391,
+          "model_ms_median": 1264,
+          "rating": "good"
+        }
+      ],
+      "tokens": 433662,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68 Euro 12, Freitag von 10 bis 14 Uhr mit PayPal. Soll ich bestellen?",
+              "seconds": 4.898888,
+              "model_ms": 4851,
+              "rounds": 6,
+              "tokens": 106813,
+              "trace": [
+                "round:flashlite:526ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:514ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:704ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:1848ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:535ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:724ms"
+              ]
+            },
+            {
+              "say": "Nein",
+              "text": "Abgebrochen.",
+              "seconds": 1.2833627060000001,
+              "model_ms": 1264,
+              "rounds": 2,
+              "tokens": 37668,
+              "trace": [
+                "round:flashlite:546ms",
+                "tool:rewe__modification_cancel",
+                "round:flashlite:718ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68 Euro 12, Freitag von 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 4.926195435,
+              "model_ms": 4880,
+              "rounds": 6,
+              "tokens": 106826,
+              "trace": [
+                "round:flashlite:1322ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:798ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:904ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:626ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:725ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:505ms"
+              ]
+            },
+            {
+              "say": "Nein",
+              "text": "Bestellung verworfen.",
+              "seconds": 1.249708722,
+              "model_ms": 1227,
+              "rounds": 2,
+              "tokens": 37774,
+              "trace": [
+                "round:flashlite:682ms",
+                "tool:rewe__order_cancel",
+                "blocked:rewe__order_cancel",
+                "round:flashlite:545ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "68 Euro 12, Freitag 10 bis 14 Uhr, mit PayPal. Soll ich bestellen?",
+              "seconds": 3.477057825,
+              "model_ms": 3434,
+              "rounds": 6,
+              "tokens": 106830,
+              "trace": [
+                "round:flashlite:454ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:558ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:743ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:621ms",
+                "tool:rewe__checkout_prepare",
+                "round:flashlite:523ms",
+                "tool:rewe__order",
+                "blocked:rewe__order",
+                "round:flashlite:535ms"
+              ]
+            },
+            {
+              "say": "Nein",
+              "text": "Bestellung abgebrochen.",
+              "seconds": 1.374425391,
+              "model_ms": 1352,
+              "rounds": 2,
+              "tokens": 37751,
+              "trace": [
+                "round:flashlite:729ms",
+                "tool:rewe__order_cancel",
+                "blocked:rewe__order_cancel",
+                "round:flashlite:623ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rewe-ergaenzen",
+      "description": "RW-16: Eine offene Bestellung ergänzen: ändern, Butter dazu, neuer Betrag, nach dem Ja abgeschickt",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Pack noch Butter zur REWE-Bestellung",
+          "median_seconds": 3.6608274,
+          "max_seconds": 4.385183011,
+          "model_ms_median": 3610,
+          "rating": "usable"
+        },
+        {
+          "say": "Ja",
+          "median_seconds": 1.357649554,
+          "max_seconds": 1.485680677,
+          "model_ms_median": 1337,
+          "rating": "good"
+        }
+      ],
+      "tokens": 375906,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Pack noch Butter zur REWE-Bestellung",
+              "text": "Neuer Gesamtbetrag ist 68 Euro 72. Soll ich die Änderung übernehmen?",
+              "seconds": 3.6608274,
+              "model_ms": 3550,
+              "rounds": 5,
+              "tokens": 87970,
+              "trace": [
+                "round:flashlite:653ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:582ms",
+                "tool:rewe__modification_start",
+                "round:flashlite:1046ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:687ms",
+                "tool:rewe__modification_submit",
+                "blocked:rewe__modification_submit",
+                "round:flashlite:582ms"
+              ]
+            },
+            {
+              "say": "Ja",
+              "text": "Erledigt.",
+              "seconds": 1.357649554,
+              "model_ms": 1337,
+              "rounds": 2,
+              "tokens": 37320,
+              "trace": [
+                "round:flashlite:669ms",
+                "tool:rewe__modification_submit",
+                "round:flashlite:668ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Pack noch Butter zur REWE-Bestellung",
+              "text": "Neu sind das 68 Euro 72. Soll ich die Änderung übernehmen?",
+              "seconds": 3.648190904,
+              "model_ms": 3610,
+              "rounds": 5,
+              "tokens": 87979,
+              "trace": [
+                "round:flashlite:612ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:1192ms",
+                "tool:rewe__modification_start",
+                "round:flashlite:683ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:523ms",
+                "tool:rewe__modification_submit",
+                "blocked:rewe__modification_submit",
+                "round:flashlite:600ms"
+              ]
+            },
+            {
+              "say": "Ja",
+              "text": "Erledigt.",
+              "seconds": 1.485680677,
+              "model_ms": 1462,
+              "rounds": 2,
+              "tokens": 37322,
+              "trace": [
+                "round:flashlite:454ms",
+                "tool:rewe__modification_submit",
+                "round:flashlite:1008ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Pack noch Butter zur REWE-Bestellung",
+              "text": "Butter ist im Korb. Der neue Gesamtbetrag liegt bei 68 Euro 72. Soll ich die Änderung übernehmen?",
+              "seconds": 4.385183011,
+              "model_ms": 4345,
+              "rounds": 5,
+              "tokens": 87977,
+              "trace": [
+                "round:flashlite:1255ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:546ms",
+                "tool:rewe__modification_start",
+                "round:flashlite:1158ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:692ms",
+                "tool:rewe__modification_submit",
+                "blocked:rewe__modification_submit",
+                "round:flashlite:694ms"
+              ]
+            },
+            {
+              "say": "Ja",
+              "text": "[zügig] Erledigt.",
+              "seconds": 1.140853299,
+              "model_ms": 1119,
+              "rounds": 2,
+              "tokens": 37338,
+              "trace": [
+                "round:flashlite:519ms",
+                "tool:rewe__modification_submit",
+                "round:flashlite:600ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rewe-lieferung",
+      "description": "RW-17: Wann die Lieferung kommt: Lieferfenster und Betrag der offenen Bestellung",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Wann kommt die REWE-Lieferung?",
+          "median_seconds": 1.9888748299999999,
+          "max_seconds": 2.2395355710000002,
+          "model_ms_median": 1964,
+          "rating": "good"
+        }
+      ],
+      "tokens": 153438,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Wann kommt die REWE-Lieferung?",
+              "text": "Die REWE-Lieferung kommt am Dienstag, dem 24. November, zwischen 10 und 14 Uhr für 62 Euro 93.",
+              "seconds": 1.760716975,
+              "model_ms": 1736,
+              "rounds": 3,
+              "tokens": 51150,
+              "trace": [
+                "round:flashlite:681ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:561ms",
+                "tool:rewe__orders",
+                "round:flashlite:494ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Wann kommt die REWE-Lieferung?",
+              "text": "Die Lieferung kommt am Dienstag, 24. November, zwischen 10 und 14 Uhr für 62 Euro 93.",
+              "seconds": 1.9888748299999999,
+              "model_ms": 1964,
+              "rounds": 3,
+              "tokens": 51144,
+              "trace": [
+                "round:flashlite:806ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:615ms",
+                "tool:rewe__orders",
+                "round:flashlite:543ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Wann kommt die REWE-Lieferung?",
+              "text": "Die Lieferung kommt am Dienstag, den 24. November von 10 bis 14 Uhr für 62 Euro 93.",
+              "seconds": 2.2395355710000002,
+              "model_ms": 2214,
+              "rounds": 3,
+              "tokens": 51144,
+              "trace": [
+                "round:flashlite:618ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:922ms",
+                "tool:rewe__orders",
+                "round:flashlite:674ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rewe-nicht-angemeldet",
+      "description": "RW-18: Ohne Anmeldung sagt Mira, dass ein Admin korb neu anmelden muss, und versucht nichts weiter",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Bestell den Einkaufszettel bei REWE",
+          "median_seconds": 2.859847409,
+          "max_seconds": 3.715919316,
+          "model_ms_median": 2824,
+          "rating": "good"
+        }
+      ],
+      "tokens": 225980,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "Die Anmeldung bei REWE fehlt, ein Admin muss korb neu anmelden.",
+              "seconds": 2.477339287,
+              "model_ms": 2444,
+              "rounds": 4,
+              "tokens": 69263,
+              "trace": [
+                "round:flashlite:643ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:681ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:604ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:516ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "Die Anmeldung bei REWE fehlt, ein Admin muss korb neu anmelden.",
+              "seconds": 3.715919316,
+              "model_ms": 3679,
+              "rounds": 4,
+              "tokens": 69265,
+              "trace": [
+                "round:flashlite:764ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:687ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:1179ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:1049ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Bestell den Einkaufszettel bei REWE",
+              "text": "Die Anmeldung bei REWE fehlt, ein Admin muss korb neu anmelden.",
+              "seconds": 2.859847409,
+              "model_ms": 2824,
+              "rounds": 5,
+              "tokens": 87452,
+              "trace": [
+                "round:flashlite:593ms",
+                "tool:skill_open:rewe",
+                "round:flashlite:600ms",
+                "tool:ha__todo__get_items",
+                "round:flashlite:535ms",
+                "tool:rewe__basket_fill",
+                "round:flashlite:467ms",
+                "tool:rewe__status",
+                "round:flashlite:629ms"
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "left_out": [
@@ -4917,6 +5949,15 @@
   "again": [
     "hermes-recherche (2026-11-15 09:30, Mira 0.24.0, 3 runs)",
     "waermepumpe-erklaeren (2026-11-15 09:30, Mira 0.24.0, 3 runs)",
-    "hermes-genannt (2026-11-15 09:30, Mira 0.24.0, 3 runs)"
+    "hermes-genannt (2026-11-15 09:30, Mira 0.24.0, 3 runs)",
+    "rewe-favorit-milch (2026-11-19 19:44, Mira 0.27.0, 3 runs)",
+    "rewe-tomaten (2026-11-19 19:44, Mira 0.27.0, 3 runs)",
+    "rewe-mindestwert (2026-11-19 19:44, Mira 0.27.0, 3 runs)",
+    "rewe-donnerstag (2026-11-19 19:44, Mira 0.27.0, 3 runs)",
+    "rewe-bestellen (2026-11-19 19:44, Mira 0.27.0, 3 runs)",
+    "rewe-nein (2026-11-19 19:44, Mira 0.27.0, 3 runs)",
+    "rewe-ergaenzen (2026-11-19 19:44, Mira 0.27.0, 3 runs)",
+    "rewe-lieferung (2026-11-19 19:44, Mira 0.27.0, 3 runs)",
+    "rewe-nicht-angemeldet (2026-11-19 19:44, Mira 0.27.0, 3 runs)"
   ]
 }

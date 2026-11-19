@@ -37,6 +37,10 @@ pytest tests/ui
 
 Without the test HA or Playwright they are skipped.
 
+The REWE evals (scenarios 44 to 52, [evals.md](../docs/spec/evals.md)) need
+`korb` and `korb-fake` from rewe-cli in PATH; the run starts the fake itself
+at `127.0.0.1:8792` and never touches a real REWE account.
+
 A walk through Mira's page as a video with Mira's voice (English, about
 three minutes) is recorded by `testenv/walkthrough.py`: Playwright clicks
 through the page, Gemini TTS speaks the lines (`GEMINI_API_TOKEN` in

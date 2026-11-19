@@ -29,6 +29,9 @@ var lists = []struct {
 	// Anna's own list by convention (docs/spec/todo-due.md), for her due
 	// to-dos in the briefing; the evals fill it.
 	{"local_todo", "todo.anna", map[string]any{"todo_list_name": "Anna"}},
+	// The shopping list of the REWE evals (docs/spec/evals.md, REWE
+	// shopping): empty, the scenarios fill it.
+	{"local_todo", "todo.wocheneinkauf", map[string]any{"todo_list_name": "Wocheneinkauf"}},
 }
 
 // ensureLists sets up the calendars and the list once, and fills the empty

@@ -37,6 +37,10 @@ type ResultCheck struct {
 	// RemoteReceived wants a message to the fake A2A agent whose text
 	// contains this (docs/spec/evals.md, Remote agents and delegate).
 	RemoteReceived *RemoteCheck `yaml:"remote_received"`
+	// ReweBasket and ReweOrders read korb's basket and open orders at
+	// korb-fake (docs/spec/evals.md, REWE shopping).
+	ReweBasket *ReweBasketCheck `yaml:"rewe_basket"`
+	ReweOrders *ReweOrderCheck  `yaml:"rewe_orders"`
 }
 
 type RemoteCheck struct {
@@ -54,6 +58,9 @@ type TodoCheck struct {
 	List     string `yaml:"list"`
 	Contains string `yaml:"contains"`
 	Due      string `yaml:"due"`
+	// Status wants the item checked off (completed) or still open
+	// (needs_action); empty is either.
+	Status string `yaml:"status"`
 }
 
 type AlarmCheck struct {
@@ -402,6 +409,9 @@ func (r *evalRun) checkResult(ctx context.Context, c ResultCheck) string {
 			if !strings.Contains(strings.ToLower(it.Summary), strings.ToLower(c.TodoItem.Contains)) {
 				continue
 			}
+			if c.TodoItem.Status != "" && it.Status != c.TodoItem.Status {
+				return fmt.Sprintf("%q is %s, not %s", it.Summary, it.Status, c.TodoItem.Status)
+			}
 			if c.TodoItem.Due != "" {
 				d, err := day(c.TodoItem.Due)
 				if err != nil {
@@ -490,6 +500,14 @@ func (r *evalRun) checkResult(ctx context.Context, c ResultCheck) string {
 		return r.checkPlan(ctx, *c.Plan)
 	case c.NoMessage != nil:
 		return r.checkNoMessage(ctx, *c.NoMessage)
+	case c.ReweBasket != nil, c.ReweOrders != nil:
+		if r.rewe == nil {
+			return "no korb in this run"
+		}
+		if c.ReweBasket != nil {
+			return r.rewe.checkBasket(ctx, *c.ReweBasket)
+		}
+		return r.rewe.checkOrders(ctx, *c.ReweOrders)
 	case c.RemoteReceived != nil:
 		var got []struct {
 			Kind string `json:"kind"`

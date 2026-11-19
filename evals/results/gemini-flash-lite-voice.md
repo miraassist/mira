@@ -1,13 +1,13 @@
 # Eval gemini-flash-lite-voice – 2026-11-15 01:04
 
-Mira 0.24.0 · 3 runs per scenario · **34 of 40 scenarios passed**
+Mira 0.24.0 · 3 runs per scenario · **43 of 49 scenarios passed**
 
 Models:
 - flashlite: gemini-flash-lite-latest
 - main: gemini-flash-latest
 - agents: conversation.voice=flashlite
 
-Measured again on their own: hermes-recherche (2026-11-15 09:30, Mira 0.24.0, 3 runs); waermepumpe-erklaeren (2026-11-15 09:30, Mira 0.24.0, 3 runs); hermes-genannt (2026-11-15 09:30, Mira 0.24.0, 3 runs)
+Measured again on their own: hermes-recherche (2026-11-15 09:30, Mira 0.24.0, 3 runs); waermepumpe-erklaeren (2026-11-15 09:30, Mira 0.24.0, 3 runs); hermes-genannt (2026-11-15 09:30, Mira 0.24.0, 3 runs); rewe-favorit-milch (2026-11-19 19:44, Mira 0.27.0, 3 runs); rewe-tomaten (2026-11-19 19:44, Mira 0.27.0, 3 runs); rewe-mindestwert (2026-11-19 19:44, Mira 0.27.0, 3 runs); rewe-donnerstag (2026-11-19 19:44, Mira 0.27.0, 3 runs); rewe-bestellen (2026-11-19 19:44, Mira 0.27.0, 3 runs); rewe-nein (2026-11-19 19:44, Mira 0.27.0, 3 runs); rewe-ergaenzen (2026-11-19 19:44, Mira 0.27.0, 3 runs); rewe-lieferung (2026-11-19 19:44, Mira 0.27.0, 3 runs); rewe-nicht-angemeldet (2026-11-19 19:44, Mira 0.27.0, 3 runs)
 
 Without these skills (variable missing in testenv/.env): x (MIRA_SKILL_X_CLIENT_SECRET)
 
@@ -53,6 +53,15 @@ Without these skills (variable missing in testenv/.env): x (MIRA_SKILL_X_CLIENT_
 | hermes-recherche |  | ✓ | 3/3 | 3/3 | 1.6 / 1.8 s, 1.6 s (good) | 92601 |
 | waermepumpe-erklaeren |  | ✓ | 3/3 | 3/3 | 7.0 / 8.1 s, 2.0 s (usable) | 140010 |
 | hermes-genannt |  | ✓ | 3/3 | 0/3 | 2.1 / 2.4 s, 2.0 s (good) | 139394 |
+| rewe-favorit-milch |  | ✓ | 3/3 | 3/3 | 4.2 / 4.9 s, 4.2 s (usable) | 320462 |
+| rewe-tomaten |  | ✓ | 3/3 | 3/3 | 5.1 / 5.3 s, 5.0 s (usable) | 338845 |
+| rewe-mindestwert |  | ✓ | 3/3 | 3/3 | 2.4 / 2.9 s, 2.4 s (good) | 208986 |
+| rewe-donnerstag |  | ✓ | 3/3 | 3/3 | 4.2 / 5.3 s, 4.2 s (usable) | 321008 |
+| rewe-bestellen | yes | ✓ | 3/3 | 3/3 | 3.7 / 5.4 s, 3.6 s (usable)<br>1.9 / 2.4 s, 1.8 s (good) | 491097 |
+| rewe-nein | yes | ✓ | 3/3 | 3/3 | 4.9 / 4.9 s, 4.9 s (usable)<br>1.3 / 1.4 s, 1.3 s (good) | 433662 |
+| rewe-ergaenzen |  | ✓ | 3/3 | 3/3 | 3.7 / 4.4 s, 3.6 s (usable)<br>1.4 / 1.5 s, 1.3 s (good) | 375906 |
+| rewe-lieferung |  | ✓ | 3/3 | 3/3 | 2.0 / 2.2 s, 2.0 s (good) | 153438 |
+| rewe-nicht-angemeldet |  | ✓ | 3/3 | 3/3 | 2.9 / 3.7 s, 2.8 s (good) | 225980 |
 
 ## Findings
 

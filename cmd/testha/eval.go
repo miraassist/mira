@@ -51,6 +51,9 @@ type ScenarioSetup struct {
 	States map[string]string `yaml:"states"`
 	// Restore are further entities the scenario may change.
 	Restore []string `yaml:"restore"`
+	// Rewe is korb's state at the fake for a scenario with the skill rewe
+	// (evalrewe.go).
+	Rewe *SetupRewe `yaml:"rewe"`
 }
 
 type SetupEvent struct {
@@ -119,6 +122,10 @@ type evalRun struct {
 	// skillsDir (evalSkillsDir, or the skills of --evals).
 	evalSkills []string
 	skillsDir  string
+	// needRewe: a scenario needs the skill rewe; rewe is its korb and
+	// korb-fake (evalrewe.go).
+	needRewe bool
+	rewe     *reweEnv
 }
 
 // evalsFolders gives the folder of the scenarios and results and the folder
@@ -185,8 +192,10 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 		return err
 	}
 	for _, sc := range scenarios {
+		r.needRewe = r.needRewe || sc.usesRewe()
 		for _, s := range sc.Skills {
-			if !slices.Contains(r.evalSkills, s) {
+			// rewe is a shipped skill with settings of the run's own.
+			if s != "rewe" && !slices.Contains(r.evalSkills, s) {
 				r.evalSkills = append(r.evalSkills, s)
 			}
 		}
@@ -340,6 +349,13 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 		}
 		cfg["agents"] = agents
 	}
+	if r.needRewe {
+		r.rewe = newReweEnv(tmp)
+		if r.rewe.err != nil {
+			fmt.Printf("REWE scenarios cannot run: %v\n", r.rewe.err)
+		}
+	}
+	withRewe(cfg, r.rewe)
 	withEvalSkills(cfg, r.evalSkills, r.skillsDir)
 	for _, s := range withoutRealRemoteAgents(cfg) {
 		fmt.Printf("skill left out, its agent researches for real: %s\n", s)
@@ -382,6 +398,9 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 		return nil, err
 	}
 	stop := func() {
+		if r.rewe != nil {
+			r.rewe.stop()
+		}
 		_ = cmd.Process.Signal(os.Interrupt)
 		done := make(chan struct{})
 		go func() { cmd.Wait(); close(done) }()
