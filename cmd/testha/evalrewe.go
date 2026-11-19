@@ -102,7 +102,7 @@ func newReweEnv(tmp string) *reweEnv {
 		*b.to, _ = filepath.Abs(p)
 	}
 	if len(missing) > 0 {
-		e.err = fmt.Errorf("%s not in PATH (rewe-cli, github.com/sker65/rewe-cli: go build ./cmd/korb ./cmd/korb-fake)", strings.Join(missing, " and "))
+		e.err = fmt.Errorf("%s not in PATH (rewe-cli, github.com/miraassist/rewe-cli: its releases, or go install ./cmd/korb ./cmd/korb-fake)", strings.Join(missing, " and "))
 		return e
 	}
 	e.konto = filepath.Join(e.dir, "konto")

@@ -17,7 +17,7 @@ cancel until shortly before delivery. The safety is sized to that (decision 2).
 
 A **skill with its MCP server** ([MCP servers in skills](skill-mcp.md)), the server started over `stdio`. The server
 is not Mira's: it is **korb**, a command line client for REWE's mobile API
-([rewe-cli](https://github.com/sker65/rewe-cli), a Go port of [korb](https://github.com/yannick-cw/korb)), started as
+([rewe-cli](https://github.com/miraassist/rewe-cli), a Go port of [korb](https://github.com/yannick-cw/korb)), started as
 `korb mcp`. It is the first skill whose tools come from a
 program the user puts next to Mira; nothing in Mira is built for it (decision 1), except what decision 5 adds.
 
@@ -44,8 +44,10 @@ lines; an MCP server offers fixed, typed tools, and Mira's hooks see each one by
 
 The skill orders only with an account that needs no interaction at ordering time. The guide describes the steps:
 
-1. **Build korb** with the REWE app's client certificate (it cannot be shipped with Mira: the certificate is REWE's,
-   and Mira's repository is public) and put it into the HA app's config folder, e.g. `/config/rewe/korb`.
+1. **Get korb** from rewe-cli's releases (or `go install`) and put it into the HA app's config folder, e.g.
+   `/config/rewe/korb`. The binaries hold no certificate: korb fetches the REWE app's client certificate on first
+   use from the korb repository at a fixed commit and checks it against fixed SHA-256 sums (rewe-cli 0.8.0). How
+   Mira gets the program by itself is open (below).
 2. **Log in** with `korb login` on a computer and copy korb's config folder to `/config/rewe/konto`, or run
    `korb login` with `KORB_CONFIG_DIR=/config/rewe/konto` in a terminal that reaches the folder. Logging in is not a
    tool of the skill: a redirect address cannot be spoken, and the login is the owner's decision (decision 2).
@@ -164,7 +166,11 @@ the errors below.
 
 - **Ordering in the background** (a skill schedule, "jeden Donnerstag"): not in this spec. `system/background.star`
   denies the tools anyway (the server is not `read_only`).
-- **Where rewe-cli lives**: it is to become public, possibly under the account miraassist; the links follow.
+- **Where rewe-cli lives** (decided 2026-11-19): public at [miraassist/rewe-cli](https://github.com/miraassist/rewe-cli),
+  with a fresh history; a tag builds the binaries for Linux and macOS (amd64, arm64) with their SHA-256 sums.
+- **Mira loads the program herself** when the skill is switched on (the maintainer's wish, 2026-11-19): a spec of its
+  own, after two questions are settled: where the program and korb's account live in Mira's container, and how the
+  REWE login works without a terminal.
 
 ## Errors
 
