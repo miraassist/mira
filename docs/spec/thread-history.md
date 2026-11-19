@@ -69,6 +69,9 @@ The order at the start of a turn becomes:
 A private area stays a hard border: a thread started there has its history there; no turn from outside joins it.
 No continuation across channels: the thread's history has the thread's channel.
 
+Telegram departs from this (decided 2026-11-19, [The chat's history](telegram-history.md)): a Telegram turn of a
+thread runs in the chat's history; the chat is linked and a participant as here, but no thread's history is made.
+
 ### A turn that comes into the thread late
 
 A turn that starts a thread (`thread_start`, a tool that starts one by code such as `matter_pairing_start` or

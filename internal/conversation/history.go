@@ -35,6 +35,13 @@ func threadHistoryKey(ch config.Channel, threadID string) string {
 	return SessionKey(ch, "thread:"+threadID)
 }
 
+// threadHistoryFor says whether a channel's turns of a thread run in the
+// thread's history. A Telegram chat is one history that every turn of the
+// chat runs in, also in a thread (docs/spec/telegram-history.md, decision 1).
+func threadHistoryFor(ch config.Channel) bool {
+	return ch != config.ChannelTelegram
+}
+
 func isThreadHistory(key string) bool {
 	_, rest, ok := strings.Cut(key, ":")
 	return ok && strings.HasPrefix(rest, "thread:")
@@ -135,6 +142,7 @@ func (e *Engine) join(ctx context.Context, key, threadID string, ch config.Chann
 // afterTurn moves a turn that started or took up a thread into the thread's
 // history (decision 6): the turn's session was linked to another open
 // thread than the one it ran in. Its own session's link is then put back.
+// A Telegram chat's turn is not moved: the chat is linked and a participant.
 func (e *Engine) afterTurn(ctx context.Context, key, own string, pre turnPre, req Request) {
 	if e.joinThread == nil {
 		return
@@ -144,6 +152,14 @@ func (e *Engine) afterTurn(ctx context.Context, key, own string, pre turnPre, re
 		return
 	}
 	threadID := sess.ThreadID
+	if !threadHistoryFor(req.Channel) {
+		// A chat's turn stays in the chat; the chat keeps its link to the
+		// thread and is a participant (docs/spec/telegram-history.md).
+		if th, err := e.store.GetThread(ctx, threadID); err == nil && store.ThreadOpen(th.State) {
+			e.join(ctx, key, threadID, req.Channel, req.ConversationID, own)
+		}
+		return
+	}
 	defer func() {
 		if err := e.store.SetSessionThread(ctx, key, pre.thread); err != nil {
 			e.log.Warn("could not put back the history's link to its thread", "session", key, "error", err)

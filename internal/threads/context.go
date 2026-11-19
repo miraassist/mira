@@ -60,7 +60,7 @@ func (m *Manager) threadsInContext(ctx context.Context, sess store.Session, plac
 	}
 	if sess.ThreadID != "" {
 		if th, err := m.opts.Store.GetThread(ctx, sess.ThreadID); err == nil && store.ThreadOpen(th.State) {
-			return t.headerCurrent + "\n" + m.describe(th, m.lang(ctx)), m.isPlan(th) && planOf(th).Foreign
+			return t.current(sess.Channel) + "\n" + m.describe(th, m.lang(ctx)), m.isPlan(th) && planOf(th).Foreign
 		}
 	}
 	open, err := m.openAt(ctx, visible(place, sess.AreaID))

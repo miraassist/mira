@@ -49,17 +49,26 @@ async def _setup(hass, aioclient_mock, entry, chat_owner=True):
     return chat.entity_id, calls
 
 
-async def test_a_persons_chat_talks_to_mira(hass, aioclient_mock, entry):
+async def test_tc01_a_persons_chat_talks_to_mira_as_its_notify_entity(hass, aioclient_mock, entry):
     aioclient_mock.post(
         f"{AGENT_URL}/v1/conversation",
-        json={"text": "Gern.", "conversation_id": "4711", "continue_conversation": False, "html": ["<b>Gern.</b>"]},
+        json={
+            "text": "Gern.",
+            "conversation_id": "notify.telegram_anna",
+            "continue_conversation": False,
+            "html": ["<b>Gern.</b>"],
+        },
     )
     chat, calls = await _setup(hass, aioclient_mock, entry)
     hass.bus.async_fire("telegram_text", {"chat_id": 4711, "text": "Mach das Licht an", "user_id": 1})
     await hass.async_block_till_done()
 
     _, _, sent, _ = next(c for c in aioclient_mock.mock_calls if str(c[1]).endswith("/v1/conversation"))
-    assert sent["channel"] == "telegram" and sent["person"] == "anna" and sent["conversation_id"] == "4711"
+    assert (
+        sent["channel"] == "telegram"
+        and sent["person"] == "anna"
+        and sent["conversation_id"] == chat == "notify.telegram_anna"
+    )
     assert [c.service for c in calls] == ["send_chat_action", "send_message"]
     assert calls[1].data == {"entity_id": chat, "message": "<b>Gern.</b>", "parse_mode": "html"}
 
@@ -72,11 +81,11 @@ async def test_a_chat_of_nobody_is_ignored(hass, aioclient_mock, entry):
     assert not any(str(c[1]).endswith("/v1/conversation") for c in aioclient_mock.mock_calls)
 
 
-async def test_new_conversation_command(hass, aioclient_mock, entry):
+async def test_tc02_new_conversation_command_resets_the_chats_notify_entity(hass, aioclient_mock, entry):
     aioclient_mock.post(f"{AGENT_URL}/v1/conversation/reset", json={"reset": True})
-    _chat, calls = await _setup(hass, aioclient_mock, entry)
+    chat, calls = await _setup(hass, aioclient_mock, entry)
     hass.bus.async_fire("telegram_command", {"chat_id": 4711, "command": "/neu", "args": []})
     await hass.async_block_till_done()
     _, _, sent, _ = next(c for c in aioclient_mock.mock_calls if str(c[1]).endswith("/v1/conversation/reset"))
-    assert sent == {"channel": "telegram", "conversation_id": "4711"}
+    assert sent == {"channel": "telegram", "conversation_id": chat}
     assert [c.service for c in calls] == ["send_message"]

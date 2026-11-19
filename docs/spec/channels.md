@@ -25,7 +25,7 @@ The HA chat is not suitable for delivery: Mira cannot write anything into it on 
 
 - Telegram is set up once in HA (integration `telegram_bot`: bot token, allowed chats). Mira runs **no bot of her own anymore**; Mira's own Telegram logic (`internal/channels/telegram`, `telegram:` in `mira.yaml`) is dropped entirely, also without a replacement for installations without HA.
 - An **adapter in the Mira integration** (a self-contained piece in the HA process) connects both:
-  - incoming: listens to `telegram_text` (chat ID, sender, text), assigns the chat to a person and passes the text to Mira as a turn (channel `telegram`, conversation = chat);
+  - incoming: listens to `telegram_text` (chat ID, sender, text), assigns the chat to a person and passes the text to Mira as a turn (channel `telegram`, conversation = the chat's notify entity, [The chat's history](telegram-history.md));
   - outgoing: sends Mira's answer back with HA's Telegram actions (formatting, splitting long answers), shows "typing …" meanwhile (`send_chat_action`).
 - **Only chats that belong to a person** talk to Mira. The adapter ignores other chats (even ones allowed in HA); the safeguard is thus HA's list of allowed chats plus the assignment to a person.
 - The dependency on HA's event names and structure sits only in this adapter and its tests. `telegram_text` is a public, documented interface; HA announces changes as a "breaking change".

@@ -160,6 +160,29 @@ func (s *Store) PurgeExpiredSessions(ctx context.Context) (int64, error) {
 
 // DeleteSession removes a session and its transcript. An expired session is
 // reset this way when its channel and id come back.
+// ClearSession empties a session and keeps it: its messages, pending
+// confirmations, link to a thread and open skills go; the session stays
+// known (a Telegram chat after /neu, docs/spec/telegram-history.md,
+// decision 6). ErrNotFound when there is none.
+func (s *Store) ClearSession(ctx context.Context, key string) error {
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM chat_messages WHERE session_key = ?`, key); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM confirmations WHERE session_key = ?`, key); err != nil {
+			return err
+		}
+		res, err := tx.ExecContext(ctx, `UPDATE sessions SET thread_id = '', skills = '[]' WHERE key = ?`, key)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
 func (s *Store) DeleteSession(ctx context.Context, key string) error {
 	return s.withTx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM chat_messages WHERE session_key = ?`, key); err != nil {

@@ -703,12 +703,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		CodeStarted: []string{watch.OfferSkill},
 		// Bound late: the engine is built after the threads
 		// (docs/spec/thread-history.md, the summary).
-		Record: func(ctx context.Context, key, record, ack string) error {
-			if a.engine == nil {
-				return errors.New("no conversation engine yet")
-			}
-			return a.engine.Record(ctx, key, record, ack)
-		},
+		Record: a.record,
 		// The answering machine's recordings stop with their thread.
 		Ended: func(ctx context.Context, th store.Thread) {
 			if a.voicemail != nil && th.Target == voicemail.Skill {
@@ -1177,7 +1172,7 @@ func (a *app) startProactive(parent context.Context) {
 	n := notifier.New(notifier.Options{
 		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel, Structure: a.structure.Snapshot,
 		Composer: a.notifyCompose, Instruction: a.kindInstruction, Screens: a.screens(ctx, cfg), Languages: a.langs,
-		Phone: a.phoneNews(),
+		Phone: a.phoneNews(), Record: a.record,
 	})
 	a.notifier = n
 	if a.voicemailOn() {
@@ -1191,6 +1186,17 @@ func (a *app) startProactive(parent context.Context) {
 		n.SyncIndicators(ctx)
 	})
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
+}
+
+// record writes a record into an own history as one turn: a thread's
+// summary (docs/spec/thread-history.md) and a delivery into a Telegram chat
+// (docs/spec/telegram-history.md). Bound late: the engine is built after
+// the threads.
+func (a *app) record(ctx context.Context, key, record, ack string) error {
+	if a.engine == nil {
+		return errors.New("no conversation engine yet")
+	}
+	return a.engine.Record(ctx, key, record, ack)
 }
 
 // haUser is the service's Home Assistant user id, asked once: the integration
@@ -1230,7 +1236,8 @@ func (a *app) messageNotifier() *notifier.Notifier {
 	defer a.proactiveMu.Unlock()
 	if a.notifier == nil {
 		a.notifier = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
-			Structure: a.structure.Snapshot, Composer: a.notifyCompose, Instruction: a.kindInstruction, Languages: a.langs})
+			Structure: a.structure.Snapshot, Composer: a.notifyCompose, Instruction: a.kindInstruction, Languages: a.langs,
+			Record: a.record})
 	}
 	return a.notifier
 }

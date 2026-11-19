@@ -69,6 +69,11 @@ type Options struct {
 	// Phone is what is new on the FRITZ!Box's answering machine
 	// (docs/spec/voicemail.md); nil without the skill anrufbeantworter.
 	Phone func(ctx context.Context) (PhoneNews, error)
+	// Record writes a record into an own history as one turn (the
+	// conversation engine's Record): a delivery into a Telegram chat is
+	// recorded in the chat's history (docs/spec/telegram-history.md). Nil
+	// records nothing.
+	Record func(ctx context.Context, key, record, ack string) error
 }
 
 // PhoneNews is what is new at the FRITZ!Box: messages not heard, missed
@@ -89,6 +94,7 @@ type Notifier struct {
 	// means unknown.
 	indicatorOn map[string]string
 	phone       func(ctx context.Context) (PhoneNews, error)
+	record      func(ctx context.Context, key, record, ack string) error
 	// phoneShown is what each screen's phone hint last showed.
 	phoneShown map[string]PhoneNews
 	// phoneHeld are the areas playing messages of the answering machine:
@@ -165,6 +171,7 @@ func New(opts Options) *Notifier {
 		areas:         map[string]bool{},
 		indicatorOn:   map[string]string{},
 		phone:         opts.Phone,
+		record:        opts.Record,
 		phoneShown:    map[string]PhoneNews{},
 		phoneHeld:     map[string]bool{},
 		awaitingIdle:  map[string]bool{},
@@ -512,6 +519,9 @@ type texts struct {
 	// The answering machine on the screen: one message, several (%d), one
 	// missed call, several (%d).
 	phoneMessage, phoneMessages, phoneMissed, phoneMisseds string
+	// deliveryRecord heads what Mira sent into a chat by herself, in the
+	// chat's history (%s message id, %s kind).
+	deliveryRecord string
 }
 
 func textsFor(l i18n.Lang) texts { return i18n.Pick(catalog, l) }
@@ -547,7 +557,8 @@ Regeln:
 		screenOne:    "1 Nachricht wartet – frag: „Hab ich neue Nachrichten?“",
 		screenMany:   "%d Nachrichten warten – frag: „Hab ich neue Nachrichten?“",
 		phoneMessage: "1 Nachricht auf dem Anrufbeantworter", phoneMessages: "%d Nachrichten auf dem Anrufbeantworter",
-		phoneMissed: "1 verpasster Anruf", phoneMisseds: "%d verpasste Anrufe"},
+		phoneMissed: "1 verpasster Anruf", phoneMisseds: "%d verpasste Anrufe",
+		deliveryRecord: "Von Mira selbst in diesen Chat geschickt, ohne dass jemand gefragt hat (Nachricht %s, Art %s). Was sie geschickt hat, steht als ihre Antwort darunter; die nächste Nachricht kann sich darauf beziehen."},
 	i18n.EN: {reminder: "Reminder: %s.",
 		composeTask: `Word these waiting messages as ONE spoken announcement for the room. It is %s now.
 
@@ -578,7 +589,8 @@ Rules:
 		screenOne:    "1 message waiting – ask: \"Do I have new messages?\"",
 		screenMany:   "%d messages waiting – ask: \"Do I have new messages?\"",
 		phoneMessage: "1 message on the answering machine", phoneMessages: "%d messages on the answering machine",
-		phoneMissed: "1 missed call", phoneMisseds: "%d missed calls"},
+		phoneMissed: "1 missed call", phoneMisseds: "%d missed calls",
+		deliveryRecord: "Sent into this chat by Mira on her own, without being asked (message %s, kind %s). What she sent is her answer below; the next message may refer to it."},
 }
 
 func sentence(s string) string {
@@ -886,6 +898,7 @@ func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 			errs = append(errs, fmt.Errorf("%s: %w", id, err))
 			continue
 		}
+		n.recordDelivery(ctx, nt, id, via, text)
 		used = append(used, via)
 	}
 	if len(used) == 0 {
@@ -896,6 +909,31 @@ func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 	}
 	n.tel.RecordMessageDelivery(ctx, used[0], 1)
 	return n.store.MarkDelivered(ctx, nt.ID, strings.Join(dedupe(used), ","))
+}
+
+// recordDelivery writes what was sent over a channel into its chat's
+// history, when the channel is a Telegram chat that has one
+// (docs/spec/telegram-history.md, the delivery record). A failure leaves
+// the delivery delivered.
+func (n *Notifier) recordDelivery(ctx context.Context, nt store.Message, person, via, text string) {
+	if n.record == nil {
+		return
+	}
+	key := string(config.ChannelTelegram) + ":" + via
+	if _, err := n.store.GetSession(ctx, key); err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			n.log.Warn("could not read the chat's history; the delivery is not recorded", "message", nt.ID, "channel", via, "error", err)
+		}
+		return
+	}
+	lang := n.langOf(ctx)
+	if n.langs != nil {
+		lang = n.langs.ForPerson(ctx, person)
+	}
+	header := fmt.Sprintf(textsFor(lang).deliveryRecord, nt.ID, nt.Kind)
+	if err := n.record(ctx, key, header, text); err != nil {
+		n.log.Warn("could not write the delivery record", "message", nt.ID, "session", key, "error", err)
+	}
 }
 
 // sendTo sends text to the first of the person's channels that works

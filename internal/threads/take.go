@@ -29,7 +29,7 @@ func (m *Manager) Take(ctx context.Context, inv tools.Invocation, id string) (st
 			th = m.toRoom(ctx, inv, th)
 			m.link(ctx, inv.SessionKey, th)
 			m.log.Info("thread taken up", "thread", th.ID, "target", th.Target, "session", inv.SessionKey)
-			return t.headerCurrent + "\n" + m.describe(th, m.lang(ctx)), nil
+			return t.current(string(inv.Channel)) + "\n" + m.describe(th, m.lang(ctx)), nil
 		}
 	}
 	m.log.Info("thread_take refused: not open, or not the asker's", "thread", id, "places", places)

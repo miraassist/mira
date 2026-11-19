@@ -1,6 +1,7 @@
 package threads
 
 import (
+	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -17,13 +18,16 @@ type texts struct {
 	sourceReady                                                           string
 	undone, undoneLogged, nothingToUndo, undoRefused                      string
 	headerCurrent, headerWaiting, lineTarget, lineRequest, lineFields     string
-	lineLog, whoUser, whoMira, fieldMissing, stillMissing                 string
-	planDesc, planTextDesc, planStepDesc, noPlanThread, planEmpty         string
-	planTooLong, planWritten, planNone, planForeign, planNoSteps          string
-	planProgress, planPrevious, planCurrent, planNext, planAllDone        string
-	planRunning, planNoFields, planHint, linePlan, lineInstructions       string
-	fieldByAgent, planByAgent, agentStarted, agentFilled, agentFailedLog  string
-	agentAsk, agentPlanFailed, agentPlanReady                             string
+	// headerCurrentChat is headerCurrent in a Telegram chat, whose turns of
+	// a thread run in the chat's history (docs/spec/telegram-history.md).
+	headerCurrentChat                                                    string
+	lineLog, whoUser, whoMira, fieldMissing, stillMissing                string
+	planDesc, planTextDesc, planStepDesc, noPlanThread, planEmpty        string
+	planTooLong, planWritten, planNone, planForeign, planNoSteps         string
+	planProgress, planPrevious, planCurrent, planNext, planAllDone       string
+	planRunning, planNoFields, planHint, linePlan, lineInstructions      string
+	fieldByAgent, planByAgent, agentStarted, agentFilled, agentFailedLog string
+	agentAsk, agentPlanFailed, agentPlanReady                            string
 	// remoteFailed names a remote agent that failed and what it said
 	// (docs/spec/remote-agents.md, decision 22); remoteFailedBare without
 	// its words.
@@ -92,6 +96,7 @@ var catalog = map[i18n.Lang]texts{
 		nothingToUndo:     "Hier gibt es nichts zurückzunehmen.",
 		undoRefused:       "Nicht zurückgenommen: %s",
 		headerCurrent:     "## Laufender Vorgang (diese Unterhaltung gehört dazu; der Verlauf oben ist der dieses Vorgangs, auch wenn darin verschiedene Personen sprachen)",
+		headerCurrentChat: "## Laufender Vorgang (diese Unterhaltung gehört dazu; der Verlauf oben ist dieser Chat, der Vorgang ist ein Teil davon)",
 		recordHeader:      "Ergebnis eines Vorgangs, festgehalten von Mira, nicht gesagt. Darauf kannst du dich beziehen wie auf deine eigenen Worte; sag es nicht ungefragt noch einmal:",
 		recordLine:        "Vorgang „%s“ %s. Anliegen: %s.",
 		recordLast:        "Zuletzt gesagt: %s",
@@ -204,6 +209,7 @@ var catalog = map[i18n.Lang]texts{
 		nothingToUndo:     "There is nothing to take back here.",
 		undoRefused:       "Not taken back: %s",
 		headerCurrent:     "## Current thread (this conversation belongs to it; the history above is this thread's, even where different people spoke in it)",
+		headerCurrentChat: "## Current thread (this conversation belongs to it; the history above is this chat, the thread is part of it)",
 		recordHeader:      "Result of a thread, recorded by Mira, not said. Refer to it as to your own words; do not say it again unasked:",
 		recordLine:        "Thread \"%s\" %s. Concern: %s.",
 		recordLast:        "Last said: %s",
@@ -271,4 +277,12 @@ var catalog = map[i18n.Lang]texts{
 			store.ThreadProposed:   "State: Mira's proposal waits for a yes. If the user agrees: thread_confirm. If they want a change: thread_fill. If not: thread_cancel.",
 		},
 	},
+}
+
+// current is the heading of the turn's current thread on a channel.
+func (t texts) current(channel string) string {
+	if channel == string(config.ChannelTelegram) {
+		return t.headerCurrentChat
+	}
+	return t.headerCurrent
 }

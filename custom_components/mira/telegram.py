@@ -5,7 +5,9 @@ Mira runs no bot of her own. This adapter is the only place that knows
 HA's Telegram events and actions:
 - in: a `telegram_text` event from a chat that belongs to a person (one of
   their channels is that chat's notify entity) becomes a turn for Mira,
-  channel "telegram", the chat as conversation;
+  channel "telegram", the chat's notify entity as conversation (so the
+  service finds the chat's history from a delivery over that entity too,
+  docs/spec/telegram-history.md, decision 4);
 - out: Mira's answer goes back to that chat with `telegram_bot.send_message`
   (Telegram HTML), "typing …" shows while she thinks.
 Chats that belong to no person are ignored: HA's list of allowed chats plus
@@ -72,7 +74,9 @@ def async_setup_telegram(hass: HomeAssistant, entry: Any) -> CALLBACK_TYPE:
         try:
             reply = await entry.runtime_data.client.converse(
                 text=text,
-                conversation_id=str(chat),
+                # The chat's notify entity names its history
+                # (docs/spec/telegram-history.md, decision 4).
+                conversation_id=notify_entity,
                 device_id=None,
                 # Telegram has no Assist pipeline: the service takes the
                 # language the person last spoke (docs/spec/language.md).
@@ -103,7 +107,7 @@ def async_setup_telegram(hass: HomeAssistant, entry: Any) -> CALLBACK_TYPE:
         if target is None:
             return
         try:
-            await entry.runtime_data.client.reset_conversation("telegram", str(chat))
+            await entry.runtime_data.client.reset_conversation("telegram", target[1])
         except MiraError as err:
             _LOGGER.warning("Mira service could not start a new conversation: %s", err)
             return

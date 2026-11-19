@@ -423,3 +423,159 @@ func TestTV12_TheModelIsToldWhatASummaryInAHistoryIs(t *testing.T) {
 		t.Errorf("the record is not explained: %q", seen)
 	}
 }
+
+// The chat's history (docs/spec/telegram-history.md, step 2): a Telegram
+// chat is one history, also in a thread.
+
+const annasChat = "notify.telegram_anna"
+
+// chat is a turn of Anna's Telegram chat, as the adapter sends it.
+func (h *historyHouse) chat(t *testing.T, text string) {
+	t.Helper()
+	h.person = "anna"
+	if _, err := h.engine.Handle(context.Background(), conversation.Request{Channel: config.ChannelTelegram,
+		ConversationID: annasChat, Text: text}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// openThread is the one open thread.
+func (h *historyHouse) openThread(t *testing.T) store.Thread {
+	t.Helper()
+	open, err := h.st.OpenThreads(context.Background(), "")
+	if err != nil || len(open) != 1 {
+		t.Fatalf("open threads: %+v %v", open, err)
+	}
+	return open[0]
+}
+
+// TC-03 A turn of a thread in a chat sees the chat before the thread
+func TestTC03_ATurnOfAThreadInAChatSeesTheChatBeforeTheThread(t *testing.T) {
+	h := newHistoryHouse(t)
+	h.chat(t, "Meine Lieblingszahl ist 37.")
+	h.chat(t, "Lass uns kochen")
+	th := h.openThread(t)
+	h.chat(t, "Welche Lieblingszahl habe ich dir genannt?")
+	seen := h.model.seen()
+	if !strings.Contains(seen, "Meine Lieblingszahl ist 37.") {
+		t.Errorf("the turn did not see the chat before the thread: %q", seen)
+	}
+	if !strings.Contains(seen, "Laufender Vorgang") || !strings.Contains(seen, "kochen") {
+		t.Errorf("the turn does not belong to the thread: %q", seen)
+	}
+	if got := h.history(t, "telegram:"+annasChat); !strings.Contains(got, "Welche Lieblingszahl") {
+		t.Errorf("the turn is not in the chat's history: %q", got)
+	}
+	if _, err := h.st.GetSession(context.Background(), "telegram:thread:"+th.ID); err == nil {
+		t.Error("a thread's history was made for the chat")
+	}
+}
+
+// TC-04 A turn that starts a thread in a chat is not moved
+func TestTC04_ATurnThatStartsAThreadInAChatIsNotMoved(t *testing.T) {
+	h := newHistoryHouse(t)
+	ctx := context.Background()
+	h.chat(t, "Lass uns kochen")
+	th := h.openThread(t)
+	key := "telegram:" + annasChat
+	if got := h.history(t, key); !strings.Contains(got, "Lass uns kochen") || !strings.Contains(got, "Gut.") {
+		t.Fatalf("the chat's history: %q", got)
+	}
+	if _, err := h.st.GetSession(ctx, "telegram:thread:"+th.ID); err == nil {
+		t.Error("a thread's history was made for the chat")
+	}
+	if p := h.participants(t, th.ID); !has(p, key) {
+		t.Errorf("participants: %v", p)
+	}
+	if linked, err := h.st.ConversationThread(ctx, "telegram", annasChat); err != nil || linked != th.ID {
+		t.Errorf("chat linked to %q (%v), want %s", linked, err, th.ID)
+	}
+	if sess, err := h.st.GetSession(ctx, key); err != nil || sess.ThreadID != th.ID {
+		t.Errorf("the chat's history is linked to %q (%v), want %s", sess.ThreadID, err, th.ID)
+	}
+}
+
+// TC-05 A thread's turns stay in the chat after it ends
+func TestTC05_AThreadsTurnsStayInTheChatAfterItEnds(t *testing.T) {
+	h := newHistoryHouse(t)
+	h.chat(t, "Lass uns kochen")
+	th := h.openThread(t)
+	h.chat(t, "Drei Eier")
+	h.chat(t, "Fertig")
+	if got, _ := h.st.GetThread(context.Background(), th.ID); got.State != store.ThreadDone {
+		t.Fatalf("state %s", got.State)
+	}
+	got := h.history(t, "telegram:"+annasChat)
+	for _, want := range []string{"Lass uns kochen", "Drei Eier", "Fertig", "Ergebnis eines Vorgangs", "„kochen“ erledigt"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the chat's history misses %q: %q", want, got)
+		}
+	}
+	if strings.Index(got, "Ergebnis eines Vorgangs") < strings.Index(got, "Drei Eier") {
+		t.Errorf("the summary does not follow the thread's turns: %q", got)
+	}
+}
+
+// TC-06 The thread's heading on Telegram names the chat's history
+func TestTC06_TheThreadsHeadingOnTelegramNamesTheChatsHistory(t *testing.T) {
+	h := newHistoryHouse(t)
+	h.chat(t, "Lass uns kochen")
+	h.chat(t, "Und jetzt?")
+	seen := h.model.seen()
+	if !strings.Contains(seen, "der Verlauf oben ist dieser Chat, der Vorgang ist ein Teil davon") {
+		t.Errorf("heading: %q", seen)
+	}
+	if strings.Contains(seen, "der Verlauf oben ist der dieses Vorgangs") {
+		t.Errorf("the voice heading on Telegram: %q", seen)
+	}
+}
+
+// TC-07 A voice turn in a thread keeps the thread's history
+func TestTC07_AVoiceTurnInAThreadKeepsTheThreadsHistory(t *testing.T) {
+	h := newHistoryHouse(t)
+	th := h.startAt(t, "kochen", "area:wohnzimmer")
+	h.announce(t, th, "Wie viele Eier?")
+	h.say(t, "anna", "c1", "Drei")
+	if got := h.history(t, "voice:thread:"+th.ID); !strings.Contains(got, "Drei") {
+		t.Fatalf("thread's history: %q", got)
+	}
+	if seen := h.model.seen(); !strings.Contains(seen, "der Verlauf oben ist der dieses Vorgangs") {
+		t.Errorf("heading: %q", seen)
+	}
+}
+
+// TC-12 A new conversation keeps the chat known for deliveries
+func TestTC12_ANewConversationKeepsTheChatKnownForDeliveries(t *testing.T) {
+	h := newHistoryHouse(t)
+	ctx := context.Background()
+	key := "telegram:" + annasChat
+	h.chat(t, "Lass uns kochen")
+	if err := h.engine.ResetSession(ctx, config.ChannelTelegram, annasChat); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := h.st.GetSession(ctx, key)
+	if err != nil {
+		t.Fatalf("the chat is not known after /neu: %v", err)
+	}
+	if sess.ThreadID != "" {
+		t.Errorf("the chat is still linked to %q", sess.ThreadID)
+	}
+	if got := h.history(t, key); got != "" {
+		t.Errorf("the chat's history after /neu: %q", got)
+	}
+	// The next delivery is recorded in it (the notifier writes it with Record).
+	if err := h.engine.Record(ctx, key, "Von Mira selbst in diesen Chat geschickt", "Paket kommt heute."); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.history(t, key); !strings.Contains(got, "Paket kommt heute.") {
+		t.Errorf("the record is missing: %q", got)
+	}
+	// A voice conversation is still dropped whole.
+	h.say(t, "", "c9", "Hallo")
+	if err := h.engine.ResetSession(ctx, config.ChannelVoice, "c9"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.st.GetSession(ctx, "voice:c9"); err == nil {
+		t.Error("a voice conversation was kept after a reset")
+	}
+}

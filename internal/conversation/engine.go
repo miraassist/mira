@@ -333,7 +333,7 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	pre.thread = e.threadOf(ctx, req, pre.followedUp, pre.announced, area, snap)
 	key := own
 	pre.own = own
-	if pre.thread != "" {
+	if pre.thread != "" && threadHistoryFor(req.Channel) {
 		key = threadHistoryKey(req.Channel, pre.thread)
 	}
 	// The summaries of the threads the turn ended are written after its
@@ -1034,10 +1034,18 @@ func stripThinking(s string) string {
 	return strings.TrimSpace(thinkBlock.ReplaceAllString(s, ""))
 }
 
-// ResetSession drops a session so the next message starts a new one.
+// ResetSession drops a session so the next message starts a new one. A
+// Telegram chat's history is emptied but kept, so a delivery into the chat
+// is still recorded (docs/spec/telegram-history.md, decision 6).
 func (e *Engine) ResetSession(ctx context.Context, ch config.Channel, conversationID string) error {
 	key := SessionKey(ch, conversationID)
 	defer e.sessions.lock(key)()
+	if ch == config.ChannelTelegram {
+		if err := e.store.ClearSession(ctx, key); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		return nil
+	}
 	return e.store.DeleteSession(ctx, key)
 }
 
