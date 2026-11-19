@@ -173,6 +173,7 @@ func callValue(c tools.Call) starlark.Value {
 			"web_content":        starlark.Bool(c.Spec.WebContent),
 			"keeps_or_passes_on": starlark.Bool(c.Spec.AskAfterWeb),
 			"skill":              starlark.String(c.Spec.Skill),
+			"confirm":            starlark.Bool(c.Spec.Confirm),
 			"right":              starlark.String(c.Right),
 		}),
 		"args":       toValue(c.Args),

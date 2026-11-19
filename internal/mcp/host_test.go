@@ -332,3 +332,18 @@ func TestFB07_ASatelliteWhoseToolsCouldNotBeListedListsThemOnItsTurn(t *testing.
 		t.Error(err)
 	}
 }
+
+// A tool its server's entry names under confirm carries the flag; the others
+// do not (docs/spec/rewe.md, decision 5).
+func TestConfirmMarksTheNamedTools(t *testing.T) {
+	ha := fakemcp.HA("ok")
+	t.Cleanup(ha.Close)
+	h := start(t, mcp.Options{Servers: []config.MCPServer{
+		{Name: "ha", Transport: config.TransportHTTP, URL: ha.Endpoint(), Confirm: []string{"HassTurnOff"}},
+	}})
+	off, _ := h.Lookup("ha__HassTurnOff")
+	on, _ := h.Lookup("ha__HassTurnOn")
+	if !off.Confirm || on.Confirm {
+		t.Errorf("confirm: off %v, on %v", off.Confirm, on.Confirm)
+	}
+}

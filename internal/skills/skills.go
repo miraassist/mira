@@ -24,6 +24,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -898,6 +899,19 @@ func mcpServer(name string, srv config.MCPServer, vals map[string]string) (confi
 		return srv, problem("mcpcommand")
 	case srv.Transport != config.TransportHTTP && srv.Transport != config.TransportStdio:
 		return srv, problem("mcptransport", srv.Transport)
+	}
+	// A tool under confirm that tools leaves out would never be offered: a
+	// slip of the skill's author, said instead of ignored.
+	if len(srv.Tools) > 0 {
+		var stray []string
+		for _, c := range srv.Confirm {
+			if !slices.Contains(srv.Tools, c) {
+				stray = append(stray, c)
+			}
+		}
+		if len(stray) > 0 {
+			return srv, problem("mcpconfirm", strings.Join(stray, ", "))
+		}
 	}
 	return srv, nil
 }

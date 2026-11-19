@@ -113,6 +113,7 @@ mcp_servers:
     # actions (locks, alarm, garage) for the rest of the turn.
     web_content: true
     # tools: [search]          # only these tools of the server; without it, all
+    # confirm: [delete]        # these tools run only after the user's yes
     # conversation: false      # its tools only for agents and schedules, not the conversation
   # A server Mira starts herself as a program (stdio). It gets only the bare
   # minimum of Mira's environment, none of her credentials: what it needs

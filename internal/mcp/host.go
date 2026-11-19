@@ -53,6 +53,9 @@ type Tool struct {
 	// AgentsOnly: the skill's server is not for the conversation; only the
 	// skill's agents and schedules get the tool.
 	AgentsOnly bool
+	// Confirm: the server's entry names the tool under confirm; it runs only
+	// after the user's yes (default/skill_confirm.star).
+	Confirm bool
 }
 
 // Result is the outcome of a tool call, flattened to what the model reads.
@@ -583,7 +586,7 @@ func (h *Host) listOne(ctx context.Context, cfg config.MCPServer, session *sdk.C
 		readOnly := cfg.ReadOnly || h.readOnly[def.QualifiedName()] ||
 			(t.Annotations != nil && t.Annotations.ReadOnlyHint)
 		out = append(out, Tool{ToolDef: def, ReadOnly: readOnly, WebContent: cfg.WebContent, Skill: cfg.Skill,
-			AgentsOnly: cfg.Skill != "" && !cfg.ForConversation()})
+			AgentsOnly: cfg.Skill != "" && !cfg.ForConversation(), Confirm: slices.Contains(cfg.Confirm, t.Name)})
 	}
 	return out, nil
 }
@@ -624,7 +627,7 @@ func (h *Host) rebuild() {
 func signature(tools []Tool) string {
 	var b strings.Builder
 	for _, t := range tools {
-		fmt.Fprintf(&b, "%s\x1f%s\x1f%s\x1f%t%t\x1e", t.QualifiedName(), t.Description, t.Schema, t.ReadOnly, t.WebContent)
+		fmt.Fprintf(&b, "%s\x1f%s\x1f%s\x1f%t%t%t\x1e", t.QualifiedName(), t.Description, t.Schema, t.ReadOnly, t.WebContent, t.Confirm)
 	}
 	return b.String()
 }

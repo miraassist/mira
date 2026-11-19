@@ -34,6 +34,7 @@ var builtSteps = map[string][]int{
 	"WS": {2, 4},                       // docs/spec/warm-slot.md, Steps
 	"VL": {1, 2},                       // docs/spec/history.md, Steps
 	"ZP": {1, 2, 3},                    // docs/spec/schedules.md, Steps
+	"RW": {2, 3},                       // docs/spec/rewe.md; step 1 is tested in rewe-cli (korb mcp) against korb-fake
 	"CO": {2, 4},                       // docs/spec/oauth.md; step 3 is tested in pytest
 	"HP": {1, 3},                       // docs/spec/context.md, 1.2; step 2 is tested in pytest
 	"AD": {1},                          // docs/spec/context.md, 1.1 (every asking device is compared)

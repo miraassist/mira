@@ -337,7 +337,7 @@ func TestHW31_ARuleThatDoesNotLoadIsNotProposed(t *testing.T) {
 func TestHW32_TheAgentNeverWritesASystemHooksFileOrCriticalStar(t *testing.T) {
 	f := newFixture(t, map[string]string{"tuer.star": logName("x")})
 	code := `DESCRIPTION = \"x\"\ndef pre_tool(call, verdict):\n    return None\n`
-	for _, name := range []string{"web.star", "critical", "Böse Datei.star"} {
+	for _, name := range []string{"web.star", "critical", "skill_confirm", "Böse Datei.star"} {
 		if _, err := f.e.CheckRule(`{"file": "` + name + `", "summary": "x", "code": "` + code + `"}`); err == nil {
 			t.Errorf("%s was accepted", name)
 		}

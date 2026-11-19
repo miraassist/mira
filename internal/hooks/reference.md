@@ -27,6 +27,7 @@ make Mira stricter. Rules run before Mira's own; the system has the last word.
 |---|---|
 | `call.tool.name` | the tool without its server: `HassTurnOn`, `HassTurnOff`, `HassLightSet`, `HassSetVolume`, `GetLiveContext`, `memory_save`, `message_send`, `radio_play`, … |
 | `call.tool.read_only` | the tool only reads |
+| `call.tool.confirm` | a skill (or the server's entry) says the tool needs a yes, e.g. ordering at REWE |
 | `call.tool.own` | one of Mira's own tools (memory, messages, timers) |
 | `call.args` | the arguments as a dict (`call.args.get("name")`) |
 | `call.domains` | domains the arguments name (`domain`) |

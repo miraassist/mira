@@ -28,7 +28,7 @@ in its head.
 | 5 | Reloading | Mira watches the folder `hooks/`: a file she writes or someone changes by hand applies at once, without a restart |
 | 6 | Checking a new rule | It must load and not fail on a first call; no automatic comparison for now. Mira says that the rule is not tested and suggests trying it |
 | 7 | Switching a rule off | A line `ACTIVE = False` in the file itself; the file stays the one truth |
-| 8 | The default `critical.star` | Cannot be switched off and is never written by Mira; it can still be replaced by hand ([hooks.md](hooks.md)). The use case is a household rule that normally holds and just now should not |
+| 8 | The default `critical.star` (and `skill_confirm.star`, [hooks.md](hooks.md)) | Cannot be switched off and is never written by Mira; it can still be replaced by hand ([hooks.md](hooks.md)). The use case is a household rule that normally holds and just now should not |
 
 ## Rules in the file
 
@@ -127,13 +127,13 @@ hooks like every tool call. A new system hook `self.star`:
 
 - **Only a known person**: someone Mira knows (`who.person`), however she knows them. An unknown voice is refused.
   Why that is enough: a household rule can only make Mira stricter (the strictest verdict wins), and switching one off
-  or deleting it leads back to how Mira behaves anyway; `critical.star` and the system hooks stay out of reach. No
+  or deleting it leads back to how Mira behaves anyway; the default hooks (`critical.star`, `skill_confirm.star`) and the system hooks stay out of reach. No
   admin flag, nothing new from the integration.
 - **Always with a yes**: for a new rule the thread's proposal is that question; switching and deleting ask as every
   critical call.
 - **Never after web content or other third-party text** (`turn.foreign`): a web page or a mail must not be able to
   slip in a rule or switch one off.
-- **Only household rules**: never a system hook, never `critical.star`.
+- **Only household rules**: never a system hook, never a default hook (`critical.star`, `skill_confirm.star`).
 
 ## Where one sees it
 

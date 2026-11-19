@@ -453,6 +453,9 @@ type MCPServer struct {
 	DeviceContext *bool `yaml:"device_context"`
 	// Tools names the tools Mira takes from the server; without it, all.
 	Tools []string `yaml:"tools"`
+	// Confirm names the server's tools that run only after the user's yes
+	// (docs/spec/rewe.md, decision 5): call.tool.confirm for the hooks.
+	Confirm []string `yaml:"confirm"`
 	// Conversation false keeps a skill's server out of the conversation:
 	// only the skill's agents and schedules get its tools. Default true.
 	Conversation *bool `yaml:"conversation"`

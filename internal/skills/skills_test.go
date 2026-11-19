@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -473,6 +474,17 @@ func TestSM11_ABrokenMCPSectionIsAProblemOfTheSkill(t *testing.T) {
 	// Then the skill does not start, and the problem says what is missing
 	if len(problems) != 1 || !strings.Contains(problems[0].Text(i18n.DE), "Adresse (url)") {
 		t.Errorf("problems %+v", problems)
+	}
+	// A tool under confirm that tools leaves out (docs/spec/rewe.md, decision 5)
+	write("      url: x\n      tools: [suche]\n      confirm: [loeschen]\n")
+	if _, problems := Load([]string{dir}, map[string]map[string]any{"akten": nil}); len(problems) != 1 ||
+		!strings.Contains(problems[0].Text(i18n.DE), "unter confirm, aber nicht unter tools: loeschen") {
+		t.Errorf("confirm outside tools: %+v", problems)
+	}
+	write("      url: x\n      tools: [suche, loeschen]\n      confirm: [loeschen]\n")
+	if loaded, problems := Load([]string{dir}, map[string]map[string]any{"akten": nil}); len(problems) != 0 ||
+		!slices.Equal(loaded[0].MCP.Confirm, []string{"loeschen"}) {
+		t.Errorf("confirm: %+v %+v", loaded, problems)
 	}
 	write("      transport: ftp\n      url: x\n")
 	if _, problems := Load([]string{dir}, map[string]map[string]any{"akten": nil}); len(problems) != 1 ||

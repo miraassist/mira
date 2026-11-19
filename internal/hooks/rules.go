@@ -65,12 +65,10 @@ func fileName(name string) string {
 }
 
 // protected: a name of Mira's own rules, which the household's rules never
-// take over from her (critical.star only by hand).
+// take over from her (a default hook such as critical.star only by hand).
 func (e *Engine) protected(name string) bool {
-	if name == criticalFile {
-		return true
-	}
-	return slices.ContainsFunc(e.system, func(h *hook) bool { return h.name == name })
+	is := func(h *hook) bool { return h.name == name }
+	return slices.ContainsFunc(e.defaults, is) || slices.ContainsFunc(e.system, is)
 }
 
 // Try checks a rule's code as the agent writes it: it loads, and its

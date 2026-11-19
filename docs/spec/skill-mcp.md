@@ -34,13 +34,17 @@ skills:
 ```
 
 - **The fields** are those of an entry under `mcp_servers` (`transport`, `url`, `token`, `command`, `args`, `env`,
-  `read_only`, `web_content`), plus `tools`. The server's name is the skill's name; its tools are called
+  `read_only`, `web_content`, `confirm`), plus `tools`. The server's name is the skill's name; its tools are called
   `<skill>__<tool>` as for every MCP server.
 - **Placeholders** from the skill's settings are filled in, secret ones too: they go to the connection, never into a
   prompt.
 - **`tools`** names the tools the skill uses; only those are ever offered. Without it, all of the server's tools. The
   list is the control: whoever writes the skill decides what Mira may do with the server (a read-only token is not
   required).
+- **`confirm`** (since 2026-11-19, [REWE shopping](rewe.md), decision 5) names the tools that run only after the
+  user's yes: their calls carry `call.tool.confirm`, and `default/skill_confirm.star` asks, as `critical.star` does for a lock. A name under
+  `confirm` that `tools` leaves out is a problem of the skill. A tool a server annotates as read-only needs no yes
+  unless it is named here.
 - **`conversation: false`** keeps the tools out of the conversation: only the skill's agents and its schedules get
   them. The default is `true`. With a research agent (below) the documents never enter the conversation's history.
 

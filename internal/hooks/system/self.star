@@ -1,7 +1,7 @@
-DESCRIPTION = "Rules are changed only by someone Mira knows, always with a yes, never after third-party text, and never a system rule or critical.star. Tasks are changed only by someone Mira knows."
+DESCRIPTION = "Rules are changed only by someone Mira knows, always with a yes, never after third-party text, and never a system rule, critical.star or skill_confirm.star. Tasks are changed only by someone Mira knows."
 
 TOOLS = ["hook_save", "hook_switch", "hook_delete"]
-PROTECTED = ["rights.star", "background.star", "web.star", "self.star", "ask.star", "critical.star"]
+PROTECTED = ["rights.star", "background.star", "web.star", "self.star", "ask.star", "critical.star", "skill_confirm.star"]
 
 def pre_tool(call, verdict):
     # A change of a task: what it reaches is judged by critical.star.

@@ -47,6 +47,9 @@ type Spec struct {
 	// answer (a recording); the turn never keeps the satellite listening,
 	// or its microphone would hear what plays (docs/spec/satellite.md).
 	PlaysAfter bool
+	// Confirm: an MCP tool its server's entry (or skill) names under
+	// confirm; default/skill_confirm.star asks for a yes (call.tool.confirm).
+	Confirm bool
 }
 
 // Invocation is a call as the conversation loop hands it over.
@@ -210,7 +213,7 @@ func (r *Registry) Specs(readOnly bool) []Spec {
 			if (readOnly && !t.ReadOnly) || t.Skill != "" {
 				continue
 			}
-			out = append(out, Spec{ToolDef: t.ToolDef, ReadOnly: t.ReadOnly, WebContent: t.WebContent})
+			out = append(out, Spec{ToolDef: t.ToolDef, ReadOnly: t.ReadOnly, WebContent: t.WebContent, Confirm: t.Confirm})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -323,7 +326,7 @@ func (r *Registry) Lookup(name string) (Spec, bool) {
 	if r.mcp != nil {
 		if t, ok := r.mcp.Lookup(name); ok {
 			return Spec{ToolDef: t.ToolDef, ReadOnly: t.ReadOnly, WebContent: t.WebContent, Skill: t.Skill,
-				AgentsOnly: t.AgentsOnly}, true
+				AgentsOnly: t.AgentsOnly, Confirm: t.Confirm}, true
 		}
 	}
 	return Spec{}, false

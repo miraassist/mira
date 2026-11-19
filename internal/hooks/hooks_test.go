@@ -370,7 +370,7 @@ func TestHK01_TheHooksRunHouseholdThenDefaultThenSystem(t *testing.T) {
 	for _, h := range f.e.cur.Load().chain {
 		ids = append(ids, h.id())
 	}
-	want := []string{"household/mine.star", "default/critical.star",
+	want := []string{"household/mine.star", "default/critical.star", "default/skill_confirm.star",
 		"system/rights.star", "system/background.star", "system/web.star", "system/self.star", "system/ask.star"}
 	if !slices.Equal(ids, want) {
 		t.Fatalf("chain %v, want %v", ids, want)
@@ -626,5 +626,63 @@ func TestBuiltinTextsInEveryLanguage(t *testing.T) {
 	}
 	if len(textsFor(i18n.DE).keys) != len(textsFor(i18n.EN).keys) {
 		t.Error("the languages have different texts")
+	}
+}
+
+// RW-06 Ordering needs a yes: a skill's tool under confirm asks before it
+// runs, and one yes approves one call; the skill's other tools run.
+func TestRW06_OrderingNeedsAYes(t *testing.T) {
+	f := newFixture(t, nil)
+	ctx := context.Background()
+	order := tools.Spec{ToolDef: prompt.ToolDef{Server: "rewe", Name: "order"}, Skill: "rewe", Confirm: true}
+	set := tools.Spec{ToolDef: prompt.ToolDef{Server: "rewe", Name: "basket_set"}, Skill: "rewe"}
+	basket := tools.Spec{ToolDef: prompt.ToolDef{Server: "rewe", Name: "basket"}, Skill: "rewe", ReadOnly: true}
+	call := args(`{"total":"63,40"}`)
+
+	t1 := &tools.TurnState{SessionKey: "voice:1", Channel: config.ChannelVoice, UserText: "Bestell den Einkaufszettel bei REWE"}
+	if v := f.g.Check(ctx, t1, set, args(`{"listingId":"x","quantity":1}`)); v.Outcome != tools.Allow {
+		t.Fatalf("basket_set = %+v", v)
+	}
+	if v := f.g.Check(ctx, t1, basket, args(`{}`)); v.Outcome != tools.Allow {
+		t.Fatalf("basket = %+v", v)
+	}
+	v := f.g.Check(ctx, t1, order, call)
+	if v.Outcome != tools.NeedsConfirmation || v.Reason != "default/skill_confirm.star" || f.mem.last == nil || f.mem.last.ToolName != "rewe__order" {
+		t.Fatalf("order without a yes = %+v, stored %+v", v, f.mem.last)
+	}
+
+	t2 := &tools.TurnState{SessionKey: "voice:1", Channel: config.ChannelVoice, UserText: "Ja", Pending: f.mem.last}
+	if v := f.g.Check(ctx, t2, order, call); v.Outcome != tools.Allow || v.Reason != "confirmed" {
+		t.Fatalf("order after the yes = %+v", v)
+	}
+	if v := f.g.Check(ctx, t2, order, call); v.Outcome != tools.NeedsConfirmation {
+		t.Fatalf("one yes ordered twice: %+v", v)
+	}
+	// Another total than the one asked about is another call: it asks again.
+	t3 := &tools.TurnState{SessionKey: "voice:1", Channel: config.ChannelVoice, UserText: "Ja", Pending: f.mem.last}
+	if v := f.g.Check(ctx, t3, order, args(`{"total":"99,00"}`)); v.Outcome != tools.NeedsConfirmation {
+		t.Fatalf("a yes for another total = %+v", v)
+	}
+}
+
+// A household critical.star replaces the house's rules, not a skill's yes:
+// that is skill_confirm.star, which the household drops only by replacing it.
+func TestSkillConfirmOutlivesAHouseholdCritical(t *testing.T) {
+	order := tools.Spec{ToolDef: prompt.ToolDef{Server: "rewe", Name: "order"}, Skill: "rewe", Confirm: true}
+	t1 := &tools.TurnState{SessionKey: "voice:1", Channel: config.ChannelVoice, UserText: "Bestell"}
+	critical := `DESCRIPTION = "Nur Schlösser"
+DOMAINS = ["lock"]
+def critical(e):
+    return e.domain in DOMAINS
+def pre_tool(call, verdict):
+    return None
+`
+	f := newFixture(t, map[string]string{"critical.star": critical})
+	if v := f.g.Check(context.Background(), t1, order, args(`{"total":"63,40"}`)); v.Outcome != tools.NeedsConfirmation || v.Reason != "default/skill_confirm.star" {
+		t.Fatalf("with a household critical.star = %+v", v)
+	}
+	f = newFixture(t, map[string]string{"skill_confirm.star": "DESCRIPTION = \"Ohne Rückfrage\"\ndef pre_tool(call, verdict):\n    return None\n"})
+	if v := f.g.Check(context.Background(), t1, order, args(`{"total":"63,40"}`)); v.Outcome != tools.Allow {
+		t.Fatalf("with skill_confirm.star replaced = %+v", v)
 	}
 }

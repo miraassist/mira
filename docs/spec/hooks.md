@@ -52,6 +52,10 @@ Mira says. "Hook" is the technical word: in this spec, the code, the log and the
   nachfragen" in Home Assistant (e.g. a garage door: as a cover it cannot be told apart from a shutter, so it gets the
   label). A household that wants the garage door without a question at the garage's satellite replaces it with its
   own `critical.star`.
+- **The default hook** `skill_confirm.star` asks before the tools a skill names under `confirm` (ordering at REWE,
+  [rewe.md](rewe.md)). It is a file of its own so that a household replacing `critical.star` for its house keeps the
+  skill's yes; a household that does not want it replaces `skill_confirm.star`, on purpose and by its name. Like
+  `critical.star` it cannot be switched off and Mira never writes it.
 - **Household hooks** are the household's own. Mira watches the folder: a file written, changed or deleted applies
   at once, without a restart; a line `ACTIVE = False` switches one off without deleting it
   ([hooks-writing.md](hooks-writing.md)). Mira also writes them on request (the skill `regel`).
@@ -115,6 +119,7 @@ Everything is read only.
 | `call.tool.web_content` | its result is third-party text (web search, web page) |
 | `call.tool.keeps_or_passes_on` | it keeps or passes on what the model says: memory, messages to others, ending a thread |
 | `call.tool.skill` | the skill whose MCP server brings it, if any |
+| `call.tool.confirm` | its server's entry names it under `confirm`: it runs only after a yes ([REWE shopping](rewe.md), decision 5; `default/skill_confirm.star` asks) |
 | `call.tool.right` | the right it needs in an agent run: `read_house`, `act_on_house`, `remember`, `messages`, `web` |
 | `call.args` | the arguments as a dict |
 | `call.domains` | the domains the arguments name (`domain`, lower case) |
@@ -241,7 +246,7 @@ def pre_tool(call, verdict):
 ```python
 # system/self.star (docs/spec/hooks-writing.md, Who may; docs/spec/tasks-editing.md, Saving)
 TOOLS = ["hook_save", "hook_switch", "hook_delete"]
-PROTECTED = ["rights.star", "background.star", "web.star", "self.star", "ask.star", "critical.star"]
+PROTECTED = ["rights.star", "background.star", "web.star", "self.star", "ask.star", "critical.star", "skill_confirm.star"]
 
 def pre_tool(call, verdict):
     # A change of a task: what it reaches is judged by critical.star.
@@ -285,6 +290,15 @@ def pre_tool(call, verdict):
     for e in call.targets + call.candidates:
         if critical(e):
             return confirm(text("critical"))
+```
+
+```python
+# default/skill_confirm.star
+DESCRIPTION = "The tools a skill names under confirm only with a yes."
+
+def pre_tool(call, verdict):
+    if call.tool.confirm:
+        return confirm(text("critical"))
 ```
 
 ### `critical.star` also says what a task may not switch
