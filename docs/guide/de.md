@@ -744,6 +744,32 @@ Die Werkzeuge heißen für die Agenten `<skill>__<werkzeug>`. So kommen die Doku
 
 `tools` ist die Kontrolle: Wer den Skill schreibt, entscheidet, was Mira mit dem Server darf. Ist der Server nicht erreichbar, startet Mira trotzdem; der Skill ist da, nur ohne seine Werkzeuge, und Home Assistant zeigt es unter **Reparaturen**. Mit einem lokalen Modell rechnet der erste Zug nach dem Öffnen des Skills den Prompt neu, weil Werkzeuge dazukommen; das dauert dann einmal länger.
 
+### Ein Skill bringt ein Programm mit
+
+Ein Skill kann das Programm für seinen MCP-Server selbst mitbringen, als einzelne ausführbare Datei, die Mira beim Start herunterlädt. Im Skill stehen dafür Adresse und SHA-256-Summe je Architektur; Mira nimmt ihre eigene (`amd64` oder `arm64`) und startet nur eine Datei, deren Summe stimmt. Eine neuere Version holt sie nie von selbst: Sie kommt nur mit einer neuen Fassung des Skills.
+
+```yaml
+metadata:
+  mira:
+    program:
+      name: korb
+      version: 0.9.0
+      url: https://github.com/miraassist/rewe-cli/releases/download/v0.9.0/korb_linux_{{ arch }}
+      sha256: { amd64: "…", arm64: "…" }
+    mcp:
+      transport: stdio
+      command: "{{ programm }}"        # leer: das Programm oben
+      args: [mcp]
+      env: ["KORB_CONFIG_DIR={{ data }}"]
+      setup:
+        - { tool: login_start, label: Bei REWE anmelden }
+```
+
+- **`{{ data }}`** ist ein eigener Ordner des Skills neben der `mira.yaml` (`skill-data/<skill>`), der Neustarts und Updates übersteht; dort hält das Programm seinen Zustand, etwa eine Anmeldung. Er ist auch das Arbeitsverzeichnis des Programms.
+- **`setup`** nennt Werkzeuge des Servers, die nur ein Admin auf der Seite aufruft, unter **Einrichten** im Eintrag des Skills: je eines eine Schaltfläche, die Felder kommen aus dem Schema des Werkzeugs. Ein Modell bekommt sie nie, außer `tools` nennt eines auch (etwa `status`).
+- Bleibt `command` leer, startet Mira das geladene Programm; mit einer Einstellung darin kann man ein eigenes nehmen.
+- Programme liegen unter `programs/` neben der `mira.yaml`. Klappt der Download nicht oder stimmt die Summe nicht, zeigt Home Assistant das unter **Reparaturen**, und Mira versucht es nach 10 Minuten wieder.
+
 ### Ein Skill mit Anmeldung bei einem Dienst
 
 Manche Dienste wollen, dass man sich anmeldet (OAuth), statt einen festen Schlüssel zu nehmen; X ist so einer. Ein Skill beschreibt die Anmeldung im Abschnitt `oauth`, und jeder, der ihn nutzt, legt beim Dienst seine eigene App an und trägt deren Client-ID und Secret auf der Seite **Verbindungen** ein. Die Anmeldung selbst macht Home Assistant über My Home Assistant; die Tokens bekommt Mira, die sie auch erneuert. Das Modell sieht sie nie.
@@ -1015,6 +1041,31 @@ Mira liest dir deine Aktivitäten aus Strava vor: „Wie war meine letzte Tour?�
 3. Mira → Einrichtung → **Verbindungen**: Client-ID und Client-Secret der App eintragen, **Übernehmen**, dann **Verbinden**. Bei Strava anmelden und **Autorisieren**; alle Haken drin lassen, auch den für die Aktivitäten.
 
 Eine neue Strava-App kann nur dein eigenes Konto lesen. Die Kilometer pro Rad zählen nur Aktivitäten, bei denen in Strava das Rad als Ausrüstung eingetragen ist.
+
+## Einkaufen bei REWE
+
+„Bestell den Einkaufszettel bei REWE.“ – „Pack noch Butter zur REWE-Bestellung.“ – „Wann kommt die REWE-Lieferung?“ Mira füllt aus deinem Einkaufszettel in Home Assistant einen Warenkorb beim REWE-Lieferdienst (oder deinem Markt zum Abholen), sucht ein Lieferfenster und bestellt, nachdem du Ja gesagt hast. Eine offene Bestellung kann sie ergänzen, solange REWE das erlaubt.
+
+**So läuft eine Bestellung:**
+- Für jeden Eintrag nimmt Mira zuerst deinen passenden **Favoriten** bei REWE, sonst das Produkt, das du am häufigsten gekauft hast, sonst einen klaren Treffer der Suche. Steht „Milch“ auf dem Zettel, kommt also deine Lieblingsmilch in den Korb. Ist etwas unklar, fragt sie kurz („Vollmilch oder Hafermilch?“); was sie nicht findet, nennt sie am Ende.
+- Liegt der Warenwert unter dem Mindestbestellwert, sagt sie, wie viel fehlt, und bestellt nicht.
+- Hat sich das Haus einen Liefertag gemerkt („Merk dir: REWE soll donnerstags liefern“), nimmt sie das nächste Lieferfenster an diesem Tag.
+- Dann fragt sie einmal, mit Betrag, Lieferfenster und Zahlungsart: „63 Euro 40, Donnerstag 18 bis 22 Uhr, mit PayPal. Soll ich bestellen?“ Erst nach deinem Ja bestellt sie. Danach hakt sie auf dem Zettel ab, was bestellt ist; der Rest bleibt stehen.
+
+**Wer bestellen darf:** Jeder, der mit Mira spricht, nach einem Ja. Mira prüft dabei nicht, wer spricht. Wer korb bei REWE anmeldet, vertraut Mira also das Konto an. Geschützt ist die Bestellung trotzdem: korb bestellt nie über deinem **Limit**, nie mit einem anderen Betrag als dem, den Mira gesagt hat, und nur mit einer Zahlungsart, die ohne Bestätigung im Browser auskommt. Eine Bestellung kannst du bei REWE bis kurz vor der Lieferung stornieren.
+
+**Gut zu wissen:** Mira nutzt dafür [korb](https://github.com/miraassist/rewe-cli), ein offenes Programm für die Schnittstelle der REWE-App. REWE bietet dafür keinen offiziellen Zugang; die Schnittstelle kann sich ändern, und REWE kann solche Programme sperren. Du nutzt den Skill auf eigenes Risiko.
+
+**Einrichten:**
+1. In der REWE-App eine **Lieferadresse** und eine **Zahlungsart ohne Bestätigung** hinterlegen; das ist heute das PayPal-Einzugsverfahren.
+2. Den Skill `rewe` einschalten: Mira → Fähigkeiten → Skills → rewe → **Einschalten**, mit dem **Limit** in Euro (zum Beispiel 150). Ist dein Einkaufszettel nicht die Liste „Einkaufsliste“, trag ihren Namen unter **liste** ein. Beim nächsten Start lädt Mira korb selbst herunter und prüft es.
+3. Im Eintrag des Skills unter **Einrichten**:
+   - **Bei REWE anmelden** zeigt einen Link. Öffne ihn in **Chrome** und melde dich mit deinem REWE-Konto an. Am Ende kann Chrome die Adresse `de.rewe.app://redirect?…` nicht öffnen. Öffne die Entwicklertools (F12, Reiter **Konsole**) und kopiere die Adresse aus der Zeile „Failed to launch …“.
+   - **Anmeldung abschließen**: die kopierte Adresse einfügen, innerhalb von 30 Minuten.
+   - **Lieferdienst suchen** mit deiner Postleitzahl, dann **Lieferdienst wählen** mit seiner id und derselben Postleitzahl (oder die id eines Markts zum Abholen).
+   - **Stand prüfen** sagt, ob alles bereit ist und was noch fehlt.
+
+Die Anmeldung hält normalerweise dauerhaft. Fehlt sie einmal, sagt Mira es, wenn du bestellen willst, und du meldest korb unter **Einrichten** neu an. Wer korb lieber selbst baut oder auf einem Rechner anmeldet, trägt unter **programm** den Pfad zum eigenen korb ein; korbs Anmeldung liegt dann trotzdem im Ordner des Skills, den der Eintrag zeigt.
 
 ## Flüge im Auge behalten
 

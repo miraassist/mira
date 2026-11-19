@@ -1,6 +1,6 @@
 # Programs for skills – spec
 
-Status 2026-11-19: specified; steps 1 to 5 built. Scenarios: [skill-programs.feature](skill-programs.feature).
+Status 2026-11-19: built (steps 1 to 6); not yet seen on HAOS. Scenarios: [skill-programs.feature](skill-programs.feature).
 
 ## Goal
 
@@ -210,6 +210,8 @@ SHA-256 of each program (a few ms). Per setup click: one tool call. No model cal
    scenario measured again, 3 of 3). The evals start korb through the wrapper: the download of the real release is
    tested in Go against a local server, and on Mira's image by hand (step 2), not in an eval.
 6. **The guide** (de and en): switching on, "Einrichten", the login with Chrome's console.
+   Written 2026-11-19: "Einkaufen bei REWE" / "Shopping at REWE" for users, "Ein Skill bringt ein Programm mit" /
+   "A skill brings a program" for skill authors.
 
 ## Not part of it
 

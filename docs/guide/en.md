@@ -739,6 +739,32 @@ For the agents the tools are called `<skill>__<tool>`. That way the documents ne
 
 `tools` is the control: whoever writes the skill decides what Mira may do with the server. If the server cannot be reached, Mira starts all the same; the skill is there, only without its tools, and Home Assistant shows it under **Repairs**. With a local model, the first turn after opening the skill computes the prompt anew because tools come in; that one turn takes longer.
 
+### A skill brings a program
+
+A skill can bring the program for its MCP server itself, as a single executable file Mira downloads at her start. The skill names its address and its SHA-256 sum per architecture; Mira takes her own (`amd64` or `arm64`) and starts only a file whose sum matches. She never takes a newer version by herself: it comes only with a new version of the skill.
+
+```yaml
+metadata:
+  mira:
+    program:
+      name: korb
+      version: 0.9.0
+      url: https://github.com/miraassist/rewe-cli/releases/download/v0.9.0/korb_linux_{{ arch }}
+      sha256: { amd64: "…", arm64: "…" }
+    mcp:
+      transport: stdio
+      command: "{{ programm }}"        # empty: the program above
+      args: [mcp]
+      env: ["KORB_CONFIG_DIR={{ data }}"]
+      setup:
+        - { tool: login_start, label: Bei REWE anmelden }
+```
+
+- **`{{ data }}`** is a folder of the skill's own beside `mira.yaml` (`skill-data/<skill>`) that survives restarts and updates; the program keeps its state there, such as a login. It is also the program's working folder.
+- **`setup`** names tools of the server only an admin calls on the page, under **Set up** on the skill's entry: a button each, the fields from the tool's schema. A model never gets them, unless `tools` names one as well (such as `status`).
+- With `command` empty Mira starts the downloaded program; a setting in it takes one's own.
+- Programs are kept under `programs/` beside `mira.yaml`. When the download fails or the sum does not match, Home Assistant shows it under **Repairs**, and Mira tries again after 10 minutes.
+
 ### A skill with a sign-in at a service
 
 Some services want you to sign in (OAuth) instead of using a fixed key; X is one of them. A skill describes the sign-in in its section `oauth`, and everyone who uses it creates their own app at the service and enters its client ID and secret on the page **Connections**. Home Assistant does the sign-in itself, over My Home Assistant; Mira gets the tokens and renews them. The model never sees them.
@@ -1003,6 +1029,31 @@ Mira reads your activities from Strava: "How was my last ride?", "How far did I 
 3. Mira → Setup → **Connections**: enter the app's client ID and client secret, **Apply**, then **Connect**. Sign in at Strava and **Authorize**; leave every box ticked, including the one for activities.
 
 A new Strava app can read only your own account. The kilometres per bike count only activities that have the bike set as gear in Strava.
+
+## Shopping at REWE
+
+"Bestell den Einkaufszettel bei REWE." – "Pack noch Butter zur REWE-Bestellung." – "Wann kommt die REWE-Lieferung?" Mira fills a basket at REWE's delivery service (or your market for pickup) from your shopping list in Home Assistant, picks a delivery slot and orders after you said yes. She can add to an open order while REWE allows it. REWE is a German supermarket chain; the skill speaks German.
+
+**How an order goes:**
+- For each entry Mira first takes your matching **favorite** at REWE, else the product you bought most often, else a clear hit of the search. With "Milch" on the list, your favorite milk goes into the basket. When something is unclear she asks briefly; what she does not find she names at the end.
+- Below the minimum order value she says how much is missing and does not order.
+- When the house remembers a delivery day ("REWE soll donnerstags liefern"), she takes the next slot on that day.
+- Then she asks once, with the total, the slot and the payment method. Only after your yes she orders. Afterwards she checks off on the list what was ordered; the rest stays.
+
+**Who may order:** everyone who talks to Mira, after a yes. Mira does not check who speaks. Whoever logs korb in at REWE trusts Mira with the account. The order is guarded all the same: korb never orders above your **limit**, never with another total than the one Mira said, and only with a payment method that needs no confirmation in a browser. You can cancel an order at REWE until shortly before delivery.
+
+**Good to know:** Mira uses [korb](https://github.com/miraassist/rewe-cli), an open program for the REWE app's interface. REWE offers no official access for it; the interface may change, and REWE may block such programs. You use the skill at your own risk.
+
+**Setting it up:**
+1. In the REWE app, set a **delivery address** and a **payment method without confirmation**; today that is PayPal direct debit ("PayPal-Einzugsverfahren").
+2. Switch the skill `rewe` on: Mira → Capabilities → Skills → rewe → **Switch on**, with the **limit** in euros (e.g. 150). When your shopping list is not the list "Einkaufsliste", enter its name under **liste**. At the next start Mira downloads korb herself and checks it.
+3. On the skill's entry under **Set up**:
+   - **Bei REWE anmelden** shows a link. Open it in **Chrome** and sign in with your REWE account. At the end Chrome cannot open the address `de.rewe.app://redirect?…`. Open the developer tools (F12, tab **Console**) and copy the address from the line "Failed to launch …".
+   - **Anmeldung abschließen**: paste the copied address, within 30 minutes.
+   - **Lieferdienst suchen** with your postcode, then **Lieferdienst wählen** with its id and the same postcode (or the id of a market for pickup).
+   - **Stand prüfen** says whether everything is ready and what is missing.
+
+The login normally lasts. When it is missing, Mira says so when you want to order, and you log korb in again under **Set up**. Whoever prefers to build korb or to log it in on a computer enters the path of their own korb under **programm**; korb's login is then still in the skill's folder the entry shows.
 
 ## Keeping an eye on a flight
 

@@ -1,6 +1,6 @@
 # REWE shopping – spec
 
-Status 2026-11-19: specified; steps 1 (korb 0.7.0) to 4 built. Scenarios: [rewe.feature](rewe.feature).
+Status 2026-11-19: steps 1 to 5 built (korb 0.9.0, with [Programs for skills](skill-programs.md)); step 6, a real order, is open. Scenarios: [rewe.feature](rewe.feature).
 
 ## Goal
 
@@ -232,5 +232,7 @@ the errors below.
    round of reading the list (the steps go one after the other).
 5. **The guide** (de and en): building korb, the login, the service, the payment method, the settings, and the
    sentence that whoever logs in lets everyone who talks to Mira order.
+   Written 2026-11-19, after [Programs for skills](skill-programs.md): no building any more; switching on, the
+   setup on the page, the payment method, and that whoever logs in lets everyone who talks to Mira order.
 6. **A real order** with the maintainer, by voice: ordering and changing an order end to end (korb's ordering and
    submitting a modification are not yet seen against REWE).
