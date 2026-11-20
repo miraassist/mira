@@ -8,8 +8,11 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"runtime/metrics"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	starjson "go.starlark.net/lib/json"
@@ -21,6 +24,29 @@ import (
 
 // Timeout is the most a whole tool call may take (decision 14).
 const Timeout = 60 * time.Second
+
+// memLimit is how much Mira may allocate during a call before the call is
+// stopped; a rough brake, not a hard limit: Starlark counts steps, not
+// allocations, and one step may allocate much; what the rest of Mira
+// allocates meanwhile counts too (docs/spec/api-tools.md, Limits).
+// answerLimit is the most a tool may answer.
+var memLimit uint64 = 256 << 20
+
+const answerLimit = 1 << 20
+
+// memSample is how often the heap is looked at during a call.
+const memSample = 20 * time.Millisecond
+
+// heapBytes is what Mira allocated since its start, as Go's runtime counts
+// it (freed memory is not subtracted).
+func heapBytes() uint64 {
+	s := []metrics.Sample{{Name: "/gc/heap/allocs:bytes"}}
+	metrics.Read(s)
+	if s[0].Value.Kind() != metrics.KindUint64 {
+		return 0
+	}
+	return s[0].Value.Uint64()
+}
 
 // Requester makes one request of a skill's tool with the connection's token
 // (oauth.Manager.Request): only below the skill's api prefixes, for the
@@ -102,24 +128,52 @@ func (f *File) Call(ctx context.Context, name string, args json.RawMessage, env 
 		starlarktime.SetNow(thread, func() (time.Time, error) { return now(), nil })
 	}
 	done := make(chan struct{})
-	defer close(done)
+	var tooMuch atomic.Bool
+	var watching sync.WaitGroup
+	limit, base := memLimit, heapBytes()
+	watching.Add(1)
 	go func() {
-		select {
-		case <-ctx.Done():
-			thread.Cancel("the tool took longer than " + Timeout.String())
-		case <-done:
+		defer watching.Done()
+		tick := time.NewTicker(memSample)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				thread.Cancel("the tool took longer than " + Timeout.String())
+				return
+			case <-tick.C:
+				if heapBytes() > base+limit {
+					tooMuch.Store(true)
+					thread.Cancel("the tool used too much memory")
+					return
+				}
+			case <-done:
+				return
+			}
 		}
 	}()
 	v, err := starlark.Call(thread, t.fn, nil, kwargs)
+	close(done)
+	watching.Wait()
 	res := Result{Events: c.events}
+	if tooMuch.Load() {
+		f.log.Warn("starlark tool: memory limit reached", "skill", f.Skill, "tool", name, "limit_mb", limit>>20)
+		res.Err = fmt.Errorf("the tool %s used too much memory (more than %d MB)", name, limit>>20)
+		return res
+	}
 	if err != nil {
 		res.Backtrace, res.Err = f.failure(name, err)
 		return res
 	}
 	res.Text, err = answer(thread, v)
-	if err != nil {
+	switch {
+	case err != nil:
 		res.Err = fmt.Errorf("%s gave an answer that is no JSON: %v", name, err)
 		f.log.Warn("starlark tool: answer is no JSON", "skill", f.Skill, "tool", name, "error", err)
+	case len(res.Text) > answerLimit:
+		f.log.Warn("starlark tool: answer too large", "skill", f.Skill, "tool", name, "bytes", len(res.Text))
+		res.Err = fmt.Errorf("the answer of %s has %d KB, more than %d KB", name, len(res.Text)>>10, answerLimit>>10)
+		res.Text = ""
 	}
 	return res
 }

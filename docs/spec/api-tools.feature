@@ -74,6 +74,12 @@ Feature: SL API tools in Starlark
     Then the first ends at the step limit and the second at the time limit, each as the tool's error and a log line
 
   @step2
+  Scenario: SL-19 A tool that takes too much memory or answers too much is stopped
+    Given a tool that grows Mira's heap by more than its brake, and a tool that answers more than 1 MB
+    When they run
+    Then the first is stopped and the second's answer is refused, each as the tool's error and a log line
+
+  @step2
   Scenario: SL-12 Only the tools under writes write
     Given a skill whose api allows POST and whose tools section names post under writes and confirm
     When the tool lies calls api.post, and the tool post calls it

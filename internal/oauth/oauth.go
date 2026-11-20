@@ -433,6 +433,12 @@ func Below(u *url.URL, prefix string) bool {
 	if err != nil || u == nil || !strings.EqualFold(u.Scheme, p.Scheme) || !strings.EqualFold(u.Host, p.Host) {
 		return false
 	}
+	// A path that climbs (".." or "." as a segment, also encoded) or hides a
+	// slash could leave the prefix at the service: refused, not cleaned
+	// (docs/spec/oauth.md, Safety).
+	if climbs(u) {
+		return false
+	}
 	pp := p.EscapedPath()
 	up := u.EscapedPath()
 	if pp == "" || pp == "/" || up == pp {
@@ -442,6 +448,21 @@ func Below(u *url.URL, prefix string) bool {
 		pp += "/"
 	}
 	return strings.HasPrefix(up, pp)
+}
+
+// climbs reports whether u's path has a dot segment or an encoded dot or
+// slash.
+func climbs(u *url.URL) bool {
+	low := strings.ToLower(u.EscapedPath())
+	if strings.Contains(low, "%2e") || strings.Contains(low, "%2f") || strings.Contains(low, "%5c") || strings.Contains(u.Path, "\\") {
+		return true
+	}
+	for _, seg := range strings.Split(u.Path, "/") {
+		if seg == "." || seg == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 type transport struct {

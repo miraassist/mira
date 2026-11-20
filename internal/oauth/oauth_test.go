@@ -355,7 +355,10 @@ func TestCO16_NoTokenOutsideThePrefixes(t *testing.T) {
 	e := newEnv(t)
 	e.connect(t, time.Hour)
 	// When a tool calls an address outside it
-	for _, u := range []string{e.svc.APIURL() + "v1/users", e.svc.APIURL() + "v2x", "https://elsewhere.example/api/v2/", e.svc.URL() + "/token"} {
+	for _, u := range []string{e.svc.APIURL() + "v1/users", e.svc.APIURL() + "v2x", "https://elsewhere.example/api/v2/", e.svc.URL() + "/token",
+		// a path that climbs out of the prefix, plainly or encoded, or hides a slash
+		e.svc.APIURL() + "v2/../v1/users", e.svc.APIURL() + "v2/%2e%2e/v1/users", e.svc.APIURL() + "v2/%2E%2E/v1",
+		e.svc.APIURL() + "v2/./posts", e.svc.APIURL() + "v2/a%2Fb", e.svc.APIURL() + "v2/a%5c..%5cv1"} {
 		if status, _, err := e.request("GET", u, ""); err == nil {
 			t.Errorf("%s: %d", u, status)
 		}

@@ -103,7 +103,8 @@ Feature: CO Connections (OAuth)
   @step4
   Scenario: CO-16 No token outside the prefixes
     Given a connected skill whose api names https://api.example/2/
-    When a tool calls an address outside it, or the service redirects to another host
+    When a tool calls an address outside it, or one that climbs out of it (.., also encoded) or hides a slash,
+      or the service redirects to another host
     Then no request with the token is made
 
   @step4

@@ -363,3 +363,44 @@ def zeigen(thema):
 		t.Errorf("events %+v", res.Events)
 	}
 }
+
+// slowRequester answers after a while, so that a call stays in a request.
+type slowRequester struct{}
+
+func (slowRequester) Request(ctx context.Context, _, _, _ string, _ []byte) (int, []byte, error) {
+	select {
+	case <-time.After(300 * time.Millisecond):
+	case <-ctx.Done():
+	}
+	return 200, []byte("{}"), nil
+}
+
+// SL-19 A tool that takes too much memory or answers too much is stopped
+func TestSL19_AToolThatTakesTooMuchMemoryOrAnswersTooMuchIsStopped(t *testing.T) {
+	old := startools.SetMemLimit(16 << 20)
+	defer startools.SetMemLimit(old)
+	// Given a tool that makes a string of 64 MB and keeps it through a request
+	f, logs := load(t, `
+def gross():
+    """Macht einen großen Text."""
+    x = "x" * 64000000
+    api.get("https://api.example/langsam")
+    return len(x)
+
+def viel():
+    """Antwortet zu viel."""
+    return "y" * 2000000
+`)
+	// When it runs
+	res := f.Call(context.Background(), "gross", nil, startools.Env{Requester: slowRequester{}})
+	// Then it is stopped as the tool's error and a log line
+	if res.Err == nil || !strings.Contains(res.Err.Error(), "used too much memory (more than 16 MB)") ||
+		!strings.Contains(logs.String(), "memory limit reached") {
+		t.Errorf("%v\n%s", res.Err, logs)
+	}
+	// And an answer of more than 1 MB is the tool's error
+	res = f.Call(context.Background(), "viel", nil, startools.Env{})
+	if res.Err == nil || !strings.Contains(res.Err.Error(), "more than 1024 KB") || res.Text != "" {
+		t.Errorf("%v %d", res.Err, len(res.Text))
+	}
+}

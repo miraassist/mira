@@ -113,6 +113,14 @@ helper and no tool.
   allows at that prefix; the body is encoded as JSON (decisions 13 and 15).
 - **Limits**: 100,000 steps per call as for a hook, every `api` call at most 20 s, the whole tool at most 60 s
   (decision 14).
+- **Memory and answer** (2026-11-20, the maintainer, after a look at the sandbox): Starlark counts steps, not memory,
+  and one step may allocate much (`"x" * 1000000000`). During a call Mira looks every 20 ms at what it allocated since the
+  call began (Go's `/gc/heap/allocs:bytes`, freed memory not subtracted) and stops the call beyond 256 MB: a rough
+  brake, not a hard limit (what the rest of Mira allocates meanwhile counts too, and one allocation is not stopped
+  before it happens). A tool's answer of more than 1 MB is refused. Both
+  are the tool's error and a log line (`memory limit reached`, `answer too large`).
+- **Addresses that climb** (`..`, `.`, encoded `%2e`, a hidden slash `%2f`, `%5c`) are refused before anything is
+  sent, for every use of the connection's token ([Connections](oauth.md), Renewing and using the token).
 - **The tool's answer** is the function's return value, encoded as JSON (a string as it is). It counts as
   third-party text, as the web API tool's answer does today.
 

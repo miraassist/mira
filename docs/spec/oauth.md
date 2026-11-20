@@ -131,7 +131,9 @@ Assistant. The page says to open it in Home Assistant. Inside it the page sends 
 - **A 401 from the service** with a token that should still be valid: Mira renews once and repeats the request
   once.
 - **The token goes only where the skill says** (decision 5): the skill's MCP server (`mcp.url`), the `api`
-  prefixes and `token_url`. A request to another address, also after a redirect, gets no token; redirects to
+  prefixes and `token_url`. An address whose path climbs (a segment `.` or `..`, also encoded as `%2e`) or hides a
+  slash (`%2f`, `%5c`) is refused, not cleaned: the service could resolve it to a path outside the prefix (added
+  2026-11-20). A request to another address, also after a redirect, gets no token; redirects to
   another host are not followed with the token.
 - **The web API tools** (until 2026-11-20; replaced by the skill's Starlark tools and their `api` module, [API tools in Starlark](api-tools.md), which keep the rules below):** `<skill>__api_get` (an address) for the `GET` prefixes, read only, and `<skill>__api_write`
   (method, address, body) for the other methods the `api` section names; answer: the service's status and body
