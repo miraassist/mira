@@ -160,6 +160,8 @@ type Registry struct {
 	mcp      MCPSource
 	mu       sync.RWMutex
 	internal map[string]InternalTool
+	// done are told of every MCP tool call that succeeded (Observe).
+	done []func(Invocation)
 }
 
 func NewRegistry(src MCPSource, internal ...InternalTool) *Registry {
@@ -178,6 +180,16 @@ func (r *Registry) Add(tools ...InternalTool) {
 	for _, t := range tools {
 		r.internal[t.Name] = t
 	}
+}
+
+// Observe registers f to be told of every MCP tool call that succeeded, with
+// its invocation: ducking learns of a volume command this way
+// (docs/spec/music-players.md, part 7). f runs on the caller's goroutine and
+// must not block.
+func (r *Registry) Observe(f func(Invocation)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.done = append(r.done, f)
 }
 
 // internalTool is an internal tool by name.
@@ -359,6 +371,14 @@ func (r *Registry) Execute(ctx context.Context, inv Invocation) (text string, is
 	}
 	if err != nil {
 		return "Fehler: " + err.Error(), true, nil
+	}
+	if !res.IsError {
+		r.mu.RLock()
+		done := r.done
+		r.mu.RUnlock()
+		for _, f := range done {
+			f(inv)
+		}
 	}
 	return clip(res.Text, inv), res.IsError, nil
 }

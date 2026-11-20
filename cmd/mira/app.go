@@ -681,8 +681,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		music.MoreTool(musicOptions))
 	// Lowering the music in a satellite's area while it listens
 	// (docs/spec/music-players.md, part 7).
+	var ducker *music.Ducker
 	if a.ha != nil {
-		a.goRun(ctx, "ducking", music.NewDucker(a.duckOptions(snapshot)).Run)
+		ducker = music.NewDucker(a.duckOptions(snapshot))
+		a.goRun(ctx, "ducking", ducker.Run)
 	}
 	// Phone calls from the satellite of the turn (docs/spec/phone.md).
 	a.phonebook = &phone.Book{On: a.phoneBookOn, Read: a.readPhonebook}
@@ -835,6 +837,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	internal = append(internal, a.threads.Tools()...)
 	registry := tools.NewRegistry(a.mcp, internal...)
+	if ducker != nil {
+		registry.Observe(func(inv tools.Invocation) { volumeCall(a.log, ducker, inv) })
+	}
 	a.tools = registry
 	models := map[string]conversation.Chatter{}
 	for name, c := range a.models {

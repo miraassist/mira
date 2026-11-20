@@ -58,6 +58,16 @@ func duckOptions(ha *duckHA, logs *bytes.Buffer) music.DuckOptions {
 			s := satellites[entity]
 			return s[0], s[1]
 		},
+		Named: func(name, area string) []string {
+			var out []string
+			for _, p := range duckPlayers() {
+				if (area == "" || areas[strings.ToLower(area)] == p.Area) && slices.Contains(p.Names, strings.ToLower(name)) {
+					out = append(out, p.Entity)
+				}
+			}
+			return out
+		},
+		Area: func(name string) string { return areas[strings.ToLower(name)] },
 		Volumes: func(_ context.Context, ids []string) (map[string]music.Volume, error) {
 			ha.reads = append(ha.reads, slices.Clone(ids))
 			if ha.readError != nil {
@@ -159,25 +169,86 @@ func TestMU35_TheFollowUpKeepsTheMusicLowIdleSetsItBack(t *testing.T) {
 	}
 }
 
-// MU-36 A volume set during the turn stays
-func TestMU36_AVolumeSetDuringTheTurnStays(t *testing.T) {
-	ha, logs := newDuckHA(), &bytes.Buffer{}
-	d := newDucker(ha, logs)
-	sat := "assist_satellite.kueche"
-	step(d, map[string]string{sat: "listening"})
-	ha.volumes["media_player.show_five"] = 0.3 // "auf 30 %"
-	step(d, nil)
-	wantCalls(t, ha, "media_player.show_five 0.20")
-	if !strings.Contains(logs.String(), "music left at the volume set during the turn") {
-		t.Errorf("no log line:\n%s", logs)
+// MU-40 A volume tool call of the turn keeps the players it reaches; any other volume is set back
+func TestMU40_AVolumeToolCallKeepsThePlayersItReaches(t *testing.T) {
+	lowerBoth := func(t *testing.T) (*duckHA, *bytes.Buffer, *music.Ducker) {
+		t.Helper()
+		ha, logs := newDuckHA(), &bytes.Buffer{}
+		ha.states["media_player.sonos"] = "playing"
+		d := newDucker(ha, logs)
+		step(d, map[string]string{"assist_satellite.couch": "listening"})
+		wantCalls(t, ha, "media_player.onkyo 0.23", "media_player.sonos 0.17", "media_player.wohnzimmer_echo 0.30")
+		ha.calls = nil
+		return ha, logs, d
 	}
-	// The state not yet showing Mira's volume (row D2) is no change: set back.
-	ha.calls = nil
-	ha.volumes["media_player.show_five"] = 0.6
-	step(d, map[string]string{sat: "listening"})
-	ha.volumes["media_player.show_five"] = 0.6
-	step(d, nil)
-	wantCalls(t, ha, "media_player.show_five 0.20", "media_player.show_five 0.60")
+	const wz = "wohnzimmer"
+	t.Run("a rounded volume is set back all the same", func(t *testing.T) {
+		ha, _, d := lowerBoth(t)
+		ha.volumes["media_player.onkyo"] = 0.06 // the device's own step, not Mira's 0.23
+		step(d, nil)
+		wantCalls(t, ha, "media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_echo 0.90")
+		if len(ha.reads) != 1 {
+			t.Errorf("reads %v, want only the one when lowering", ha.reads)
+		}
+	})
+	t.Run("no target: the players of the turn's area keep their volume", func(t *testing.T) {
+		ha, logs, d := lowerBoth(t)
+		d.VolumeSet(music.VolumeCall{TurnArea: wz})
+		step(d, nil)
+		wantCalls(t, ha)
+		if !strings.Contains(logs.String(), "music left at the volume set by a volume command of the turn") {
+			t.Errorf("no log line:\n%s", logs)
+		}
+	})
+	t.Run("a name keeps that player only", func(t *testing.T) {
+		ha, _, d := lowerBoth(t)
+		d.VolumeSet(music.VolumeCall{TurnArea: wz, Name: "Onkyo"})
+		step(d, nil)
+		wantCalls(t, ha, "media_player.sonos 0.50", "media_player.wohnzimmer_echo 0.90")
+	})
+	t.Run("an area keeps the players of that area; another area keeps nothing here", func(t *testing.T) {
+		ha, _, d := lowerBoth(t)
+		d.VolumeSet(music.VolumeCall{TurnArea: wz, Area: "Küche"})
+		step(d, nil)
+		wantCalls(t, ha, "media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_echo 0.90")
+		ha.calls = nil
+		step(d, map[string]string{"assist_satellite.couch": "listening"})
+		ha.calls = nil
+		d.VolumeSet(music.VolumeCall{TurnArea: wz, Area: "Wohnzimmer"})
+		step(d, nil)
+		wantCalls(t, ha)
+	})
+	t.Run("a floor keeps every lowered player", func(t *testing.T) {
+		ha, _, d := lowerBoth(t)
+		d.VolumeSet(music.VolumeCall{TurnArea: wz, Floor: "Erdgeschoss"})
+		step(d, nil)
+		wantCalls(t, ha)
+	})
+	t.Run("a call of a turn from an area that is not lowered counts for nothing", func(t *testing.T) {
+		ha, _, d := lowerBoth(t)
+		d.VolumeSet(music.VolumeCall{TurnArea: "kueche", Name: "Onkyo"})
+		d.VolumeSet(music.VolumeCall{Name: "Onkyo"})
+		step(d, nil)
+		wantCalls(t, ha, "media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_echo 0.90")
+	})
+	t.Run("the mark ends with the turn", func(t *testing.T) {
+		ha, _, d := lowerBoth(t)
+		d.VolumeSet(music.VolumeCall{TurnArea: wz})
+		step(d, nil)
+		wantCalls(t, ha)
+		// The user's new volumes, then the next turn: lowered and set back.
+		ha.volumes["media_player.onkyo"], ha.volumes["media_player.sonos"], ha.volumes["media_player.wohnzimmer_echo"] = 0.7, 0.5, 0.9
+		step(d, map[string]string{"assist_satellite.couch": "listening"})
+		step(d, nil)
+		wantCalls(t, ha, "media_player.onkyo 0.23", "media_player.sonos 0.17", "media_player.wohnzimmer_echo 0.30",
+			"media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_echo 0.90")
+	})
+	t.Run("VolumeSet never blocks", func(t *testing.T) {
+		_, _, d := lowerBoth(t)
+		for range 1000 {
+			d.VolumeSet(music.VolumeCall{TurnArea: wz})
+		}
+	})
 }
 
 // MU-37 Two satellites in one room: the music comes back when both are idle
@@ -221,17 +292,6 @@ func TestMU38_WhatFailsLeavesALogLineAndTheRestGoesOn(t *testing.T) {
 		step(d, nil)
 		wantCalls(t, ha, "media_player.sonos 0.17", "media_player.sonos 0.50")
 		if !strings.Contains(logs.String(), "refused to lower a player") {
-			t.Errorf("log:\n%s", logs)
-		}
-	})
-	t.Run("reading fails when setting back", func(t *testing.T) {
-		ha, logs := newDuckHA(), &bytes.Buffer{}
-		d := newDucker(ha, logs)
-		step(d, map[string]string{"assist_satellite.kueche": "listening"})
-		ha.readError = errors.New("connection lost")
-		step(d, nil)
-		wantCalls(t, ha, "media_player.show_five 0.20", "media_player.show_five 0.60")
-		if !strings.Contains(logs.String(), "set back without the check") {
 			t.Errorf("log:\n%s", logs)
 		}
 	})

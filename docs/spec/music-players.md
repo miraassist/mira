@@ -1,6 +1,6 @@
 # Music with Music Assistant – spec
 
-Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live; step 7 (part 6, `music_more`) built, not on live; step 8 (part 7, ducking) built, not run end to end on the test HA. Scenarios: [music-players.feature](music-players.feature).
+Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live; step 7 (part 6, `music_more`) built, not on live; step 8 (part 7, ducking) built, its setting back changed after live (decision 35), not run end to end on the test HA. Scenarios: [music-players.feature](music-players.feature).
 
 ## Goal
 
@@ -359,20 +359,21 @@ lowers only for its own `play_announcement`.
 No thread, no tool: a watch of Mira's own for as long as she runs, as the persons are watched
 ([Home Assistant integration](ha-integration.md), Watching states), on the house structure of part 1 (the Music
 Assistant players and their areas, the satellites' areas). It is no tool: nothing changes in what the model is told,
-and no text of Mira's changes.
+and no text of Mira's changes. It also hears of the model's calls of Home Assistant's volume tools, which it already
+has (decision 35): through the tool registry, which tells it of every MCP call that succeeded.
 
 ### Decided (2026-11-20)
 
 | # | Question | Decision |
 |---|---|---|
 | 30 | Who lowers | Mira herself, for the Music Assistant players in the satellite's area: lowered when the satellite starts listening, set back when it is idle again (the maintainer) |
-| 31 | A volume command during the turn ("lauter", "leiser", "auf 30 %") | It counts as the new volume: it is not overwritten when the turn ends (the maintainer) |
+| 31 | A volume command during the turn ("lauter", "leiser", "auf 30 %") | It counts as the new volume: it is not overwritten when the turn ends (the maintainer). How Mira recognises one: decision 35 |
 | 32 | How far down | To a third of the player's volume, in whole percent, at least 1 %; no setting (taken in the build, 2026-11-20; for the maintainer to confirm) |
 | 33 | Which players | The Music Assistant players of part 1 (exposed) in the satellite's area that are `playing` when it starts listening; a paused or idle one, and one that starts during the turn, is not touched (taken in the build, 2026-11-20; for the maintainer to confirm) |
 | 34 | A player that plays on the satellite itself | Not lowered: its firmware lowers its own playback (the maintainer). The rule is per player: every other playing player of the area is lowered, the players of a group too. Recognised for now only as a player of the satellite's own device; see Open |
-| 35 | Setting back | When the last satellite of the area is idle: the remembered volume, only when the player's volume is still Mira's (or still the one before, not yet reported as hers, row D2); otherwise it was changed during the turn and stays (decision 31). A player stopped during the turn is set back too (taken in the build, 2026-11-20; for the maintainer to confirm) |
+| 35 | Setting back | Changed 2026-11-20 after live: devices round the volume to their own steps (Mira set 0.08, the player reported 0.06), so comparing values took Mira's own volume for a command of the user and left the music quiet. Now no value is compared: when the last satellite of the area is idle, every lowered player gets its remembered volume back, unless during the turn the model called one of Home Assistant's volume tools (`HassSetVolume`, `HassSetVolumeRelative`) for it and Home Assistant carried the call out: that call is the signal of decision 31, not the value. Muting and unmuting (`HassMediaPlayerMute`, `HassMediaPlayerUnmute`) do not count: setting the volume back does not touch the mute. Which players a call reaches, kept simple: a `name` → the lowered players of that name (or alias, as the house structure resolves names, in the call's `area` if it names one); else an `area` → the lowered players of that area; else a `floor` → every lowered player (the house structure knows no floors); no target → the lowered players of the turn's area (Home Assistant takes the satellite's area). Only a call of a turn from an area that is lowered counts. A volume changed in another way (an app, a remote) is overwritten. A player stopped during the turn is set back too (the maintainer, 2026-11-20) |
 | 36 | Which satellites | Every `assist_satellite` with an area (its entity's, else its device's, as the house structure finds a satellite's area); one without an area lowers nothing (taken in the build, 2026-11-20; for the maintainer to confirm) |
-| 37 | Reading the players fails when setting back | The volumes are set back without the check: music that stays quiet is worse than a volume command of the turn being overwritten (taken in the build, 2026-11-20; for the maintainer to confirm) |
+| 37 | Reading the players fails when setting back | No longer applies (2026-11-20, with decision 35): setting back reads no state, so there is no read to fail |
 | 38 | A Mira restart during a turn | The remembered volumes are lost: the players stay lowered until the user turns them up. A nuisance only; nothing is stored (taken in the build, 2026-11-20; for the maintainer to confirm) |
 
 ### Open
@@ -392,7 +393,8 @@ area count as one. The check is one function (`onSatellite`); a later rule is on
 | # | Transition | Signal | How Mira learns of it | Checked |
 |---|---|---|---|---|
 | D1 | a turn with a follow-up question ("Stell einen Wecker" → "Wann soll der Wecker klingeln?") | the satellite's state `idle` → `listening` (0.0 s) → `processing` (0.0) → `responding` (1.3) → `listening` (3.3, the follow-up) → `idle` (11.3, listening timed out). It does not pass `idle` between the answer and the follow-up: `listening` to `idle` spans the whole conversation | `subscribe_entities` filtered to the domain `assist_satellite` | checked on the test HA (2026-11-20), on the fake satellite, with a state subscription on that entity |
-| D2 | `media_player.volume_set` on a Music Assistant player | the call answers in under 10 ms (HTTP 200); the player's `volume_level` shows the new value about 0.3 s later | the call's answer; the state is read only when setting back | checked on the test HA (2026-11-20): `media_player.show`, idle, 0.7 and back to 0.7 |
+| D2 | `media_player.volume_set` on a Music Assistant player | the call answers in under 10 ms (HTTP 200); the player's `volume_level` shows the new value about 0.3 s later |
+| D3 | a volume command of the turn | the model's call of `HassSetVolume` or `HassSetVolumeRelative` on Home Assistant's MCP server, carried out (no error) | the tool registry tells the ducker of every MCP call that succeeded, with the turn's area and the arguments (in the turn's goroutine, without blocking) | the call itself is Mira's own; no state of Home Assistant is involved | the call's answer; the state is not read afterwards (a device may round the value to its own steps: on live, 0.08 became 0.06) | checked on the test HA (2026-11-20): `media_player.show`, idle, 0.7 and back to 0.7 |
 
 A turn is the time from `listening`, `processing` or `responding` to any other state (`idle`, also `unavailable`):
 the follow-up question keeps the music low (row D1). Nothing is waited for: lowering and setting back follow the
@@ -412,10 +414,16 @@ satellite's state changes; no time is computed.
    volume goes to a third (decision 32) with `media_player.volume_set`; its volume before and Mira's are remembered in
    memory. A player whose third is not below its volume (1 % or less) is left. One log line names the satellite, the
    area and the players with both volumes.
-3. **The last satellite of the area ends its turn** (to a state outside the turn, or removed): the remembered players
-   are read once (`GetStates` filtered to them); each whose volume is still Mira's, or still the one before, is set
-   back with `media_player.volume_set`; one whose volume is another was changed during the turn and stays (decision
-   31). One log line names the players set back, one those left.
+3. **A volume command during the turn** (row D3): when the model's call of `HassSetVolume` or
+   `HassSetVolumeRelative` on Home Assistant's server succeeded in a turn with an area, the registry hands the call
+   (the turn's area, `name`, `area`, `floor`) to the ducker: it is noted under a lock and the goroutine is signalled
+   (the same channel of one); the turn does not wait. The goroutine takes the noted calls in before the next states:
+   when the turn's area is lowered, the players the call reaches (decision 35) are marked to keep their volume, and
+   one log line names the call's targets and the players marked. A call whose arguments are no JSON object is logged
+   with its arguments and marks nothing.
+4. **The last satellite of the area ends its turn** (to a state outside the turn, or removed): nothing is read; each
+   remembered player not marked is set back to its volume before with `media_player.volume_set`; a marked one stays
+   (decision 35). The marks end with the turn. One log line names the players set back, one those left.
 
 ### Interrupting and cancelling
 
@@ -428,7 +436,7 @@ satellite's state changes; no time is computed.
 | A satellite in another room | Its own area, its own players |
 | The satellite becomes unavailable or is removed during the turn | As `idle`: the music is set back |
 | "Spiel Musik" during the turn | The player that starts is not touched (decision 33) |
-| A volume command during the turn | Decision 31: it stays |
+| A volume command during the turn | Decisions 31 and 35: a call of Home Assistant's volume tools keeps the players it reaches; a volume changed in an app or with a remote is set back |
 | Mira restarts during the turn | Decision 38 |
 
 ### Its errors
@@ -438,7 +446,7 @@ satellite's state changes; no time is computed.
 | The subscription cannot start | the log: `background task stopped` with the task `ducking` and the error | no ducking until Mira's next start |
 | Reading the players fails when a turn starts | one log line with the satellite, the area, the players and the error | nothing is lowered for this turn |
 | Home Assistant refuses `volume_set` when lowering | one log line with the player, both volumes and the error | that player stays as it is; the others go down |
-| Reading the players fails when setting back | one log line with the area, the players and the error | the volumes are set back without the check (decision 37) |
+| The arguments of a volume tool call are no JSON object (Home Assistant took them, so not expected) | one log line with the tool, the arguments and the error | nothing is marked: the players are set back after the turn |
 | Home Assistant refuses `volume_set` when setting back | one log line with the player, its volume and the error | that player stays lowered; the user turns it up |
 | A satellite without an area | — (no error) | nothing is lowered |
 
@@ -446,8 +454,9 @@ satellite's state changes; no time is computed.
 
 One subscription for as long as Mira runs, filtered to the satellites; every state change of a satellite is a
 message and a comparison in memory, without a call. Per turn in an area with Music Assistant players: one `GetStates`
-filtered to them and one `volume_set` per playing player when it starts, one `GetStates` and one `volume_set` per
-lowered player when it ends. The turn does not wait for any of it. An area without Music Assistant players costs
+filtered to them and one `volume_set` per playing player when it starts, one `volume_set` per lowered player not
+marked when it ends. A volume tool call costs a note in memory and, in a lowered area, a name lookup in the house
+structure; every other tool call a check of its name. The turn does not wait for any of it. An area without Music Assistant players costs
 nothing. It grows with the number of Music Assistant players in the satellite's area.
 
 ## Errors
@@ -478,7 +487,9 @@ prefix.
    live ("Spiel danach …" while music plays, row Q4) is left for the maintainer.
 7. **`music_more`** (part 6; `internal/music`, `cmd/mira`). Scenarios MU-27 to MU-33. Built 2026-11-20; the run on
    live ("Spiel mehr davon" while music plays, "Spiel was wie Queen", row M4) is left for the maintainer.
-8. **Ducking** (part 7; `internal/music`, `cmd/mira`). Scenarios MU-34 to MU-39. Built 2026-11-20; the run end to
+8. **Ducking** (part 7; `internal/music`, `cmd/mira`, `internal/tools`). Scenarios MU-34, MU-35, MU-37 to MU-40
+   (MU-36 retired). Built 2026-11-20; setting back changed the same day after live (decision 35: a volume tool
+   call is the signal, no value is compared). The run end to
    end on the test HA (a turn with a follow-up on the fake satellite while a Music Assistant player of its area
    plays) is open; the recognition of a player that plays on the satellite itself (part 7, Open) is for the
    maintainer to decide.

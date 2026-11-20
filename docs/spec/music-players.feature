@@ -243,12 +243,8 @@ Feature: MU Music with Music Assistant
     Then the player is lowered once, to 20 %
     And when the satellite is idle, or unavailable, the player is set back to 60 %, also when it was stopped during the turn
 
-  @step8
-  Scenario: MU-36 A volume set during the turn stays
-    Given the kitchen's player was lowered from 60 % to 20 %
-    When its volume is 30 % at the end of the turn
-    Then it is not set back, and a log line names it
-    And when its state still shows 60 % (Mira's volume not yet reported), it is set back
+  # MU-36 (a volume found changed at the end of the turn stays) was retired on 2026-11-20 with the change of
+  # decision 35 after live: devices round the volume, so no value is compared any more; replaced by MU-40.
 
   @step8
   Scenario: MU-37 Two satellites in one room: the music comes back when both are idle
@@ -262,7 +258,6 @@ Feature: MU Music with Music Assistant
     Given reading the players fails, or Home Assistant refuses volume_set for one player, or the watch cannot start
     Then a failed read when lowering lowers nothing for the turn, with a log line naming the players
     And a refused player stays as it is while the others go down and come back
-    And a failed read when setting back sets the volumes back without the check, with a log line
     And a refused setting back leaves a log line that the player stays lowered
     And a watch that cannot start is the background task's error
 
@@ -271,3 +266,15 @@ Feature: MU Music with Music Assistant
     Given ducking runs on a watch of the satellites
     When many state changes come at once on the connection's read loop
     Then the handler never blocks, and the goroutine lowers and sets back from the satellite's states
+
+  @step8
+  Scenario: MU-40 A volume tool call of the turn keeps the players it reaches; any other volume is set back
+    Given in the living room the Onkyo (70 %), the Sonos (50 %) and the Echo (90 %) were lowered while a satellite there listens
+    When the satellite is idle and the Onkyo reports 6 % (the device rounded Mira's 23 %), with no volume tool call
+    Then all three are set back to their volumes before, without reading their states
+    And when during the turn Home Assistant carried out HassSetVolume or HassSetVolumeRelative without a target, none is set back, with a log line
+    And a call naming "Onkyo" keeps only the Onkyo; one naming the living room keeps all three; one naming the kitchen keeps none of them; one naming a floor keeps all three
+    And a call from a turn in an area that is not lowered, or without an area, keeps nothing
+    And a call that Home Assistant answered with an error, a mute, or a tool of another server keeps nothing
+    And the marks end with the turn: the next turn sets the players back again
+    And noting a call never blocks the turn
