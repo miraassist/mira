@@ -1,6 +1,6 @@
 # Music with Music Assistant – spec
 
-Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live. Scenarios: [music-players.feature](music-players.feature).
+Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live; step 7 (part 6, `music_more`) built, not on live. Scenarios: [music-players.feature](music-players.feature).
 
 ## Goal
 
@@ -272,6 +272,81 @@ Per call one `GetStates` filtered to the candidates and one `call_service`; the 
 afterwards, nothing is waited for (adding does not change the player's state, row Q3). The model's search before it
 is Home Assistant's tool and its cost.
 
+## Part 6: more of the same (`music_more`)
+
+"Spiel mehr davon", "Mehr in der Art", "Spiel Ähnliches", "Spiel was wie Queen": Music Assistant appends similar
+music when `music_assistant.play_media` is called with `radio_mode`. Home Assistant's own
+`media_player__play_media` has no `radio_mode` (only `media_content_id`, `media_content_type` and the player by name,
+area or floor; checked on the test HA, 2026-11-20, Home Assistant 2026.11.1), and Music Assistant offers no switch or
+entity for it in Home Assistant either.
+
+### Decided (2026-11-20)
+
+| # | Question | Decision |
+|---|---|---|
+| 22 | Where the tool comes from | A tool of Mira's own, as `music_queue`, offered while Home Assistant has an exposed Music Assistant player; the call is `music_assistant.play_media` with `radio_mode` (the maintainer) |
+| 23 | Similar to what | To the item that plays ("Spiel mehr davon", "Mehr in der Art", "Spiel Ähnliches"), or to a search hit when the user names one ("Spiel was wie Queen": the model searches with `media_player__search_media` first and passes the hit's `media_content_id`) (the maintainer) |
+| 24 | When | After the item that plays: it plays to its end, the similar music is appended (`enqueue: add`) (the maintainer). Not chosen: replacing what plays at once |
+| 25 | Where | The player that plays (or is paused), found as in `music_queue` (decision 18); a room or player the user names (`player`) |
+| 26 | Nothing plays | Nothing is called: without a hit the tool says that nothing plays; with a hit it says, as `music_queue` (decision 20), to play the hit with `media_player__play_media` instead |
+| 27 | A radio station plays and no hit is given | Nothing is called: the tool says that "more of this" works with songs, not with a station, and that the model may search a song or an artist the user names. A station's URI as the seed is not tried (taken in the build, 2026-11-20; for the maintainer to confirm) |
+| 28 | A station plays and a hit is given | Appended all the same, as `music_queue` (decision 21): the answer says it comes only when the user says "weiter" (taken in the build, 2026-11-20; for the maintainer to confirm) |
+| 29 | The player that plays has no `media_content_id` | Nothing is called: the tool says the player does not tell what plays, and the model asks the user what the music should be like, then calls again with a hit; a log line names the player (taken in the build, 2026-11-20; for the maintainer to confirm) |
+
+### What Music Assistant does (checked on the test HA, 2026-11-20)
+
+| # | Transition | Signal | How Mira learns of it | Checked |
+|---|---|---|---|---|
+| M1 | similar music appended to a track | `music_assistant.play_media` on the playing player as `entity_id`, `media_id` the playing track's URI (its `media_content_id`, `deezer--…://track/4091937401`), `enqueue: add`, `radio_mode: true`: HTTP 200 | the call's answer; nothing is waited for | 2026-11-20 on the test HA: the Show playing "Queen - Bohemian Rhapsody", a queue of 1 item |
+| M2 | what plays goes on | the same title plays on (8 s after the call) | — | as M1 |
+| M3 | the queue grows | `music_assistant.get_queue`: 26 items, the next one "Alphaville - Big in Japan" | — (not read by Mira) | as M1 |
+| M4 | an artist's or an album's URI as the seed (a hit of "Spiel was wie Queen") | as M1 | the call's answer | open |
+
+Interrupting and cancelling: there is nothing to interrupt, the call is one action and nothing is waited for. What is
+appended is taken out in Music Assistant, or skipped with "weiter"; "Stopp" stops the player as always.
+
+### What the tool does
+
+`music_more(media_content_id?, player?)`, described to the model (in German and English) as playing more music of the
+kind after the current item, with the example sentences of decision 23; it says that without `media_content_id` the
+music is like what plays, and that for a kind the user names the model searches first with
+`media_player__search_media` on the player that plays and passes the hit.
+
+1. **The arguments**: both optional; arguments that are no JSON object are the tool's error with them; nothing is
+   read or called.
+2. **The player**: as step 2 of `music_queue` (part 5): `player` found as the target of `music_move`, an unknown one
+   answered with the players; one `GetStates` filtered to the candidates; the one that plays, else the one paused;
+   with several, the one in the turn's area, else the tool names them and the model asks, then calls again with
+   `player`. None: the sentence of decision 26.
+3. **The seed**: the hit when given; otherwise the player's `media_content_id`. A station (`://radio/` in it, as in
+   decision 21) without a hit: the sentence of decision 27. No `media_content_id`: decision 29.
+4. **The call**: `music_assistant.play_media` on the player with `media_id` the seed, `enqueue: add` and
+   `radio_mode: true`.
+5. **The answer** names the player with its area and that similar music (like the current item, or like the hit)
+   follows after the current item, for the model to say in its words; after a station, decision 28.
+
+### What the code models, the model is told
+
+The tool's description is the instruction: when to use it, and that a hit of the search is passed only when the user
+names what the music should be like. The station, nothing-plays and no-content cases are told in the answer of that
+call. The section of part 1 does not change.
+
+### Its errors
+
+| What fails | The model gets | The log gets |
+|---|---|---|
+| Arguments that are no JSON object | the tool's error with the arguments | nothing (the caller logs the tool's error) |
+| Reading the states fails | the tool's error: the players cannot be read now | one line with the error |
+| Home Assistant refuses (an unknown URI, the player unavailable) | the tool's error with Home Assistant's message | one line with the player, the seed and the error |
+| The player that plays has no `media_content_id` | a sentence: ask the user what it should be like | one line with the player |
+| An unknown room or player, several playing, none playing, a station without a hit | a sentence saying so, with the names to choose from or what to do instead | nothing (no error) |
+
+### Its costs
+
+Per call one `GetStates` filtered to the candidates and one `call_service`; the turn waits for both. Nothing runs
+afterwards, nothing is waited for (row M2). Music Assistant finds the similar music itself (row M3). The model's
+search before it, when the user names a kind, is Home Assistant's tool and its cost.
+
 ## Errors
 
 | What fails | Who learns of it | What happens |
@@ -298,3 +373,5 @@ prefix.
 5. **Radio through Music Assistant** (part 4; `cmd/mira`, `internal/music`). Scenarios MU-18 and MU-19. Built 2026-11-20.
 6. **`music_queue`** (part 5; `internal/music`, `cmd/mira`). Scenarios MU-20 to MU-26. Built 2026-11-20; the run on
    live ("Spiel danach …" while music plays, row Q4) is left for the maintainer.
+7. **`music_more`** (part 6; `internal/music`, `cmd/mira`). Scenarios MU-27 to MU-33. Built 2026-11-20; the run on
+   live ("Spiel mehr davon" while music plays, "Spiel was wie Queen", row M4) is left for the maintainer.

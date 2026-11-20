@@ -669,8 +669,16 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			}
 			return a.ha.CallService(ctx, "music_assistant", "play_media", data, &haws.Target{EntityID: []string{player}})
 		},
+		// Neither can it ask for similar music; Music Assistant's radio_mode
+		// can (docs/spec/music-players.md, part 6).
+		More: func(ctx context.Context, player, seed string) error {
+			return a.ha.CallService(ctx, "music_assistant", "play_media",
+				map[string]any{"media_id": seed, "enqueue": music.EnqueueAdd, "radio_mode": true},
+				&haws.Target{EntityID: []string{player}})
+		},
 	}
-	internal = append(internal, music.Tool(musicOptions), music.GroupTool(musicOptions), music.QueueTool(musicOptions))
+	internal = append(internal, music.Tool(musicOptions), music.GroupTool(musicOptions), music.QueueTool(musicOptions),
+		music.MoreTool(musicOptions))
 	// Phone calls from the satellite of the turn (docs/spec/phone.md).
 	a.phonebook = &phone.Book{On: a.phoneBookOn, Read: a.readPhonebook}
 	internal = append(internal, phone.Tool(phone.Options{Lang: a.lang, Book: a.phonebook,

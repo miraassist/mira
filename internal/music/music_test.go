@@ -41,6 +41,7 @@ type fakeHA struct {
 	unjoins   []string
 	contents  map[string]string // media_content_id per player
 	queued    []string          // "player <- id type enqueue"
+	more      []string          // "player <- seed" (radio_mode, enqueue add)
 	read      [][]string        // the players of each States read
 	refuse    error
 	readError error
@@ -87,6 +88,13 @@ func options(ha *fakeHA, players []music.Player, logs *bytes.Buffer) music.Optio
 				return ha.refuse
 			}
 			ha.queued = append(ha.queued, player+" <- "+id+" "+mediaType+" "+enqueue)
+			return nil
+		},
+		More: func(_ context.Context, player, seed string) error {
+			if ha.refuse != nil {
+				return ha.refuse
+			}
+			ha.more = append(ha.more, player+" <- "+seed)
 			return nil
 		},
 	}

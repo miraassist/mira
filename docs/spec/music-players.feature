@@ -176,3 +176,53 @@ Feature: MU Music with Music Assistant
     When music_queue runs
     Then the tool's error has Home Assistant's message or the arguments, nothing is queued
     And a refusal's log line names the player, the media id and the enqueue mode
+
+  @step7
+  Scenario: MU-27 music_more is there only with Music Assistant players
+    Given a house with exposed Music Assistant players, and one without
+    When Mira offers her tools
+    Then music_more is offered in the first only, its description has the example sentences in German and English
+    And it tells the model to search first with media_player__search_media when the user names what it should be like
+    And both its arguments are optional
+
+  @step7
+  Scenario: MU-28 Without a hit, the seed is the item that plays, appended in radio mode
+    Given the kitchen's player plays a song
+    When music_more runs without media_content_id
+    Then music_assistant.play_media is called on the kitchen's player with the song's media_content_id, enqueue "add" and radio_mode
+    And the states are read once, filtered to the Music Assistant players, and the answer names the player, its room and that similar music follows
+    And a paused player is used as well, also when the tool is called without arguments
+
+  @step7
+  Scenario: MU-29 With a hit, the hit is the seed, after a station too
+    Given the kitchen's player plays a song, or a station
+    When music_more runs with a hit of the search
+    Then the hit is the seed and the answer says that music like the hit follows
+    And after a station the answer says that it comes only when the user says "weiter"
+
+  @step7
+  Scenario: MU-30 The player is found as music_queue's
+    Given players play in the kitchen and in the living room
+    When music_more runs in the kitchen, in the bathroom, and in the kitchen with player "Wohnzimmer", "Onkyo" or "Garage"
+    Then the kitchen's player is used, the bathroom's turn names both for the model to ask, the named ones use the living room's player
+    And "Garage" calls nothing and the answer names the players
+
+  @step7
+  Scenario: MU-31 When nothing plays, nothing is called; with a hit the model is told to play it
+    Given no Music Assistant player plays
+    When music_more runs without a hit and with one
+    Then nothing is called, the first answer says that no music plays and the second to play the hit with media_player__play_media
+
+  @step7
+  Scenario: MU-32 A station or a player that does not say what it plays calls nothing without a hit
+    Given the kitchen's player plays a station (library://radio/1 or radiobrowser://radio/…), or has no media_content_id
+    When music_more runs without a hit
+    Then nothing is called; for the station the answer says that "more of this" works with songs, not a station
+    And without a media_content_id the answer tells the model to ask the user, and a log line names the player
+
+  @step7
+  Scenario: MU-33 What fails is the tool's error and names its input
+    Given Home Assistant refuses the call, the states cannot be read, or the arguments are no JSON object
+    When music_more runs
+    Then the tool's error has Home Assistant's message or the arguments, nothing is appended
+    And a refusal's log line names the player and the seed

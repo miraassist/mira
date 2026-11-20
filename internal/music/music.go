@@ -1,7 +1,8 @@
 // Package music is Mira's part in music with Music Assistant
 // (docs/spec/music-players.md): which players play its music, for the
 // prompt's prefix, music_move, which takes what plays along to another room
-// with Music Assistant's transfer_queue, music_group and music_queue.
+// with Music Assistant's transfer_queue, music_group, music_queue and
+// music_more.
 package music
 
 import (
@@ -142,7 +143,11 @@ type Options struct {
 	Unjoin func(ctx context.Context, player string) error
 	// Queue is music_assistant.play_media on the player with the item, its
 	// type ("" for none) and enqueue (EnqueueNext, EnqueueAdd) (music_queue).
-	Queue  func(ctx context.Context, player, mediaID, mediaType, enqueue string) error
+	Queue func(ctx context.Context, player, mediaID, mediaType, enqueue string) error
+	// More is music_assistant.play_media on the player with the seed,
+	// enqueue "add" and radio_mode on: similar music after the current
+	// item (music_more).
+	More   func(ctx context.Context, player, seed string) error
 	Logger *slog.Logger
 }
 
