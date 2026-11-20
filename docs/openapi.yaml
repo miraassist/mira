@@ -2416,25 +2416,6 @@ paths:
                             required:
                               - name
                               - set
-                        schedules:
-                          type:
-                            - "null"
-                            - array
-                          items:
-                            type: object
-                            properties:
-                              name:
-                                type: string
-                              off:
-                                type: boolean
-                              cron:
-                                type: string
-                              per_person:
-                                type: boolean
-                              next:
-                                type: string
-                            required:
-                              - cron
                         target:
                           type:
                             - "null"
