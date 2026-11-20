@@ -71,6 +71,7 @@ var builtSteps = map[string][]int{
 	"YT": {2},                          // docs/spec/youtube.md, Steps; step 3 is the run end to end on the test HA
 	"SJ": {1, 2, 3},                    // docs/spec/scheduled-jobs.md, Steps
 	"MU": {1, 2},                       // docs/spec/music-players.md, Steps; step 3 is the run on live
+	"IR": {1},                          // docs/spec/intent-results.md, Steps
 	"FS": {1, 3},                       // docs/spec/flight-status.md, Steps; step 2 is the run on the test HA
 	"TC": {2, 3, 5},                    // docs/spec/telegram-history.md, Steps; step 1 is tested in pytest (TC-01, TC-02)
 }

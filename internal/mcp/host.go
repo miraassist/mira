@@ -97,6 +97,10 @@ type Options struct {
 	// Connections give the servers with token: oauth their token
 	// (docs/spec/oauth.md); without them such a server is not connected.
 	Connections Connections
+	// IntentServer is the server of Home Assistant's Assist API: an intent
+	// answer of it where nothing succeeded but an area is an error
+	// (docs/spec/intent-results.md). "" for none.
+	IntentServer string
 }
 
 // Connections are the skills' logins at services, as the MCP host needs
@@ -189,6 +193,7 @@ type Host struct {
 	readOnly     map[string]bool
 	retry        time.Duration
 	callTimeout  time.Duration
+	intentServer string
 	connect      Connector
 	version      string
 	devices      func() []string
@@ -229,6 +234,7 @@ func New(opts Options) *Host {
 		readOnly:     map[string]bool{},
 		retry:        opts.RetryInterval,
 		callTimeout:  opts.CallTimeout,
+		intentServer: opts.IntentServer,
 		connect:      opts.Connector,
 		version:      opts.Version,
 		devices:      opts.Devices,
@@ -721,7 +727,51 @@ func (h *Host) callOn(ctx context.Context, s *server, qualified, toolName string
 	if err != nil {
 		return Result{}, fmt.Errorf("call %s: %w", qualified, err)
 	}
-	return Result{Text: flatten(res), IsError: res.IsError}, nil
+	out := Result{Text: flatten(res), IsError: res.IsError}
+	if serverName == h.intentServer && !out.IsError {
+		if failed := actedOnNothing(out.Text); len(failed) > 0 {
+			out.IsError = true
+			h.log.Warn("home assistant acted on nothing", "tool", qualified, "failed", failed)
+		}
+	}
+	return out, nil
+}
+
+// actedOnNothing is the failed entities of an intent answer of Home
+// Assistant that is action_done although no entity succeeded: Home Assistant
+// counts a named area or floor as a success before any call
+// (docs/spec/intent-results.md). nil for any other answer.
+func actedOnNothing(text string) []string {
+	var a struct {
+		ResponseType string `json:"response_type"`
+		Data         struct {
+			Success []struct {
+				Type string `json:"type"`
+			} `json:"success"`
+			Failed []struct {
+				Type string `json:"type"`
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"failed"`
+		} `json:"data"`
+	}
+	if json.Unmarshal([]byte(strings.TrimSpace(text)), &a) != nil || a.ResponseType != "action_done" || len(a.Data.Failed) == 0 {
+		return nil
+	}
+	for _, s := range a.Data.Success {
+		if s.Type == "entity" {
+			return nil
+		}
+	}
+	out := make([]string, 0, len(a.Data.Failed))
+	for _, f := range a.Data.Failed {
+		id := f.ID
+		if id == "" {
+			id = f.Name
+		}
+		out = append(out, id)
+	}
+	return out
 }
 
 // Prompt fetches a prompt template from one server and returns its text

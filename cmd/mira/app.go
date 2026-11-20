@@ -344,6 +344,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.mcp = mcp.New(mcp.Options{
 		Servers: servers, Logger: a.log, Version: version, Connections: a.oauth,
 		ReadOnlyTools: cfg.Security.ReadOnlyTools,
+		// An intent answer of Home Assistant where only an area "succeeded"
+		// is an error (docs/spec/intent-results.md).
+		IntentServer: haServer,
 		// Home Assistant's tools as each asking device would get them (the
 		// timers exist only for those that have them): the satellites, the
 		// companion apps, and every other device that asked
