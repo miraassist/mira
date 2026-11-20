@@ -1,6 +1,6 @@
 # Music with Music Assistant – spec
 
-Status 2026-11-20: steps 1 and 2 built (not released); step 3, the run on live, is open. Scenarios: [music-players.feature](music-players.feature).
+Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; part 3 decided, not built. Scenarios: [music-players.feature](music-players.feature).
 
 ## Goal
 
@@ -85,7 +85,9 @@ The target keeps its own volume. Nothing waits for a state: the tool answers whe
 ### What the tool does
 
 `music_move(to, from?)`, described to the model as taking the music that plays along to another room or player
-("Nimm die Musik mit in die Küche", "Mach die Musik im Bad weiter").
+("Nimm die Musik mit in die Küche", "Mach die Musik im Bad weiter", "Hol die Musik her", "Verschieb die Musik
+hierher", and "Lass die Musik hier weiterlaufen" when it plays in another room; added 2026-11-20 after live, where
+that sentence was taken as "unpause").
 
 1. **The Music Assistant players** are those of part 1. Without one the tool is not offered.
 2. **The target** (`to`): a player's name (as the house structure has its names and aliases) or an area (its name or
@@ -114,6 +116,46 @@ The target keeps its own volume. Nothing waits for a state: the tool answers whe
 Per call: one `GetStates` filtered to the Music Assistant players (only when `from` is not given) and one
 `call_service`; the turn waits for both, under 2 s on live. Nothing runs afterwards.
 
+## Part 3: a player more, a player less (`music_group`)
+
+### Decided (2026-11-20, the maintainer)
+
+| # | Question | Decision |
+|---|---|---|
+| 7 | Fixed groups | Set up in Music Assistant's settings, not by voice. Mira only adds a player to what plays and takes one out again ("Spiel das auch im Bad", "Nimm das Bad wieder raus") |
+| 8 | "Überall" | Every Music Assistant player |
+| 9 | To which player the others are added | The one that plays, found as the source of `music_move` (part 2) |
+
+### What Home Assistant does
+
+`media_player.join` on the player that plays, with `group_members` the players to add; `media_player.unjoin` on a
+player to take it out. Both are Home Assistant's actions; the Music Assistant players report the feature
+(`GROUPING`). Which players can play together is Music Assistant's matter (an Echo with another kind of speaker, say);
+what it refuses comes back as Home Assistant's error.
+
+| # | Transition | Signal | How Mira learns of it | Checked on live |
+|---|---|---|---|---|
+| G1 | a player added | the join's success; the playing player's `group_members` holds it | the call's answer | open, the maintainer tests it |
+| G2 | a player taken out | the unjoin's success; it is no longer in `group_members` | the call's answer | open |
+
+### What the tool does
+
+`music_group(add?, remove?)`, described to the model as adding rooms or players to the music that plays, or taking
+them out ("Spiel das auch im Bad", "Mach die Musik überall an", "Nimm das Bad wieder raus").
+
+1. **`add`**: rooms or players, as the target of `music_move`; "alle" (or "überall") is every Music Assistant player
+   but the one that plays. A room with several players: all of them. The player that plays is found as the source
+   of `music_move`; when none plays, the tool says so. Then one `media_player.join` on it with all of them.
+2. **`remove`**: rooms or players; one `media_player.unjoin` per player. A player that is not in the group is left
+   out of the call and named in the answer.
+3. **The answer** names what was added or taken out, with the rooms.
+
+### Its errors and costs
+
+As `music_move`: reading the states fails, Home Assistant refuses (the tool's error with its message, a log line), an
+unknown room or player, none plays (a sentence). Per call one `GetStates` filtered to the Music Assistant players and
+one `join`, or one `unjoin` per player taken out; the turn waits for them.
+
 ## Errors
 
 | What fails | Who learns of it | What happens |
@@ -135,3 +177,4 @@ prefix.
 2. **`music_move`** (`internal/music`). Scenarios MU-05 to MU-09.
 3. **On live**: "Spiel … in der Küche" goes to the Music Assistant player at once; "Nimm die Musik mit ins Bad"
    moves it. Left for the maintainer (it plays music in the house).
+4. **`music_group`** (part 3). Scenarios to be written with it.
