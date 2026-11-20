@@ -1,6 +1,6 @@
 # Music with Music Assistant – spec
 
-Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA. Scenarios: [music-players.feature](music-players.feature).
+Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live. Scenarios: [music-players.feature](music-players.feature).
 
 ## Goal
 
@@ -200,6 +200,78 @@ no artist comes); Mira calls nothing for it on this path.
 Nothing of Mira's own: the search and the play are Home Assistant's tools, their errors come back in the turn as for
 music. No call of its own; the condition reads the house structure.
 
+## Part 5: queueing (`music_queue`)
+
+"Spiel danach Bohemian Rhapsody", "Setz das auf die Liste": Home Assistant's own tools cannot do it.
+`media_player__play_media` has only `media_content_id`, `media_content_type` and the player (name, area or floor),
+no enqueue: every play replaces the queue (checked on the test HA, 2026-11-20, Home Assistant 2026.11.1).
+
+### Decided (2026-11-20, the maintainer)
+
+| # | Question | Decision |
+|---|---|---|
+| 16 | Where the tool comes from | A tool of Mira's own, as `music_move`, offered while Home Assistant has an exposed Music Assistant player; the call is Music Assistant's `music_assistant.play_media` with `enqueue`, which Home Assistant's Assist tools lack |
+| 17 | What is queued | A hit of `media_player__search_media`: the model searches first, on the player that plays, and passes the hit's `media_content_id` (a Music Assistant URI) and its `media_content_type`. Mira searches nothing herself |
+| 18 | Where | The player that plays (or is paused), found as the source of `music_move` (part 2); a room or player the user names, as `music_move`'s `from` |
+| 19 | When | "next" (after the current item: "Spiel danach …", "Als Nächstes …") or "end", the default ("Setz das auf die Liste", "Häng … hinten an", "Reih … ein"); Music Assistant's `enqueue` `next` and `add` |
+| 20 | Nothing plays | No queue to add to: the tool says so, and the model plays the hit with `media_player__play_media` instead (a sentence, no error) |
+| 21 | A radio station plays (it does not end by itself) | Queued all the same (A); the answer says that the item comes after the station, that is only when the user says "weiter" ("next"). A station is known by the player's `media_content_id`: a Music Assistant URI with `://radio/` in it (seen on the test HA: `library://radio/1`, `radiobrowser://radio/…`) |
+
+### What Music Assistant does (checked on the test HA, 2026-11-20)
+
+| # | Transition | Signal | How Mira learns of it | Checked |
+|---|---|---|---|---|
+| Q1 | the model searches on a Music Assistant player | `media_player__search_media` returns Music Assistant URIs as `media_content_id` (`deezer--…://track/4091937401`, also artists and albums) | the tool's answer, in the turn | 2026-11-20 on the test HA |
+| Q2 | an item added at the end | `music_assistant.play_media` with the player as `entity_id`, `media_id` the URI, `enqueue: add`: HTTP 200; `music_assistant.get_queue` shows the queue's items going from 1 to 2 | the call's answer; nothing is waited for | 2026-11-20 on the test HA |
+| Q3 | adding does not start playback | the player stays as it was (`idle` in the check) | — | 2026-11-20 on the test HA, as Q2 |
+| Q4 | an item added after the current one | as Q2 with `enqueue: next` | the call's answer | open: `next` is Music Assistant's mode for it, not checked separately |
+| Q5 | a station plays | the player's `media_content_id` is `library://radio/…` or `radiobrowser://radio/…` | the states read of step 2 below | 2026-11-20 on the test HA (the URIs seen) |
+
+Interrupting and cancelling: there is nothing to interrupt, the call is one action and nothing is waited for. What is
+queued is taken out in Music Assistant, not by voice.
+
+### What the tool does
+
+`music_queue(media_content_id, media_content_type?, when?, player?)`, described to the model (in German and English)
+as putting a song, an album, an artist or a playlist into the queue of the music that plays without interrupting it,
+with the example sentences of decision 19; it says to search first with `media_player__search_media` on the player
+that plays and to pass the hit, and that `media_player__play_media` replaces what plays.
+
+1. **The arguments**: without `media_content_id`, or with `when` neither "next" nor "end", the tool's error names
+   the arguments; nothing is read or called.
+2. **The player**: `player` given, it is found as the target of `music_move` (a player's name or an area); an unknown
+   one: the tool says so with the players. The candidates are that area's players (or the one player), without
+   `player` all Music Assistant players. One `GetStates`, filtered to the candidates, with their attributes. Among
+   them the one that plays, else the one paused, as the source of `music_move`: with several, the one in the turn's
+   area; otherwise the tool names them and the model asks, then calls again with `player`. None: the sentence of
+   decision 20.
+3. **The call**: `music_assistant.play_media` on the player with `media_id`, `enqueue` (`next` or `add`) and, when
+   given, `media_type` (the hit's `media_content_type`).
+4. **The answer** names the player with its area and whether the item comes next or at the end, for the model to say
+   in its words; when the player's `media_content_id` is a station (decision 21), it adds that the item comes only
+   when the user says "weiter".
+
+### What the code models, the model is told
+
+The tool's description is the instruction: when to use it instead of `media_player__play_media`, and that the hit of
+the search is what it takes. The station case is told in the answer of that call. The section of part 1 does not
+change: it names the players, which is all `music_queue` needs from it.
+
+### Its errors
+
+| What fails | The model gets | The log gets |
+|---|---|---|
+| No `media_content_id`, an unknown `when` | the tool's error with the arguments | nothing (the caller logs the tool's error) |
+| Reading the states fails | the tool's error: the players cannot be read now | one line with the error |
+| Home Assistant refuses (an unknown URI, the player unavailable) | the tool's error with Home Assistant's message | one line with the player, the media id, the enqueue mode and the error |
+| An unknown room or player, several playing, none playing | a sentence saying so, with the names to choose from or the hint to play instead | nothing (no error) |
+
+### Its costs
+
+Per call one `GetStates` filtered to the candidates and one `call_service`; the turn waits for both. Nothing runs
+afterwards, nothing is waited for (adding does not change the player's state, row Q3). The model's search before it
+is Home Assistant's tool and its cost.
+
 ## Errors
 
 | What fails | Who learns of it | What happens |
@@ -224,3 +296,5 @@ prefix.
 4. **`music_group`** (part 3; `internal/music`, `cmd/mira`). Scenarios MU-10 to MU-17. Built 2026-11-20; the run on live
    (adding, taking out, row G2) is left for the maintainer.
 5. **Radio through Music Assistant** (part 4; `cmd/mira`, `internal/music`). Scenarios MU-18 and MU-19. Built 2026-11-20.
+6. **`music_queue`** (part 5; `internal/music`, `cmd/mira`). Scenarios MU-20 to MU-26. Built 2026-11-20; the run on
+   live ("Spiel danach …" while music plays, row Q4) is left for the maintainer.

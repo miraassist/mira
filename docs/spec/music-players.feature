@@ -1,5 +1,6 @@
 # Scenarios of docs/spec/music-players.md. Every scenario has a number (MU-01, …); the Go test that checks it carries
-# the number in its name (TestMU01_…). @step1 is the players in the prefix, @step2 music_move, @step4 music_group, @step5 radio through Music Assistant.
+# the number in its name (TestMU01_…). @step1 is the players in the prefix, @step2 music_move, @step4 music_group, @step5 radio through Music Assistant,
+# @step6 music_queue.
 
 Feature: MU Music with Music Assistant
 
@@ -127,3 +128,51 @@ Feature: MU Music with Music Assistant
     Given exposed Music Assistant players
     When the section is built
     Then its rule names music and radio stations
+
+  @step6
+  Scenario: MU-20 music_queue is there only with Music Assistant players
+    Given a house with exposed Music Assistant players, and one without
+    When Mira offers her tools
+    Then music_queue is offered in the first only, its description has the example sentences in German and English
+    And it tells the model to search first with media_player__search_media and that media_player__play_media replaces what plays
+
+  @step6
+  Scenario: MU-21 "next" and "end" are Music Assistant's enqueue next and add on the player that plays
+    Given the kitchen's player plays
+    When music_queue runs with a hit of the search and when "next", "end" or none
+    Then music_assistant.play_media is called on the kitchen's player with the hit and enqueue "next", "add" and "add"
+    And the states are read once, filtered to the Music Assistant players, and the answer names the player, its room and next or the end
+    And a paused player is queued on as well
+
+  @step6
+  Scenario: MU-22 With music in several rooms the turn's room wins, else the tool names them
+    Given players play in the kitchen and in the living room
+    When music_queue runs in a turn in the kitchen, and in one in the bathroom
+    Then the first is queued on the kitchen's player, the second calls nothing and names both for the model to ask
+
+  @step6
+  Scenario: MU-23 A room or a player the user names is where it is queued
+    Given players play in the kitchen and in the living room
+    When music_queue runs in the kitchen with player "Wohnzimmer", "Onkyo" or "Garage"
+    Then the first two are queued on the living room's player that plays, reading only the named players
+    And "Garage" calls nothing and the answer names the players
+
+  @step6
+  Scenario: MU-24 When nothing plays, the model is told to play the item instead
+    Given no Music Assistant player plays, or none in the room named
+    When music_queue runs
+    Then nothing is called and the answer says that no music plays and to play the hit with media_player__play_media
+
+  @step6
+  Scenario: MU-25 After a radio station the item is queued all the same, and the answer says it comes on "weiter"
+    Given the kitchen's player plays a station (its media_content_id library://radio/1 or radiobrowser://radio/…)
+    When music_queue runs
+    Then the hit is queued and the answer says that it comes only when the user says "weiter"
+    And with a song playing the answer says nothing of a station
+
+  @step6
+  Scenario: MU-26 What fails is the tool's error and names its input
+    Given Home Assistant refuses the call, the states cannot be read, the media_content_id is missing or when is unknown
+    When music_queue runs
+    Then the tool's error has Home Assistant's message or the arguments, nothing is queued
+    And a refusal's log line names the player, the media id and the enqueue mode

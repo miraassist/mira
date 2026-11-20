@@ -39,6 +39,9 @@ type fakeHA struct {
 	moves     []string
 	joins     []string // "leader <- a,b"
 	unjoins   []string
+	contents  map[string]string // media_content_id per player
+	queued    []string          // "player <- id type enqueue"
+	read      [][]string        // the players of each States read
 	refuse    error
 	readError error
 }
@@ -48,12 +51,13 @@ func options(ha *fakeHA, players []music.Player, logs *bytes.Buffer) music.Optio
 		Players: func() []music.Player { return players },
 		Area:    func(name string) string { return areas[name] },
 		States: func(_ context.Context, ids []string) (map[string]music.State, error) {
+			ha.read = append(ha.read, ids)
 			if ha.readError != nil {
 				return nil, ha.readError
 			}
 			out := map[string]music.State{}
 			for _, id := range ids {
-				out[id] = music.State{State: ha.states[id], Members: ha.groups[id]}
+				out[id] = music.State{State: ha.states[id], Members: ha.groups[id], Content: ha.contents[id]}
 			}
 			return out, nil
 		},
@@ -76,6 +80,13 @@ func options(ha *fakeHA, players []music.Player, logs *bytes.Buffer) music.Optio
 				return ha.refuse
 			}
 			ha.unjoins = append(ha.unjoins, player)
+			return nil
+		},
+		Queue: func(_ context.Context, player, id, mediaType, enqueue string) error {
+			if ha.refuse != nil {
+				return ha.refuse
+			}
+			ha.queued = append(ha.queued, player+" <- "+id+" "+mediaType+" "+enqueue)
 			return nil
 		},
 	}

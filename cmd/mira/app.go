@@ -644,7 +644,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			}
 			out := map[string]music.State{}
 			for _, s := range states {
-				out[s.EntityID] = music.State{State: s.State, Members: groupMembers(s.Attributes)}
+				content, _ := s.Attributes["media_content_id"].(string)
+				out[s.EntityID] = music.State{State: s.State, Members: groupMembers(s.Attributes), Content: content}
 			}
 			return out, nil
 		},
@@ -659,8 +660,17 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Unjoin: func(ctx context.Context, player string) error {
 			return a.ha.CallService(ctx, "media_player", "unjoin", nil, &haws.Target{EntityID: []string{player}})
 		},
+		// Home Assistant's play_media cannot enqueue; Music Assistant's can
+		// (docs/spec/music-players.md, part 5).
+		Queue: func(ctx context.Context, player, mediaID, mediaType, enqueue string) error {
+			data := map[string]any{"media_id": mediaID, "enqueue": enqueue}
+			if mediaType != "" {
+				data["media_type"] = mediaType
+			}
+			return a.ha.CallService(ctx, "music_assistant", "play_media", data, &haws.Target{EntityID: []string{player}})
+		},
 	}
-	internal = append(internal, music.Tool(musicOptions), music.GroupTool(musicOptions))
+	internal = append(internal, music.Tool(musicOptions), music.GroupTool(musicOptions), music.QueueTool(musicOptions))
 	// Phone calls from the satellite of the turn (docs/spec/phone.md).
 	a.phonebook = &phone.Book{On: a.phoneBookOn, Read: a.readPhonebook}
 	internal = append(internal, phone.Tool(phone.Options{Lang: a.lang, Book: a.phonebook,

@@ -1,7 +1,7 @@
 // Package music is Mira's part in music with Music Assistant
 // (docs/spec/music-players.md): which players play its music, for the
-// prompt's prefix, and music_move, which takes what plays along to another
-// room with Music Assistant's transfer_queue.
+// prompt's prefix, music_move, which takes what plays along to another room
+// with Music Assistant's transfer_queue, music_group and music_queue.
 package music
 
 import (
@@ -140,14 +140,19 @@ type Options struct {
 	// media_player.unjoin on a player (music_group).
 	Join   func(ctx context.Context, leader string, members []string) error
 	Unjoin func(ctx context.Context, player string) error
+	// Queue is music_assistant.play_media on the player with the item, its
+	// type ("" for none) and enqueue (EnqueueNext, EnqueueAdd) (music_queue).
+	Queue  func(ctx context.Context, player, mediaID, mediaType, enqueue string) error
 	Logger *slog.Logger
 }
 
 // State is a player's state and the players of its group (group_members,
-// the player itself among them; empty when it is in none).
+// the player itself among them; empty when it is in none); Content is its
+// media_content_id, Music Assistant's URI of what it plays.
 type State struct {
 	State   string
 	Members []string
+	Content string
 }
 
 // Tool is music_move, offered while there is a Music Assistant player.
