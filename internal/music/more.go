@@ -109,7 +109,7 @@ func more(ctx context.Context, o Options, m moreTexts, log *slog.Logger, turnAre
 	candidates := players
 	if strings.TrimSpace(player) != "" {
 		var ok bool
-		if candidates, _, ok = find(o, players, player); !ok {
+		if candidates, ok = findSource(o, players, player); !ok {
 			return fmt.Sprintf(m.unknown, player, list(players)), nil
 		}
 	}

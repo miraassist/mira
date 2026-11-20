@@ -1,6 +1,7 @@
 # Scenarios of docs/spec/music-players.md. Every scenario has a number (MU-01, …); the Go test that checks it carries
 # the number in its name (TestMU01_…). @step1 is the players in the prefix, @step2 music_move, @step4 music_group, @step5 radio through Music Assistant,
-# @step6 music_queue, @step7 music_more, @step8 ducking, @step9 music_seek.
+# @step6 music_queue, @step7 music_more, @step8 ducking, @step9 music_seek, @step10 a player named like its area
+# where the player that plays is looked for.
 
 Feature: MU Music with Music Assistant
 
@@ -332,3 +333,11 @@ Feature: MU Music with Music Assistant
     When music_seek runs
     Then the tool's error has Home Assistant's message or the read's error, with a log line
     And a refusal's log line names the player and the target position
+
+  @step10
+  Scenario: MU-49 Where the player that plays is looked for, a player named like its area stands for the area too
+    Given the living room has an idle player named "Wohnzimmer" and the Onkyo, which plays
+    When music_seek, music_queue or music_more runs with player "Wohnzimmer", or music_move with from "Wohnzimmer"
+    Then the Onkyo is wound, gets the item or more of the same, or its music moves
+    And when the player named "Wohnzimmer" plays, it is the one taken
+    And music_move with to "Wohnzimmer" still moves to the player named "Wohnzimmer"

@@ -130,7 +130,7 @@ func queue(ctx context.Context, o Options, q queueTexts, log *slog.Logger, turnA
 	candidates := players
 	if strings.TrimSpace(player) != "" {
 		var ok bool
-		if candidates, _, ok = find(o, players, player); !ok {
+		if candidates, ok = findSource(o, players, player); !ok {
 			return fmt.Sprintf(q.unknown, player, list(players)), nil
 		}
 	}

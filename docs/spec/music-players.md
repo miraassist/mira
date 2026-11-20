@@ -1,6 +1,6 @@
 # Music with Music Assistant – spec
 
-Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live; step 7 (part 6, `music_more`) built, not on live; step 8 (part 7, ducking) built, its setting back changed after live (decision 35), the players that lower themselves recognised by their manufacturer (decision 39), not run end to end on the test HA; step 9 (part 8, `music_seek`) built, not on live. Scenarios: [music-players.feature](music-players.feature).
+Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live; step 7 (part 6, `music_more`) built, not on live; step 8 (part 7, ducking) built, its setting back changed after live (decision 35), the players that lower themselves recognised by their manufacturer (decision 39), not run end to end on the test HA; step 9 (part 8, `music_seek`) built, not on live; step 10 (decision 49, a player named like its area) built, not on live. Scenarios: [music-players.feature](music-players.feature).
 
 ## Goal
 
@@ -69,6 +69,7 @@ and that the others cannot.
 | 4 | Where the tool comes from | A tool of Mira's own, as `radio_play`, offered in every turn while Home Assistant has an exposed Music Assistant player (1A). Not chosen: a script of a skill `musik`, which the model would open first |
 | 5 | Where the music comes from | Mira finds it herself: the Music Assistant player that plays; with several, the one in the area the user speaks in; otherwise the tool names them and the model asks (2A). Not chosen: leaving it to Music Assistant ("the first playing player") |
 | 6 | Where it goes | A room or a player: a room with one Music Assistant player is that player; with several the model names one (3A), knowing them from part 1 |
+| 49 | A word that is both a player's name and an area's (added 2026-11-20 after live) | Where a tool looks for the player that plays (`music_move`'s `from`, the `player` of `music_queue`, `music_more` and `music_seek`), the word stands for both: the named player and all players of that area are the candidates, and among them the one that plays is taken as in step 3. Where music goes (`music_move`'s `to`, the players `music_group` adds or takes out), a name wins over an area as before. Reason, seen on live: "Spring zehn Sekunden vor" in the living room, the model called `music_seek` with `player` "Wohnzimmer"; a Music Assistant player named "Wohnzimmer" (an Echo Dot, idle) is in the area Wohnzimmer beside the Onkyo, which played. The name won, only the idle Dot was a candidate, and the tool answered that no music plays there (the maintainer) |
 
 ### What Music Assistant does (checked on live, 2026-11-20)
 
@@ -94,9 +95,11 @@ that sentence was taken as "unpause").
    alias). An area with one Music Assistant player is that player; with several, the tool answers with their names
    and nothing is moved, so the model names one; an area or name without one: the tool says so. A player named like
    an area ("Wohnzimmer") is that player: a name wins over an area.
-3. **The source** (`from`, optional; a room or a player as for the target): without it, Mira reads the states of the
-   Music Assistant players (one `GetStates`, filtered to them). The players that play are the candidates; when none
-   plays, those paused. One candidate: that one. Several: the one in the area of the turn's satellite; when that is
+3. **The source** (`from`, optional; a room or a player): given, the candidates are the player of that name and the
+   players of that area alike (decision 49: a player named like its area does not hide the area's other players);
+   neither: the tool says so with the players. Without `from`, the candidates are all Music Assistant players. Mira
+   reads the states of the candidates (one `GetStates`, filtered to them). Those that play count; when none
+   plays, those paused. One of them: that one. Several: the one in the area of the turn's satellite; when that is
    none of them, the tool answers with their names and areas, and the model asks. None: the tool says that no music
    plays.
 4. **Source and target the same**: the tool says that it plays there already; nothing is called.
@@ -113,7 +116,7 @@ that sentence was taken as "unpause").
 
 ### Its costs
 
-Per call: one `GetStates` filtered to the Music Assistant players (only when `from` is not given) and one
+Per call: one `GetStates` filtered to the candidates of step 3 and one
 `call_service`; the turn waits for both, under 2 s on live. Nothing runs afterwards.
 
 ## Part 3: a player more, a player less (`music_group`)
@@ -149,10 +152,10 @@ what it refuses comes back as Home Assistant's error.
 `music_group(add?, remove?)`, described to the model as adding rooms or players to the music that plays, or taking
 them out ("Spiel das auch im Bad", "Mach die Musik überall an", "Nimm das Bad wieder raus").
 
-1. **`add`**: rooms or players, as the target of `music_move`; "alle" (or "überall") is every Music Assistant player
+1. **`add`**: rooms or players, as the target of `music_move` (a name wins over an area, decision 49); "alle" (or "überall") is every Music Assistant player
    but the one that plays. A room with several players: all of them. The player that plays is found as the source
    of `music_move`; when none plays, the tool says so. Then one `media_player.join` on it with all of them.
-2. **`remove`**: rooms or players; one `media_player.unjoin` per player. A player that is not in the group is left
+2. **`remove`**: rooms or players, found as `add`; one `media_player.unjoin` per player. A player that is not in the group is left
    out of the call and named in the answer.
 3. **The answer** names what was added or taken out, with the rooms.
 
@@ -239,9 +242,9 @@ that plays and to pass the hit, and that `media_player__play_media` replaces wha
 
 1. **The arguments**: without `media_content_id`, or with `when` neither "next" nor "end", the tool's error names
    the arguments; nothing is read or called.
-2. **The player**: `player` given, it is found as the target of `music_move` (a player's name or an area); an unknown
-   one: the tool says so with the players. The candidates are that area's players (or the one player), without
-   `player` all Music Assistant players. One `GetStates`, filtered to the candidates, with their attributes. Among
+2. **The player**: `player` given, it is found as the source of `music_move` (a player's name or an area; a word that
+   is both stands for both, decision 49); an unknown one: the tool says so with the players. The candidates are the
+   named player and that area's players, without `player` all Music Assistant players. One `GetStates`, filtered to the candidates, with their attributes. Among
    them the one that plays, else the one paused, as the source of `music_move`: with several, the one in the turn's
    area; otherwise the tool names them and the model asks, then calls again with `player`. None: the sentence of
    decision 20.
@@ -314,7 +317,7 @@ music is like what plays, and that for a kind the user names the model searches 
 
 1. **The arguments**: both optional; arguments that are no JSON object are the tool's error with them; nothing is
    read or called.
-2. **The player**: as step 2 of `music_queue` (part 5): `player` found as the target of `music_move`, an unknown one
+2. **The player**: as step 2 of `music_queue` (part 5): `player` found as the source of `music_move` (decision 49), an unknown one
    answered with the players; one `GetStates` filtered to the candidates; the one that plays, else the one paused;
    with several, the one in the turn's area, else the tool names them and the model asks, then calls again with
    `player`. None: the sentence of decision 26.
@@ -489,7 +492,7 @@ goes to the next song).
 
 1. **The arguments**: no JSON object, both `seconds` and `position`, neither of them, or a `position` below 0: the
    tool's error names the arguments; nothing is read or called.
-2. **The player**: as step 2 of `music_queue` (part 5): `player` found as the target of `music_move`, an unknown one
+2. **The player**: as step 2 of `music_queue` (part 5): `player` found as the source of `music_move` (decision 49), an unknown one
    answered with the players; one `GetStates` filtered to the candidates, with their attributes; the one that plays,
    else the one paused; with several, the one in the turn's area, else the tool names them and the model asks, then
    calls again with `player`. None: the tool says that no music plays there.
@@ -555,3 +558,7 @@ prefix.
    satellite while a Music Assistant player of its area plays) is open.
 9. **`music_seek`** (part 8; `internal/music`, `cmd/mira`). Scenarios MU-42 to MU-48. Built 2026-11-20; the run on
    live ("Spring dreißig Sekunden vor" while music plays, rows S3 and S4) is left for the maintainer.
+10. **A player named like its area, where the player that plays is looked for** (decision 49; `internal/music`: one
+    helper for `music_move`'s `from` and the `player` of `music_queue`, `music_more` and `music_seek`). Scenario MU-49.
+    Built 2026-11-20; the run on live ("Spring zehn Sekunden vor" in the living room while the Onkyo plays) is left
+    for the maintainer.

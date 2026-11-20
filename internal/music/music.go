@@ -208,18 +208,56 @@ func Tool(o Options) tools.InternalTool {
 	}
 }
 
-// find is the players a room or a name stands for: the player of that name,
-// else the players of that area. ok is false when it is neither.
+// find is the players a room or a name stands for where music goes (the
+// target of music_move, the players music_group adds or takes out): the player of that
+// name, else the players of that area; a name wins over an area. area is
+// the area's display name when the players are an area's. ok is false when
+// it is neither.
 func find(o Options, players []Player, what string) ([]Player, string, bool) {
+	if p, ok := named(players, what); ok {
+		return []Player{p}, "", true
+	}
+	return inArea(o, players, what)
+}
+
+// findSource is the players a room or a name stands for where a tool looks
+// for the player that plays (music_move's from, the player of music_queue,
+// music_more and music_seek; docs/spec/music-players.md, decision 49): a
+// word that is both a player's name and an area's is both, the named player
+// and the players of that area, for source to take the one that plays. ok is
+// false when it is neither.
+func findSource(o Options, players []Player, what string) ([]Player, bool) {
+	var out []Player
+	p, isName := named(players, what)
+	if isName {
+		out = append(out, p)
+	}
+	area, _, _ := inArea(o, players, what)
+	for _, q := range area {
+		if !isName || q.Entity != p.Entity {
+			out = append(out, q)
+		}
+	}
+	return out, len(out) > 0
+}
+
+// named is the player one of whose names is what.
+func named(players []Player, what string) (Player, bool) {
 	key := strings.ToLower(strings.TrimSpace(what))
 	for _, p := range players {
 		for _, n := range p.Names {
 			if n == key {
-				return []Player{p}, "", true
+				return p, true
 			}
 		}
 	}
-	area := o.Area(key)
+	return Player{}, false
+}
+
+// inArea is the players of the area what names, with the area's display
+// name; ok is false when it is no area or has none.
+func inArea(o Options, players []Player, what string) ([]Player, string, bool) {
+	area := o.Area(strings.ToLower(strings.TrimSpace(what)))
 	if area == "" {
 		return nil, "", false
 	}
@@ -264,7 +302,7 @@ func move(ctx context.Context, o Options, t texts, log *slog.Logger, turnArea, t
 	var sources []Player
 	if strings.TrimSpace(from) != "" {
 		var ok bool
-		if sources, _, ok = find(o, players, from); !ok {
+		if sources, ok = findSource(o, players, from); !ok {
 			return fmt.Sprintf(t.unknown, from, list(players)), nil
 		}
 	} else {

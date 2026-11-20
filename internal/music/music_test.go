@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -314,5 +315,60 @@ func TestMU19_TheSectionSaysThatRadioStationsPlayOnThesePlayersToo(t *testing.T)
 		if got := music.Section(l, house()); !strings.Contains(got, want) {
 			t.Errorf("%s: section without %q:\n%s", l, want, got)
 		}
+	}
+}
+
+// MU-49 Where the player that plays is looked for, a player named like its area stands for the area too
+func TestMU49_APlayerNamedLikeItsAreaStandsForTheAreaWhereThePlayingOneIsLookedFor(t *testing.T) {
+	// The living room has a player named "Wohnzimmer" besides the Onkyo,
+	// as on live (2026-11-20).
+	named := append(house(), music.Player{Entity: "media_player.wohnzimmer", Name: "Wohnzimmer", Names: []string{"wohnzimmer"},
+		Area: "wohnzimmer", AreaName: "Wohnzimmer"})
+	onkyoPlays := func() *fakeHA {
+		return &fakeHA{states: map[string]string{"media_player.onkyo": "playing", "media_player.wohnzimmer": "idle"},
+			contents: map[string]string{"media_player.onkyo": playing},
+			places:   map[string]music.State{"media_player.onkyo": at(60, 0, 300)}}
+	}
+	var logs bytes.Buffer
+
+	ha := onkyoPlays()
+	if out, err := askSeek(t, music.SeekTool(options(ha, named, &logs)), "wohnzimmer", `{"player": "Wohnzimmer", "seconds": 10}`); err != nil ||
+		!slices.Equal(ha.seeks, []string{"media_player.onkyo -> 70"}) {
+		t.Errorf("music_seek: %q %v %v", out, err, ha.seeks)
+	}
+	if len(ha.read) != 1 || !slices.Equal(ha.read[0], []string{"media_player.wohnzimmer", "media_player.onkyo", "media_player.sonos"}) {
+		t.Errorf("music_seek read %v", ha.read)
+	}
+
+	ha = onkyoPlays()
+	if out, err := call(t, tool(t, ha, named, &logs), "", "Bad", "Wohnzimmer"); err != nil ||
+		!slices.Equal(ha.moves, []string{"media_player.onkyo -> media_player.dot_2"}) {
+		t.Errorf("music_move from: %q %v %v", out, err, ha.moves)
+	}
+
+	ha = onkyoPlays()
+	if out, err := enqueue(t, music.QueueTool(options(ha, named, &logs)), "", map[string]string{"media_content_id": hit, "player": "Wohnzimmer"}); err != nil ||
+		len(ha.queued) != 1 || !strings.HasPrefix(ha.queued[0], "media_player.onkyo <- ") {
+		t.Errorf("music_queue: %q %v %v", out, err, ha.queued)
+	}
+
+	ha = onkyoPlays()
+	if out, err := askMore(t, music.MoreTool(options(ha, named, &logs)), "", map[string]string{"player": "Wohnzimmer"}); err != nil ||
+		!slices.Equal(ha.more, []string{"media_player.onkyo <- " + playing}) {
+		t.Errorf("music_more: %q %v %v", out, err, ha.more)
+	}
+
+	// The named player is a candidate still: when it plays, it is taken.
+	ha = &fakeHA{states: map[string]string{"media_player.wohnzimmer": "playing"}}
+	if out, err := call(t, tool(t, ha, named, &logs), "", "Bad", "Wohnzimmer"); err != nil ||
+		!slices.Equal(ha.moves, []string{"media_player.wohnzimmer -> media_player.dot_2"}) {
+		t.Errorf("named one plays: %q %v %v", out, err, ha.moves)
+	}
+
+	// Where music goes, the name wins over the area as before.
+	ha = &fakeHA{states: map[string]string{"media_player.show_five": "playing"}}
+	if out, err := call(t, tool(t, ha, named, &logs), "", "Wohnzimmer", ""); err != nil ||
+		!slices.Equal(ha.moves, []string{"media_player.show_five -> media_player.wohnzimmer"}) {
+		t.Errorf("target: %q %v %v", out, err, ha.moves)
 	}
 }
