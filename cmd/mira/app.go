@@ -532,6 +532,16 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal = append(internal, skills.StarlarkTools(loaded, a.oauth, a.log)...)
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules))
+		// A scheduled job that is wrong does not run; the skill does
+		// (docs/spec/scheduled-jobs.md, Errors).
+		for _, sc := range sk.Schedules {
+			if sc.Issue != nil {
+				p := *sc.Issue
+				p.Skill = sk.Name
+				problems = append(problems, p)
+				a.log.Warn("a scheduled job does not run", "skill", sk.Name, "job", sc.Name, "problem", p.Text(i18n.EN))
+			}
+		}
 	}
 	// Mails that announce something with a time, kept in a calendar
 	// (docs/spec/mail-calendar.md); the mail skills say what to read.

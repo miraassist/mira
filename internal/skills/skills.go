@@ -68,8 +68,11 @@ type Skill struct {
 	// Scripts are the skill scripts it declares (metadata.mira.scripts),
 	// made from its script blueprints (docs/spec/skill-files.md, decision
 	// 18).
-	Scripts   []Automation
-	Settings  map[string]Setting
+	Scripts  []Automation
+	Settings map[string]Setting
+	// Templates are the skill's job templates (docs/spec/scheduled-jobs.md);
+	// Schedules its scheduled jobs as they run.
+	Templates []JobTemplate
 	Schedules []Schedule
 	// Target, when set, makes the skill a goal a thread ("Vorgang") works
 	// towards: fields to fill, how they are checked, how it ends.
@@ -297,9 +300,21 @@ type Schedule struct {
 	// Default is the skill's own time; Cron is mira.yaml's when it has one.
 	Default string `yaml:"-"`
 	// Off: mira.yaml switches it off (enabled: false); it keeps its time.
-	Off  bool `yaml:"-"`
-	cron schedule.Cron
+	Off bool `yaml:"-"`
+	// Template and Params: the scheduled job this schedule is
+	// (docs/spec/scheduled-jobs.md): its template's key and its parameters.
+	Template string            `yaml:"-"`
+	Params   map[string]string `yaml:"-"`
+	// Window is how far back {{since}} reaches at the job's first run.
+	Window time.Duration `yaml:"-"`
+	// Issue: the job is wrong (an unknown template, a required parameter
+	// without a value) and does not run; the skill does.
+	Issue *Problem `yaml:"-"`
+	cron  schedule.Cron
 }
+
+// Runs reports whether the schedule runs at its time: on, and not wrong.
+func (s Schedule) Runs() bool { return !s.Off && s.Issue == nil }
 
 // SetCron gives the schedule a new time.
 func (s *Schedule) SetCron(expr string) error {
@@ -365,21 +380,22 @@ type frontmatter struct {
 	Description string `yaml:"description"`
 	Metadata    struct {
 		Mira struct {
-			Settings  map[string]Setting   `yaml:"settings"`
-			Schedules []Schedule           `yaml:"schedules"`
-			Target    *Target              `yaml:"target"`
-			Mail      *Mail                `yaml:"mail"`
-			Inbox     *Inbox               `yaml:"inbox"`
-			Takes     string               `yaml:"takes"`
-			Agents    map[string]yaml.Node `yaml:"agents"`
-			Privacy   string               `yaml:"privacy"`
-			MCP       *config.MCPServer    `yaml:"mcp"`
-			Program   *programSection      `yaml:"program"`
-			OAuth     *OAuth               `yaml:"oauth"`
-			Tools     *toolsSection        `yaml:"tools"`
-			Language  string               `yaml:"language"`
-			Chapter   string               `yaml:"chapter"`
-			Random    yaml.Node            `yaml:"random"`
+			Settings  map[string]Setting     `yaml:"settings"`
+			Schedules []Schedule             `yaml:"schedules"`
+			Jobs      map[string]JobTemplate `yaml:"jobs"`
+			Target    *Target                `yaml:"target"`
+			Mail      *Mail                  `yaml:"mail"`
+			Inbox     *Inbox                 `yaml:"inbox"`
+			Takes     string                 `yaml:"takes"`
+			Agents    map[string]yaml.Node   `yaml:"agents"`
+			Privacy   string                 `yaml:"privacy"`
+			MCP       *config.MCPServer      `yaml:"mcp"`
+			Program   *programSection        `yaml:"program"`
+			OAuth     *OAuth                 `yaml:"oauth"`
+			Tools     *toolsSection          `yaml:"tools"`
+			Language  string                 `yaml:"language"`
+			Chapter   string                 `yaml:"chapter"`
+			Random    yaml.Node              `yaml:"random"`
 			// Automations are kept as written: their inputs are filled
 			// with the settings' values as mira.yaml has them.
 			Automations []automationDecl `yaml:"automations"`
@@ -551,7 +567,7 @@ func load(root Root, name string, values map[string]any, opts Options) (Skill, *
 	}
 	vals := map[string]string{}
 	for k, v := range values {
-		if k == config.SkillSchedules {
+		if k == config.SkillSchedules || k == config.SkillJobs {
 			continue
 		}
 		if m.OAuth != nil && (k == SettingClientID || k == SettingClientSecret) {
@@ -602,42 +618,16 @@ func load(root Root, name string, values map[string]any, opts Options) (Skill, *
 		}
 		s.Program = &prog
 	}
-	named := map[string]bool{}
-	for i, sc := range m.Schedules {
-		c, err := schedule.Parse(sc.Cron)
-		if err != nil {
-			return Skill{}, problem("cron", i+1, err)
-		}
-		if strings.TrimSpace(sc.Task) == "" {
-			return Skill{}, problem("notask", i+1)
-		}
-		sc.Name = strings.TrimSpace(sc.Name)
-		if sc.Name != "" && named[sc.Name] {
-			return Skill{}, problem("scheduledup", sc.Name)
-		}
-		named[sc.Name] = sc.Name != ""
-		sc.cron, sc.Default = c, sc.Cron
-		if ch, ok := changes[sc.Name]; ok && sc.Name != "" {
-			if ch.Cron != "" {
-				if err := sc.SetCron(ch.Cron); err != nil {
-					return Skill{}, problem("schedulecron", sc.Name, err)
-				}
-			}
-			sc.Off = ch.Off
-		}
-		sc.Task = fill(sc.Task, vals, m.Settings)
-		// An empty setting leaves to empty: the house (docs/spec/schedule-receiver.md),
-		// not "-" as in a task's text.
-		sc.To = strings.TrimSpace(fillOrEmpty(sc.To, vals, m.Settings))
-		if sc.To != "" && sc.PerPerson {
-			return Skill{}, problem("toperperson", i+1)
-		}
-		s.Schedules = append(s.Schedules, sc)
+	// Job templates and scheduled jobs (docs/spec/scheduled-jobs.md); a
+	// skill of before brings schedules, read as before.
+	if _, ok := m.Settings[config.SkillJobs]; ok {
+		return Skill{}, problem("jobssetting")
 	}
-	for name := range changes {
-		if !named[name] {
-			return Skill{}, problem("scheduleunknown", name)
-		}
+	if s.Templates, p = templates(m.Jobs, m.Schedules); p != nil {
+		return Skill{}, p
+	}
+	if s.Schedules, p = jobSchedules(s.Templates, values, changes, vals, m.Settings); p != nil {
+		return Skill{}, p
 	}
 	if t := m.Target; t != nil {
 		if t.Plan && (len(t.Fields) > 0 || t.Finish.Name != "") {

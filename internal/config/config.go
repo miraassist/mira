@@ -273,6 +273,10 @@ const SkillOn = "enabled"
 // name (docs/spec/schedules.md); no setting may be called so.
 const SkillSchedules = "schedules"
 
+// SkillJobs is the key under a skill that holds its scheduled jobs
+// (docs/spec/scheduled-jobs.md).
+const SkillJobs = "jobs"
+
 // UnmarshalYAML reads dirs and the skills beside it.
 func (s *Skills) UnmarshalYAML(n *yaml.Node) error {
 	if n.Kind != yaml.MappingNode {

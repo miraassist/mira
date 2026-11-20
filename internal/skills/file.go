@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"testing/fstest"
 
 	"gopkg.in/yaml.v3"
@@ -128,6 +129,24 @@ func (f File) ScheduleDecls() []Schedule {
 	meta := config.MapGet(f.Front, "metadata")
 	if n := config.MapGet(config.MapGet(meta, "mira"), "schedules"); n != nil {
 		_ = n.Decode(&out)
+	}
+	// The first jobs of its job templates (docs/spec/scheduled-jobs.md).
+	if n := config.MapGet(config.MapGet(meta, "mira"), config.SkillJobs); n != nil {
+		var tpls map[string]JobTemplate
+		if n.Decode(&tpls) == nil {
+			keys := make([]string, 0, len(tpls))
+			for k := range tpls {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				t := tpls[k]
+				for _, f := range t.First {
+					out = append(out, Schedule{Name: f.Name, Description: t.Description, Cron: f.Cron, PerPerson: t.PerPerson,
+						Template: k})
+				}
+			}
+		}
 	}
 	return out
 }

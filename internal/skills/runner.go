@@ -146,7 +146,7 @@ func (r *Runner) jobs(all bool) []job {
 	var out []job
 	for _, sk := range r.Set.Skills {
 		for i, sc := range sk.Schedules {
-			if all || !sc.Off {
+			if all && sc.Issue == nil || sc.Runs() {
 				out = append(out, job{skill: sk, index: i, sched: sc})
 			}
 		}
@@ -224,9 +224,12 @@ func (r *Runner) Change(skill, name string, ch ScheduleChange) error {
 func (r *Runner) RunNow(skill, name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	j, _, err := r.find(skill, name)
+	j, sc, err := r.find(skill, name)
 	if err != nil {
 		return err
+	}
+	if sc != nil && sc.Issue != nil {
+		return fmt.Errorf("the scheduled job %s of %s does not run: %s", name, skill, sc.Issue.Text(r.Set.Lang))
 	}
 	if r.state[j.key()] != "" {
 		return ErrRunning
@@ -475,6 +478,30 @@ func (r *Runner) RunJob(ctx context.Context, sk Skill, index int) (bool, error) 
 	return queued, errors.Join(errs...)
 }
 
+// since is when the scheduled job last ran (for the person), in Mira's time
+// zone; at its first run, the template's window before now
+// (docs/spec/scheduled-jobs.md, decision 10).
+func (r *Runner) since(ctx context.Context, sk Skill, index int, person string) string {
+	sc := sk.Schedules[index]
+	now := r.Set.clock()
+	at := now.Add(-sc.Window)
+	if sc.Window <= 0 {
+		at = now.Add(-defaultWindow)
+	}
+	if r.Store != nil {
+		k := LastRunKey(sk.Name, sc, index, person)
+		runs, err := r.Store.LastRuns(ctx, k.Skill, k.Schedule)
+		switch {
+		case err != nil:
+			r.log().Warn("could not read the job's last run; {{since}} is its window", "skill", sk.Name,
+				"job", k.Schedule, "error", err)
+		case !runs[person].Started.IsZero():
+			at = runs[person].Started
+		}
+	}
+	return at.In(r.Set.loc()).Format("2006-01-02 15:04")
+}
+
 // runFor runs one task, for the house when p is empty, else for p, and
 // keeps how it ran.
 func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (bool, error) {
@@ -498,6 +525,9 @@ func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (boo
 func (r *Runner) task(ctx context.Context, sk Skill, index int, p Person) (bool, string, error) {
 	t := i18n.Pick(catalog, r.Set.Lang)
 	task := strings.TrimSpace(sk.Schedules[index].Task)
+	if strings.Contains(task, "{{since}}") {
+		task = strings.ReplaceAll(task, "{{since}}", r.since(ctx, sk, index, p.Key))
+	}
 	// A schedule for one person: found before the job runs, so a wrong name
 	// costs no model call and sends nothing to the house instead.
 	var to string
@@ -595,7 +625,7 @@ func (r *Runner) receiver(ctx context.Context, name string) (string, error) {
 
 // NextRun is when a schedule runs next; zero while it is off.
 func (r *Runner) NextRun(sc Schedule) time.Time {
-	if sc.Off {
+	if !sc.Runs() {
 		return time.Time{}
 	}
 	return sc.Parsed().Next(r.Set.clock().In(r.Set.loc()))
