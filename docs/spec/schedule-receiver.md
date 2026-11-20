@@ -96,3 +96,5 @@ Nothing changes there: `to` is in the skill, the message stays in the service. T
    PS-01 to PS-04.
 2. **`to` in a schedule** (built 2026-11-09): reading and checking it, the person looked up, the message queued as
    private, the guide. PS-05 to PS-08.
+3. **Telegram's Markdown** (built 2026-11-20, [Channels](channels.md)): what would not parse is escaped for a
+   Telegram chat, and a refusal `Can't parse entities` is not tried again. PS-09, PS-10.

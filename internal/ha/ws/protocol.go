@@ -24,6 +24,7 @@ const (
 	CmdAreaRegistryList   = "config/area_registry/list"
 	CmdDeviceRegistryList = "config/device_registry/list"
 	CmdEntityRegistryList = "config/entity_registry/list"
+	CmdEntityRegistryGet  = "config/entity_registry/get"
 	CmdCallService        = "call_service"
 	CmdSubscribeEvents    = "subscribe_events"
 	CmdSubscribeEntities  = "subscribe_entities"

@@ -567,6 +567,20 @@ func (c *Client) Entities(ctx context.Context) ([]Entity, error) {
 	return callList[Entity](ctx, c, CmdEntityRegistryList)
 }
 
+// EntityEntry is one entity's row of the entity registry, without reading
+// the whole registry.
+func (c *Client) EntityEntry(ctx context.Context, entityID string) (Entity, error) {
+	raw, err := c.Call(ctx, map[string]any{"type": CmdEntityRegistryGet, "entity_id": entityID})
+	if err != nil {
+		return Entity{}, err
+	}
+	var e Entity
+	if err := json.Unmarshal(raw, &e); err != nil {
+		return Entity{}, fmt.Errorf("decode %s of %s: %w", CmdEntityRegistryGet, entityID, err)
+	}
+	return e, nil
+}
+
 // Services lists the actions Home Assistant offers: domain -> action ->
 // the names of its fields.
 func (c *Client) Services(ctx context.Context) (map[string]map[string][]string, error) {

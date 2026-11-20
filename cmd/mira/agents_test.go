@@ -39,7 +39,8 @@ func (quietHA) CallService(context.Context, string, string, map[string]any, *haw
 func (quietHA) GetStates(context.Context, haws.StateFilter) ([]haws.State, error) {
 	return nil, nil
 }
-func (quietHA) Entities(context.Context) ([]haws.Entity, error) { return nil, nil }
+func (quietHA) Entities(context.Context) ([]haws.Entity, error)          { return nil, nil }
+func (quietHA) EntityEntry(context.Context, string) (haws.Entity, error) { return haws.Entity{}, nil }
 func (quietHA) WaitState(context.Context, string, time.Duration, func(string) bool) bool {
 	return true
 }

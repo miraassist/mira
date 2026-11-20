@@ -31,6 +31,34 @@ The HA chat is not suitable for delivery: Mira cannot write anything into it on 
 - The dependency on HA's event names and structure sits only in this adapter and its tests. `telegram_text` is a public, documented interface; HA announces changes as a "breaking change".
 - Later: **voice messages** (`telegram_attachment`, download, speech recognition, as a turn). Noted, not now.
 
+### Telegram's Markdown in a message Mira sends (2026-11-20)
+
+HA's `telegram_bot` sends with its parse mode, `markdown` (Telegram's first Markdown), and Telegram refuses a whole
+message whose Markdown does not parse: `Can't parse entities: can't find end of the entity …`. A single `_` does it, as
+in a YouTube address (`watch?v=wSFJwZ9_fGg`) or an X account (`@max_muster`); seen on live 2026-11-20 with the list of
+the skill youtube, and checked on the test HA the same day (the text with `_` refused, the same with `\_` sent).
+
+Decided (2026-11-20, the maintainer): **the Markdown stays, Mira makes it parse**. Before a message goes to a channel
+that is a notify entity of the platform `telegram_bot` (its entry in the entity registry, `config/entity_registry/get`,
+one call per channel and delivery), Mira escapes with a backslash what would open an entity that never ends:
+
+- in an address (`http://…`, `https://…`) every `_` and `*`;
+- a `_` or `*` between two letters or digits (`max_muster`);
+- then, per sign (`_`, `*`, `` ` ``), when the rest still has an odd number, all of that sign: the text stays readable,
+  that sign loses its formatting;
+- a `[` that no `](` follows.
+
+The target of a link, the `(address)` of `[text](address)`, is left as it is and not counted: Telegram takes it
+unparsed (checked on the test HA 2026-11-20: `[Video](…wSFJwZ9_fGg)` sent).
+
+Balanced Markdown (`_kursiv_`, `*fett*`, `` `code` ``, `[Text](Adresse)`) stays as it is. A channel that is no
+Telegram entity (the companion app, a legacy `notify.<name>` service) gets the text unchanged. When the entity's
+platform cannot be read, the text goes unchanged and the log says so (`could not read the channel's platform`); a
+refusal of Telegram then ends the delivery as below.
+
+A refusal `Can't parse entities` is **fatal** ([Retries](retry.md), row 1): the same text fails every time, so the
+delivery ends at once as failed, with its log line, instead of ten attempts.
+
 ## Channels of a person
 
 On the HA person (`options["mira"]`, see [ha-anbindung](ha-integration.md)):

@@ -46,6 +46,19 @@ type fakeHA struct {
 	statesErr error
 	// onCall, when set, runs at the start of every service call.
 	onCall func()
+	// platforms are the integrations of entities, as the entity registry
+	// has them; an entity not there is not found.
+	platforms map[string]string
+}
+
+func (f *fakeHA) EntityEntry(_ context.Context, id string) (haws.Entity, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p, ok := f.platforms[id]
+	if !ok {
+		return haws.Entity{}, &haws.Error{Command: "config/entity_registry/get", Code: "not_found", Message: "Entity not found"}
+	}
+	return haws.Entity{EntityID: id, Platform: p}, nil
 }
 
 func (f *fakeHA) CallService(_ context.Context, domain, service string, data map[string]any, target *haws.Target) error {

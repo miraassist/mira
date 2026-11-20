@@ -59,3 +59,16 @@ Feature: PS A schedule for one person
     Given the person stefan named "Stefan Rinke" with the login "srinke"
     When to is "stefan", "stefan rinke" or "SRinke"
     Then the message goes to stefan
+
+  @step3
+  Scenario: PS-09 A private message to a Telegram chat keeps its Markdown and parses
+    Given a person whose channel is a notify entity of telegram_bot, and one with the companion app
+    When a private message with an address with "_", a name like max_muster and "_kursiv_" goes out
+    Then the Telegram chat gets the "_" of the address and the name escaped and "_kursiv_" as it is
+    And the companion app gets the text unchanged
+
+  @step3
+  Scenario: PS-10 A message Telegram cannot parse is not tried again
+    Given a channel that refuses the message with "Can't parse entities"
+    When the private delivery runs
+    Then the message is failed at once, after one attempt, with a log line

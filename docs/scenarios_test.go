@@ -49,7 +49,7 @@ var builtSteps = map[string][]int{
 	"MQ": {1},                          // docs/spec/music-quiz.md, Steps
 	"RP": {1, 2},                       // docs/spec/random-pick.md, Steps
 	"PE": {1},                          // docs/spec/plan-end.md, Steps; step 2 is tested in pytest
-	"PS": {1, 2},                       // docs/spec/schedule-receiver.md, Steps
+	"PS": {1, 2, 3},                    // docs/spec/schedule-receiver.md, Steps
 	"DV": {3, 6, 7, 8},                 // docs/spec/device-onboarding.md, Steps
 	"TV": {1, 2, 3},                    // docs/spec/thread-history.md, Steps
 	"RY": {1, 2, 3, 4, 5},              // docs/spec/retry.md, Steps; step 6 in pytest (RY-50, 51) and Go (RY-52)

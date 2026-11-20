@@ -427,6 +427,20 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		reply(devices)
 	case haws.CmdEntityRegistryList:
 		reply(entities)
+	case haws.CmdEntityRegistryGet:
+		want, _ := cmd["entity_id"].(string)
+		found := false
+		for _, e := range entities {
+			if e.EntityID == want {
+				reply(e)
+				found = true
+				break
+			}
+		}
+		if !found {
+			writeJSON(cs.conn, map[string]any{"id": id, "type": "result", "success": false,
+				"error": map[string]any{"code": "not_found", "message": "Entity not found"}})
+		}
 	case haws.CmdPing:
 		writeJSON(cs.conn, map[string]any{"id": id, "type": "pong"})
 	case haws.CmdCallService:

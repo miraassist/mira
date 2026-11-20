@@ -38,6 +38,9 @@ type HA interface {
 	// GetStates reads the states Home Assistant filters for it.
 	GetStates(ctx context.Context, f haws.StateFilter) ([]haws.State, error)
 	Entities(ctx context.Context) ([]haws.Entity, error)
+	// EntityEntry is one entity's registry row: whether a channel is a
+	// Telegram chat (docs/spec/channels.md, Telegram's Markdown).
+	EntityEntry(ctx context.Context, entityID string) (haws.Entity, error)
 	// WaitState waits until ok accepts an entity's state, for at most
 	// limit, watching that entity rather than asking again and again.
 	WaitState(ctx context.Context, entity string, limit time.Duration, ok func(state string) bool) bool
@@ -961,18 +964,38 @@ func (n *Notifier) sendTo(ctx context.Context, personID, text string) (string, e
 	for _, ch := range p.Channels {
 		var err error
 		if entities[ch] {
-			err = n.ha.CallService(ctx, "notify", "send_message", map[string]any{"title": "Mira", "message": text},
+			err = n.ha.CallService(ctx, "notify", "send_message", map[string]any{"title": "Mira", "message": n.forChannel(ctx, ch, text)},
 				&haws.Target{EntityID: []string{ch}})
 		} else {
 			err = n.ha.CallService(ctx, "notify", strings.TrimPrefix(ch, "notify."), map[string]any{"title": "Mira", "message": text}, nil)
 		}
 		if err != nil {
+			// Telegram refuses text it cannot parse every time: no retry
+			// (docs/spec/retry.md, row 1).
+			if strings.Contains(err.Error(), "Can't parse entities") {
+				err = retry.Fatal(err)
+			}
 			errs = append(errs, fmt.Errorf("%s: %w", ch, err))
 			continue
 		}
 		return ch, nil
 	}
 	return "", retry.Join(errs...)
+}
+
+// forChannel is the text as a channel takes it: for a Telegram chat its
+// Markdown made parseable (docs/spec/channels.md, Telegram's Markdown);
+// for any other channel unchanged.
+func (n *Notifier) forChannel(ctx context.Context, channel, text string) string {
+	e, err := n.ha.EntityEntry(ctx, channel)
+	if err != nil {
+		n.log.Warn("could not read the channel's platform; the text goes unchanged", "channel", channel, "error", err)
+		return text
+	}
+	if e.Platform != "telegram_bot" {
+		return text
+	}
+	return TelegramMarkdown(text)
 }
 
 func dedupe(in []string) []string {
