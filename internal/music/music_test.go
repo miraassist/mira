@@ -14,6 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/music"
 	"github.com/miraassist/mira/internal/prompt"
+	"github.com/miraassist/mira/internal/radio"
 	"github.com/miraassist/mira/internal/tools"
 )
 
@@ -94,7 +95,7 @@ func call(t *testing.T, tl tools.InternalTool, area, to, from string) (string, e
 // MU-01 The exposed Music Assistant players are in the prefix, per area
 func TestMU01_TheExposedMusicAssistantPlayersAreInThePrefixPerArea(t *testing.T) {
 	section := music.Section(i18n.DE, house())
-	want := "## Musik (Music Assistant)\nMusik spielst du mit media_player__search_media und media_player__play_media nur auf diesen Playern, " +
+	want := "## Musik (Music Assistant)\nMusik und Radiosender spielst du mit media_player__search_media und media_player__play_media nur auf diesen Playern, " +
 		"mit ihrem Namen; andere Lautsprecher können keine Musik aus Music Assistant spielen.\n" +
 		"- Bad unten: Dot 2\n- Küche: Show Five\n- Wohnzimmer: Onkyo, Sonos\n- ohne Bereich: CarPlay"
 	if section != want {
@@ -259,5 +260,26 @@ func TestMU09_WhatCannotBeMovedSaysWhy(t *testing.T) {
 	ha = &fakeHA{readError: errors.New("not connected")}
 	if _, err := call(t, tool(t, ha, house(), &logs), "", "Bad", ""); err == nil || !strings.Contains(err.Error(), "not connected") {
 		t.Errorf("read: %v", err)
+	}
+}
+
+// MU-18 radio_play is there only without Music Assistant players
+func TestMU18_RadioPlayIsThereOnlyWithoutMusicAssistantPlayers(t *testing.T) {
+	radioTool := radio.Tool(radio.Options{Lang: i18n.DE})
+	with := music.OnlyWithout(radioTool, func() []music.Player { return house() })
+	if with.Name != "radio_play" || with.Enabled() {
+		t.Errorf("radio_play offered beside Music Assistant players: %+v", with)
+	}
+	if !music.OnlyWithout(radioTool, func() []music.Player { return nil }).Enabled() {
+		t.Error("radio_play not offered in a house without Music Assistant")
+	}
+}
+
+// MU-19 The section says that radio stations play on these players too
+func TestMU19_TheSectionSaysThatRadioStationsPlayOnThesePlayersToo(t *testing.T) {
+	for l, want := range map[i18n.Lang]string{i18n.DE: "Musik und Radiosender spielst du", i18n.EN: "Play music and radio stations"} {
+		if got := music.Section(l, house()); !strings.Contains(got, want) {
+			t.Errorf("%s: section without %q:\n%s", l, want, got)
+		}
 	}
 }

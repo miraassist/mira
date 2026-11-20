@@ -10,6 +10,10 @@ Scenarios of step 2: [radio.feature](radio.feature).
 
 ## The tool
 
+**Only without Music Assistant** (decided 2026-11-20, [Music with Music Assistant](music-players.md), part 4):
+where Home Assistant has an exposed Music Assistant player, radio plays as music through it, so that it can be
+taken along and grouped; `radio_play` is not offered then.
+
 **`radio_play(station, room?, player?)`**
 
 - **Room:** if not given, the room of the satellite being spoken to; otherwise the named room. If Mira knows no room (for example on Telegram without one being given), it says so and asks.

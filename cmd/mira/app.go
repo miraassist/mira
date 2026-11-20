@@ -597,8 +597,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.timers.Store(timers)
 	internal = append(internal, timers.Tools()...)
 	a.goRun(ctx, "timers", timers.Run)
-	// Radio on the room's speaker (docs/spec/radio.md).
-	internal = append(internal, radio.Tool(radio.Options{
+	// Radio on the room's speaker (docs/spec/radio.md), only without Music
+	// Assistant players, which then play radio as music
+	// (docs/spec/music-players.md, part 4).
+	internal = append(internal, music.OnlyWithout(radio.Tool(radio.Options{
 		Lang: a.lang, Search: radio.Search(a.ha), Play: radio.Play(a.ha),
 		// A TECHO5 device shows the station's name and logo when told it
 		// before play_media (docs/spec/radio.md).
@@ -628,7 +630,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			}
 			return id
 		},
-	}))
+	}), func() []music.Player { return musicPlayers(snapshot()) }))
 	// Music with Music Assistant: take what plays along to another room
 	// (docs/spec/music-players.md, part 2).
 	musicOptions := music.Options{

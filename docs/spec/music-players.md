@@ -1,6 +1,6 @@
 # Music with Music Assistant – spec
 
-Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live. Scenarios: [music-players.feature](music-players.feature).
+Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA. Scenarios: [music-players.feature](music-players.feature).
 
 ## Goal
 
@@ -162,6 +162,44 @@ As `music_move`: reading the states fails, Home Assistant refuses (the tool's er
 unknown room or player, none plays (a sentence). Per call one `GetStates` filtered to the Music Assistant players and
 one `join`, or one `unjoin` per player taken out; the turn waits for them.
 
+## Part 4: radio through Music Assistant
+
+### Decided (2026-11-20, the maintainer)
+
+| # | Question | Decision |
+|---|---|---|
+| 14 | How radio plays where there are Music Assistant players | As music: Home Assistant's `media_player__search_media` and `media_player__play_media` on a Music Assistant player. Mira's own `radio_play` ([Radio](radio.md)) is offered only while Home Assistant has no exposed Music Assistant player. Reason: what can be taken along or grouped must not depend on whether music or a station plays; nobody can be told why one moves and the other does not |
+| 15 | Not chosen | Keeping `radio_play` beside Music Assistant (radio stays on the satellite's own speaker, which Music Assistant does not know: no `music_move`, no `music_group`); `radio_play` playing on the Music Assistant player (the station's name for the screen does not reach the device, see below) |
+
+### What Music Assistant does (checked on the test HA, 2026-11-20)
+
+| # | Transition | Signal | How Mira learns of it | Checked |
+|---|---|---|---|---|
+| R1 | "Spiel SWR1" at the Show, with its Music Assistant player exposed | the model calls `search_media` and `play_media` on the Music Assistant player; it plays the station (`media_content_id` `radiobrowser://radio/…`, `media_album_name` the station) | the tools' answers | 2026-11-20 on the test HA, said by the maintainer: it plays |
+| R2 | the station on the device's screen | Music Assistant streams to a TECHO5 device over Sendspin, not `play_media`: the device gets title, artist, album and a picture; for a station the album is its name, the artist is empty | — (the device's matter) | 2026-11-20: the device's log `sendspin now playing … album=SWR3`; the screen shows "Music Assistant" on top and the station's logo as the background |
+| R3 | `esphome.<node>_media_station` before Music Assistant plays | the device takes the name for the next `play_media`, which does not come over Sendspin | — | 2026-11-20: logged by the device (`the next play_media is a station`), no effect on the screen |
+
+So the station's name on a TECHO5 device's screen is a matter of its firmware (showing the album as the station when
+no artist comes); Mira calls nothing for it on this path.
+
+### What changes
+
+1. **`radio_play`** is offered only while there is no exposed Music Assistant player (the same condition as
+   `music_move`, negated). A house without Music Assistant keeps it as before, with the station's name on the device.
+2. **The section of part 1** says that music and radio stations are played on these players ("Musik und Radiosender
+   spielst du …"); it is the instruction for the model, no other text changes.
+
+### What is lost against `radio_play`, where Music Assistant plays
+
+- The search once more without the space ("SWR 3"): Music Assistant's search is the matter of Home Assistant's tool.
+  Whether it finds "SWR 3" is to be checked on live.
+- The station's name through `media_station` (row R3); see above.
+
+### Its errors and costs
+
+Nothing of Mira's own: the search and the play are Home Assistant's tools, their errors come back in the turn as for
+music. No call of its own; the condition reads the house structure.
+
 ## Errors
 
 | What fails | Who learns of it | What happens |
@@ -185,3 +223,4 @@ prefix.
    moves it. Left for the maintainer (it plays music in the house).
 4. **`music_group`** (part 3; `internal/music`, `cmd/mira`). Scenarios MU-10 to MU-17. Built 2026-11-20; the run on live
    (adding, taking out, row G2) is left for the maintainer.
+5. **Radio through Music Assistant** (part 4; `cmd/mira`, `internal/music`). Scenarios MU-18 and MU-19. Built 2026-11-20.

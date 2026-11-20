@@ -1,5 +1,5 @@
 # Scenarios of docs/spec/music-players.md. Every scenario has a number (MU-01, …); the Go test that checks it carries
-# the number in its name (TestMU01_…). @step1 is the players in the prefix, @step2 music_move, @step4 music_group.
+# the number in its name (TestMU01_…). @step1 is the players in the prefix, @step2 music_move, @step4 music_group, @step5 radio through Music Assistant.
 
 Feature: MU Music with Music Assistant
 
@@ -115,3 +115,15 @@ Feature: MU Music with Music Assistant
     Given Home Assistant refuses the join or the unjoin, or the states cannot be read
     When music_group runs
     Then the tool's error has Home Assistant's message and the log has a line
+
+  @step5
+  Scenario: MU-18 radio_play is there only without Music Assistant players
+    Given a house with an exposed Music Assistant player, and one without
+    When Mira offers her tools
+    Then radio_play is offered in the second and not in the first
+
+  @step5
+  Scenario: MU-19 The section says that radio stations play on these players too
+    Given exposed Music Assistant players
+    When the section is built
+    Then its rule names music and radio stations

@@ -47,7 +47,7 @@ type texts struct {
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
 		header: "## Musik (Music Assistant)",
-		rule: "Musik spielst du mit media_player__search_media und media_player__play_media nur auf diesen Playern, mit ihrem " +
+		rule: "Musik und Radiosender spielst du mit media_player__search_media und media_player__play_media nur auf diesen Playern, mit ihrem " +
 			"Namen; andere Lautsprecher können keine Musik aus Music Assistant spielen.",
 		noArea:   "ohne Bereich",
 		desc:     "Nimmt die Musik, die gerade läuft, mit in einen anderen Raum oder auf einen anderen Player: Titel, Warteschlange und Stelle im Stück wandern mit, am alten Ort hört sie auf („Nimm die Musik mit in die Küche“, „Mach die Musik im Bad weiter“, „Hol die Musik her“, „Verschieb die Musik hierher“). Auch „Lass die Musik hier weiterlaufen“, wenn sie gerade in einem anderen Raum läuft; „hier“ ist der Raum, in dem der Nutzer spricht. Nur für Musik aus Music Assistant.",
@@ -65,7 +65,7 @@ var catalog = map[i18n.Lang]texts{
 	},
 	i18n.EN: {
 		header: "## Music (Music Assistant)",
-		rule: "Play music with media_player__search_media and media_player__play_media only on these players, by their " +
+		rule: "Play music and radio stations with media_player__search_media and media_player__play_media only on these players, by their " +
 			"name; other speakers cannot play music from Music Assistant.",
 		noArea:   "no area",
 		desc:     "Takes the music that plays along to another room or player: the title, the queue and the place in the song move along, and it stops where it was (\"Take the music to the kitchen\", \"Continue the music in the bathroom\", \"Bring the music here\", \"Move the music over here\"). Also \"Let the music go on here\" when it plays in another room; \"here\" is the room the user speaks in. Only for music from Music Assistant.",
@@ -314,4 +314,13 @@ func source(states map[string]State, candidates []Player, turnArea string) (Play
 		return here[0], nil
 	}
 	return Player{}, found
+}
+
+// OnlyWithout offers tool (radio_play) only while there is no Music Assistant
+// player: radio then plays through them as music (docs/spec/music-players.md,
+// part 4).
+func OnlyWithout(tool tools.InternalTool, players func() []Player) tools.InternalTool {
+	before := tool.Enabled
+	tool.Enabled = func() bool { return len(players()) == 0 && (before == nil || before()) }
+	return tool
 }
