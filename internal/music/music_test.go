@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
@@ -39,10 +41,12 @@ type fakeHA struct {
 	moves     []string
 	joins     []string // "leader <- a,b"
 	unjoins   []string
-	contents  map[string]string // media_content_id per player
-	queued    []string          // "player <- id type enqueue"
-	more      []string          // "player <- seed" (radio_mode, enqueue add)
-	read      [][]string        // the players of each States read
+	contents  map[string]string      // media_content_id per player
+	queued    []string               // "player <- id type enqueue"
+	more      []string               // "player <- seed" (radio_mode, enqueue add)
+	places    map[string]music.State // the place in the song per player: Position, PositionKnown, PositionAt, Duration
+	seeks     []string               // "player -> position"
+	read      [][]string             // the players of each States read
 	refuse    error
 	readError error
 }
@@ -58,7 +62,9 @@ func options(ha *fakeHA, players []music.Player, logs *bytes.Buffer) music.Optio
 			}
 			out := map[string]music.State{}
 			for _, id := range ids {
-				out[id] = music.State{State: ha.states[id], Members: ha.groups[id], Content: ha.contents[id]}
+				p := ha.places[id]
+				out[id] = music.State{State: ha.states[id], Members: ha.groups[id], Content: ha.contents[id],
+					Position: p.Position, PositionKnown: p.PositionKnown, PositionAt: p.PositionAt, Duration: p.Duration}
 			}
 			return out, nil
 		},
@@ -97,6 +103,14 @@ func options(ha *fakeHA, players []music.Player, logs *bytes.Buffer) music.Optio
 			ha.more = append(ha.more, player+" <- "+seed)
 			return nil
 		},
+		Seek: func(_ context.Context, player string, position float64) error {
+			if ha.refuse != nil {
+				return ha.refuse
+			}
+			ha.seeks = append(ha.seeks, fmt.Sprintf("%s -> %g", player, position))
+			return nil
+		},
+		Now: func() time.Time { return testNow },
 	}
 }
 

@@ -645,7 +645,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			out := map[string]music.State{}
 			for _, s := range states {
 				content, _ := s.Attributes["media_content_id"].(string)
-				out[s.EntityID] = music.State{State: s.State, Members: groupMembers(s.Attributes), Content: content}
+				st := music.State{State: s.State, Members: groupMembers(s.Attributes), Content: content}
+				placeInSong(a.log, s.EntityID, s.Attributes, &st)
+				out[s.EntityID] = st
 			}
 			return out, nil
 		},
@@ -676,9 +678,15 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 				map[string]any{"media_id": seed, "enqueue": music.EnqueueAdd, "radio_mode": true},
 				&haws.Target{EntityID: []string{player}})
 		},
+		// Home Assistant's Assist tools have no seek; its action has
+		// (docs/spec/music-players.md, part 8).
+		Seek: func(ctx context.Context, player string, position float64) error {
+			return a.ha.CallService(ctx, "media_player", "media_seek", map[string]any{"seek_position": position},
+				&haws.Target{EntityID: []string{player}})
+		},
 	}
 	internal = append(internal, music.Tool(musicOptions), music.GroupTool(musicOptions), music.QueueTool(musicOptions),
-		music.MoreTool(musicOptions))
+		music.MoreTool(musicOptions), music.SeekTool(musicOptions))
 	// Lowering the music in a satellite's area while it listens
 	// (docs/spec/music-players.md, part 7).
 	var ducker *music.Ducker

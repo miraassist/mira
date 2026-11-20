@@ -1,8 +1,8 @@
 // Package music is Mira's part in music with Music Assistant
 // (docs/spec/music-players.md): which players play its music, for the
 // prompt's prefix, music_move, which takes what plays along to another room
-// with Music Assistant's transfer_queue, music_group, music_queue and
-// music_more.
+// with Music Assistant's transfer_queue, music_group, music_queue,
+// music_more and music_seek.
 package music
 
 import (
@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
@@ -152,7 +153,13 @@ type Options struct {
 	// More is music_assistant.play_media on the player with the seed,
 	// enqueue "add" and radio_mode on: similar music after the current
 	// item (music_more).
-	More   func(ctx context.Context, player, seed string) error
+	More func(ctx context.Context, player, seed string) error
+	// Seek is media_player.media_seek on the player to the position in
+	// seconds (music_seek).
+	Seek func(ctx context.Context, player string, position float64) error
+	// Now is the clock for the current place in the song (music_seek);
+	// nil is time.Now.
+	Now    func() time.Time
 	Logger *slog.Logger
 }
 
@@ -163,6 +170,14 @@ type State struct {
 	State   string
 	Members []string
 	Content string
+	// Position is media_position in seconds, PositionKnown whether the
+	// player has it; PositionAt is media_position_updated_at, zero when
+	// missing. Duration is media_duration in seconds, 0 when missing
+	// (music_seek).
+	Position      float64
+	PositionKnown bool
+	PositionAt    time.Time
+	Duration      float64
 }
 
 // Tool is music_move, offered while there is a Music Assistant player.

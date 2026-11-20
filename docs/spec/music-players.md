@@ -1,6 +1,6 @@
 # Music with Music Assistant – spec
 
-Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live; step 7 (part 6, `music_more`) built, not on live; step 8 (part 7, ducking) built, its setting back changed after live (decision 35), the players that lower themselves recognised by their manufacturer (decision 39), not run end to end on the test HA. Scenarios: [music-players.feature](music-players.feature).
+Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live; step 7 (part 6, `music_more`) built, not on live; step 8 (part 7, ducking) built, its setting back changed after live (decision 35), the players that lower themselves recognised by their manufacturer (decision 39), not run end to end on the test HA; step 9 (part 8, `music_seek`) built, not on live. Scenarios: [music-players.feature](music-players.feature).
 
 ## Goal
 
@@ -448,6 +448,78 @@ marked when it ends. A volume tool call costs a note in memory and, in a lowered
 structure; every other tool call a check of its name. The turn does not wait for any of it. An area without Music Assistant players costs
 nothing. It grows with the number of Music Assistant players in the satellite's area.
 
+## Part 8: winding within the song (`music_seek`)
+
+"Spring dreißig Sekunden vor", "Geh eine Minute zurück", "Geh an den Anfang": Home Assistant has the action
+`media_player.media_seek`, but its Assist tools offer the model no seek. Seen on live (2026-11-20): for "Spring dreißig
+Sekunden vor" the model called `HassMediaNext` without a target, nothing changed on the playing Onkyo, and it answered
+"Dreißig Sekunden springen kann ich nicht, ich hab stattdessen zum nächsten Titel gewechselt."
+
+### Decided (2026-11-20)
+
+| # | Question | Decision |
+|---|---|---|
+| 40 | Where the tool comes from | A tool of Mira's own, as `music_queue`, offered while Home Assistant has an exposed Music Assistant player; the call is `media_player.media_seek` (the maintainer) |
+| 41 | What it takes | `seconds`, relative (positive forward, negative back: "Spring 30 Sekunden vor", "Geh eine Minute zurück", "Spul zwei Minuten vor"), or `position`, an absolute place in seconds from the start ("Geh an den Anfang" = 0, "Spring zu Minute drei" = 180); exactly one of them (the maintainer) |
+| 42 | Where | The player that plays (or is paused), found as in `music_queue` (decision 18); a room or player the user names (`player`) (the maintainer) |
+| 43 | The current place | Home Assistant's convention: while `playing`, `media_position` + (now − `media_position_updated_at`); while `paused`, `media_position`. Now is the code's clock (the maintainer). Without `media_position_updated_at` the position is taken as it is (taken in the build, 2026-11-20; for the maintainer to confirm) |
+| 44 | Before the start | A relative target before 0 is 0 (the maintainer) |
+| 45 | Beyond the end | Nothing is called: the tool says that the song ends earlier, with its length and the current place, and the model tells the user. Not chosen: winding to just before the end (taken in the build, 2026-11-20, as the simpler of the two; for the maintainer to confirm) |
+| 46 | No length known (`media_duration` missing) | The target is not limited at the end; Music Assistant decides (taken in the build, 2026-11-20; for the maintainer to confirm) |
+| 47 | No position known (`media_position` missing) | A relative seek calls nothing: the tool says that the player does not tell its place; an absolute one is called (the maintainer) |
+| 48 | A radio station plays (`://radio/` in `media_content_id`, decision 21) | Nothing is called: the tool says that a station cannot be wound (the maintainer) |
+
+### What Home Assistant does (checked on live, 2026-11-20, read only)
+
+| # | Transition | Signal | How Mira learns of it | Checked |
+|---|---|---|---|---|
+| S1 | a Music Assistant player can seek | `supported_features` has SEEK (bit 2; on live 8320575) | — (not read by Mira: a refusal is Home Assistant's) | 2026-11-20 on live, read only |
+| S2 | the place in the song | `media_position` (seconds), `media_position_updated_at` (the time of that position), `media_duration` (seconds); the Onkyo playing: position 0 at 20:14:50Z, duration 1052 | the states read of step 2 below | 2026-11-20 on live, read only |
+| S3 | the seek | `media_player.media_seek` with `entity_id` and `seek_position` (seconds) | the call's answer; nothing is waited for | open, to be checked on live by the maintainer |
+| S4 | the new place shows in the state | `media_position` and `media_position_updated_at` change | — (not read by Mira) | open, to be checked on live by the maintainer: how fast it shows |
+
+Interrupting and cancelling: there is nothing to interrupt, the call is one action and nothing is waited for. Winding
+back is another call; "Stopp" stops the player as always.
+
+### What the tool does
+
+`music_seek(seconds?, position?, player?)`, described to the model (in German and English) as winding within the song
+that plays, with the example sentences of decision 41, and that it is the tool for this, not `HassMediaNext` (which
+goes to the next song).
+
+1. **The arguments**: no JSON object, both `seconds` and `position`, neither of them, or a `position` below 0: the
+   tool's error names the arguments; nothing is read or called.
+2. **The player**: as step 2 of `music_queue` (part 5): `player` found as the target of `music_move`, an unknown one
+   answered with the players; one `GetStates` filtered to the candidates, with their attributes; the one that plays,
+   else the one paused; with several, the one in the turn's area, else the tool names them and the model asks, then
+   calls again with `player`. None: the tool says that no music plays there.
+3. **The target**: a station: decision 48. `position`: the target. `seconds`: the current place (decision 43) plus
+   `seconds`, no position known: decision 47; before 0: decision 44. Rounded to whole seconds. A target beyond
+   `media_duration`: decision 45; without it: decision 46.
+4. **The call**: `media_player.media_seek` on the player with `seek_position` the target.
+5. **The answer** names the player with its area and the new place (m:ss, h:mm:ss from an hour), for the model to say
+   in its words.
+
+### What the code models, the model is told
+
+The tool's description is the instruction: when to use it (winding within the song), the two ways of saying where
+to, and that `HassMediaNext` is not for it. The station, no-position, beyond-the-end and nothing-plays cases are told
+in the answer of that call. The section of part 1 does not change.
+
+### Its errors
+
+| What fails | The model gets | The log gets |
+|---|---|---|
+| Arguments that are no JSON object, both or neither of `seconds` and `position`, a `position` below 0 | the tool's error with the arguments | nothing (the caller logs the tool's error) |
+| Reading the states fails | the tool's error: the players cannot be read now | one line with the error |
+| Home Assistant refuses (a player that cannot seek, unavailable) | the tool's error with Home Assistant's message | one line with the player, the target position and the error |
+| An unknown room or player, several playing, none playing, a station, no position known, beyond the end | a sentence saying so, with the names to choose from or the song's length | nothing (no error) |
+
+### Its costs
+
+Per call one `GetStates` filtered to the candidates and one `call_service`; the turn waits for both. Nothing runs
+afterwards, nothing is waited for (the new place is not read, row S4).
+
 ## Errors
 
 | What fails | Who learns of it | What happens |
@@ -481,3 +553,5 @@ prefix.
    tool call is the signal, no value is compared), and the players that lower themselves are recognised by their
    device's manufacturer (decision 39). The run end to end on the test HA (a turn with a follow-up on the fake
    satellite while a Music Assistant player of its area plays) is open.
+9. **`music_seek`** (part 8; `internal/music`, `cmd/mira`). Scenarios MU-42 to MU-48. Built 2026-11-20; the run on
+   live ("Spring dreißig Sekunden vor" while music plays, rows S3 and S4) is left for the maintainer.

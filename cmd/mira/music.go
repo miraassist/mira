@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/ha/structure"
@@ -38,6 +39,26 @@ func groupMembers(attrs map[string]any) []string {
 		}
 	}
 	return out
+}
+
+// placeInSong reads a player's media_position, media_position_updated_at
+// and media_duration into st (docs/spec/music-players.md, part 8). A time
+// that does not parse leaves a log line; the position is then taken as it is
+// (decision 43).
+func placeInSong(log *slog.Logger, entity string, attrs map[string]any, st *music.State) {
+	st.Position, st.PositionKnown = attrs["media_position"].(float64)
+	st.Duration, _ = attrs["media_duration"].(float64)
+	at, ok := attrs["media_position_updated_at"].(string)
+	if !ok || at == "" {
+		return
+	}
+	t, err := time.Parse(time.RFC3339Nano, at)
+	if err != nil {
+		log.Warn("music: media_position_updated_at does not parse; the position is taken as it is",
+			"player", entity, "value", at, "error", err)
+		return
+	}
+	st.PositionAt = t
 }
 
 // volumeTools are Home Assistant's tools that set a player's volume: a call

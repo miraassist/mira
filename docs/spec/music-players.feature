@@ -1,6 +1,6 @@
 # Scenarios of docs/spec/music-players.md. Every scenario has a number (MU-01, …); the Go test that checks it carries
 # the number in its name (TestMU01_…). @step1 is the players in the prefix, @step2 music_move, @step4 music_group, @step5 radio through Music Assistant,
-# @step6 music_queue.
+# @step6 music_queue, @step7 music_more, @step8 ducking, @step9 music_seek.
 
 Feature: MU Music with Music Assistant
 
@@ -283,3 +283,52 @@ Feature: MU Music with Music Assistant
     And only the Onkyo is set to 23 % with media_player.volume_set, and a log line names it with both volumes
     And a satellite without an area lowers nothing and reads nothing
     And the manufacturer is the one the device registry gives the player's device
+
+  @step9
+  Scenario: MU-42 music_seek is there only with Music Assistant players, and says it is not HassMediaNext
+    Given a house with exposed Music Assistant players, and one without
+    When Mira offers her tools
+    Then music_seek is offered only in the first, with seconds, position and player, none of them required
+    And its description in German and English has the example sentences and says that HassMediaNext is not for winding
+
+  @step9
+  Scenario: MU-43 Relative: from the current place by the clock while playing, from the position while paused
+    Given the kitchen's player plays at 1:00, reported 10 s ago, in a song of 5:00
+    When music_seek runs with seconds 30
+    Then media_player.media_seek is called with seek_position 100 and the answer names 1:40 and the player with its room
+    And with seconds -120 the target is 0
+    And when the player is paused at 1:00 with the same report, seconds 30 gives 90
+
+  @step9
+  Scenario: MU-44 Absolute: the position is the target, also without a known place or length
+    Given the kitchen's player plays
+    When music_seek runs with position 0, or 180 without media_position and media_duration
+    Then media_seek is called with 0, or with 180
+
+  @step9
+  Scenario: MU-45 Beyond the end, a station or no known place: nothing is called
+    Given the kitchen's player plays at 4:50 in a song of 5:00, or a station, or does not report media_position
+    When music_seek runs with seconds 30, or position 400
+    Then nothing is called, and the answer says that the song ends at 5:00, that a station cannot be wound, or that the player does not tell its place
+    And a station is not wound with position either
+
+  @step9
+  Scenario: MU-46 The player is found as music_queue's
+    Given players play in the kitchen and in the living room
+    When music_seek runs in the kitchen, in the bathroom, and in the kitchen with player "Wohnzimmer", "Onkyo" or "Garage"
+    Then the first seeks on the kitchen's player, the second calls nothing and names both
+    And "Wohnzimmer" and "Onkyo" seek on the Onkyo, "Garage" calls nothing and names the players
+    And when nothing plays nothing is called and the answer says so
+
+  @step9
+  Scenario: MU-47 Exactly one of seconds and position
+    Given the kitchen's player plays
+    When music_seek runs with both, with neither, with a position below 0, or with arguments that are no JSON object
+    Then the tool's error names the arguments and nothing is read or called
+
+  @step9
+  Scenario: MU-48 What fails is the tool's error and names its input
+    Given Home Assistant refuses the seek, or the states cannot be read
+    When music_seek runs
+    Then the tool's error has Home Assistant's message or the read's error, with a log line
+    And a refusal's log line names the player and the target position
