@@ -829,7 +829,89 @@ def suche(thema, tage = 7):
 - **Was eine Funktion kann:** `api.get(adresse, params = {...})` holt etwas vom Dienst, mit dem Token der Verbindung und nur an die Adressen unter `api` im Abschnitt `oauth`; Mira setzt die Werte richtig in die Adresse, `None` lässt sie weg, eine Zeit wird ISO-Zeit. Die Antwort hat `status`, `ok`, `text` und `json`. Dazu gibt es `json`, `time`, `math`, die Einstellungen des Skills als `settings` (nur die nicht geheimen), `fail("…")` für eine Meldung an das Modell und `print(…)` fürs Log. Sonst nichts: keine Dateien, kein anderes Netz.
 - **Schreiben:** `api.post`, `api.put`, `api.patch` und `api.delete` dürfen nur Werkzeuge, die der Skill unter `tools:` → `writes:` nennt; ein schreibendes Werkzeug fragt nach, wenn vorher fremder Text im Spiel war, eins unter `confirm:` fragt immer.
 - **Grenzen:** Ein Werkzeug darf höchstens 60 Sekunden laufen, jede Anfrage 20.
+- **Alles im Einzelnen** steht in der „Referenz: Werkzeuge in Starlark“ gleich danach.
 - **Fehler finden:** Stimmt etwas in `tools.star` nicht, startet der Skill nicht; unter **Reparaturen** und auf seiner Seite steht, in welcher Zeile was falsch ist. Unter Fähigkeiten → Skills → dein Skill → **Ausprobieren** rufst du ein Werkzeug selbst auf und siehst jede Anfrage mit Adresse, Status und dem Anfang der Antwort, jede Ausgabe von `print` und bei einem Fehler die Zeile. Im Log steht zu jeder Anfrage eine Zeile.
+
+### Referenz: Werkzeuge in Starlark
+
+Zum Nachschlagen, was eine `tools.star` darf und was Mira mit ihr macht. Die Einführung steht im Abschnitt davor.
+
+**Datei und Werkzeuge**
+
+- Die Datei heißt `tools.star` und liegt im Ordner des Skills. Ein Skill mit `tools.star` braucht unter `oauth` einen Abschnitt `api`, und ein Skill mit `api` braucht eine `tools.star`; fehlt eins von beiden, startet er nicht.
+- Jede Funktion auf oberster Ebene, deren Name nicht mit `_` beginnt, ist ein Werkzeug `<skill>__<funktion>`. Erlaubt sind kleine Buchstaben, Ziffern und `_`, am Anfang ein Buchstabe. Funktionen mit `_` sind Helfer.
+- Mira bietet die Werkzeuge an, sobald ein Gespräch den Skill öffnet, und seinen geplanten Aufträgen und Agenten. Nur solange der Skill verbunden ist (Seite **Verbindungen**); sonst gibt es sie nicht.
+- Was ein Werkzeug zurückgibt, ist für Mira fremder Text, wie eine Webseite.
+
+**Der Docstring**
+
+```python
+def suche(thema, tage = 7, sprachen = ["de"]):
+    """Was das Werkzeug tut, in einem oder zwei Sätzen. Das liest das Modell.
+
+    Args:
+      thema (str): Was die Angabe bedeutet.
+      tage (int): Eine längere Erklärung darf
+        auf der nächsten Zeile weitergehen, tiefer eingerückt.
+      sprachen (list): Eine Liste von Texten.
+    """
+```
+
+- Der Text vor `Args:` ist die Beschreibung des Werkzeugs. Jede Angabe der Funktion braucht unter `Args:` eine Zeile `name (typ): text`, und jede Zeile dort eine Angabe der Funktion.
+- Typen: `str` (Text), `int` (ganze Zahl), `float` (Zahl), `bool` (ja/nein), `list` (eine Liste von Texten).
+- Ohne Standardwert ist eine Angabe Pflicht, mit Standardwert freiwillig. `= None` heißt freiwillig ohne Standardwert.
+- Bevor die Funktion läuft, prüft Mira, was das Modell schickt: unbekannte Angaben, fehlende Pflichtangaben, falsche Typen. Eine ganze Zahl als `7.0` gilt als `int`. Was nicht passt, bekommt das Modell als Fehler zurück, die Funktion läuft dann nicht.
+- Erlaubte Werte und Grenzen prüft die Funktion selbst mit `fail("…")` und nennt sie im Text der Angabe.
+
+**Was die Datei hat**
+
+| Name | Was es ist |
+|---|---|
+| `api.get(adresse, params = {})` | eine Anfrage an den Dienst, mit dem Token der Verbindung |
+| `api.delete(adresse, params = {})` | ebenso, löschen; nur für Werkzeuge unter `writes` |
+| `api.post`, `api.put`, `api.patch` `(adresse, params = {}, body = …)` | schreiben, `body` geht als JSON mit; nur für Werkzeuge unter `writes` |
+| `json.encode`, `json.decode`, `json.indent` | JSON |
+| `time.now()`, `time.parse_time(text, format, ort)`, `time.parse_duration`, `time.hour`, `time.minute` … | Zeiten; eine Zeit hat `.year` … `.unix` und `.format("2006-01-02")`, `.in_location("Europe/Berlin")` |
+| `math.round`, `math.floor`, `math.ceil` … | Rechnen (Starlark selbst hat kein `round`) |
+| `settings` | die Einstellungen des Skills, die nicht geheim sind, als Wörterbuch von Texten |
+| `fail("…")` | beendet das Werkzeug; der Text geht als Fehler an das Modell |
+| `print(…)` | eine Zeile ins Log von Mira |
+
+Nicht da: `load()`, Dateien, ein anderes Netz als die Adressen unter `api`. Wie bei Starlark üblich auch kein `while` (nimm `for … in range(…)`), keine Rekursion und kein `try`: Ein Fehler beendet das Werkzeug. Auf oberster Ebene der Datei stehen nur Funktionen und Zuweisungen.
+
+**Anfragen**
+
+- Die Adresse muss mit `https` beginnen und unter einem Eintrag von `api` liegen, der die Methode erlaubt; sonst geht nichts raus und das Werkzeug endet mit einem Fehler, der die Adresse nennt.
+- `params` kommen in die Adresse: Texte und Zahlen wie sie sind, `True`/`False` als `true`/`false`, eine Zeit als ISO-Zeit in UTC, eine Liste als mehrfache Angabe (`id=a&id=b`), `None` gar nicht. Mira kodiert alles richtig.
+- Die Antwort hat `status` (die Zahl), `ok` (2xx), `text` (höchstens 2 MB) und `json` (das gelesene JSON, `None` wenn es keins ist). Ein Status ab 400 ist kein Fehler: Die Funktion entscheidet, was sie daraus macht, etwa mit `fail`.
+- Eine Anfrage, die nicht zustande kommt (keine Antwort nach 20 Sekunden, keine Verbindung), beendet das Werkzeug mit einem Fehler.
+
+**Die Antwort des Werkzeugs**
+
+Ein Text geht so, wie er ist, an das Modell; alles andere als JSON (Schlüssel eines Wörterbuchs müssen Texte sein). `None` ist eine leere Antwort. Gib nur zurück, was das Modell für die Antwort braucht: kurze Felder, Zahlen schon gerundet.
+
+**Schreibende Werkzeuge**
+
+```yaml
+metadata:
+  mira:
+    tools:
+      writes: [posten]     # nur diese dürfen api.post, put, patch, delete
+      confirm: [posten]    # diese fragen immer vorher nach
+```
+
+Ein Werkzeug unter `writes` fragt nach, wenn im Gespräch vorher fremder Text gelesen wurde; eins unter `confirm` fragt immer. Ein Name dort, den die `tools.star` nicht hat, ist ein Problem des Skills.
+
+**Grenzen**
+
+100.000 Schritte und 60 Sekunden je Aufruf eines Werkzeugs, 20 Sekunden je Anfrage, 2 MB je Antwort des Dienstes.
+
+**Wenn etwas nicht stimmt**
+
+- Beim Laden ist ein Problem des Skills (Log und **Reparaturen**, mit Zeile und Grund): die Datei lässt sich nicht lesen, ein Werkzeug ohne Docstring, eine Angabe ohne Zeile unter `Args:` oder eine Zeile ohne Angabe, ein unbekannter Typ, `*args` oder `**kwargs`, ein Standardwert, der nicht zum Typ passt, ein Aufruf von `api` auf oberster Ebene, eine Datei ohne Werkzeug, ein Werkzeug, das wie ein Skript des Skills heißt.
+- Beim Aufruf bekommt das Modell den Text von `fail`, bei jedem anderen Fehler dessen erste Zeile; im Log steht der ganze Weg mit Zeilennummern.
+- Jede Anfrage schreibt eine Zeile ins Log von Mira (`starlark tool request` mit Adresse, Status, Dauer und Größe; ohne Token), jedes `print` eine eigene.
+- Unter Fähigkeiten → Skills → dein Skill → **Ausprobieren** rufst du ein Werkzeug mit eigenen Werten auf und siehst jede Anfrage mit dem Anfang der Antwort, jedes `print` und bei einem Fehler die Zeile.
 
 ### Mails auswerten
 

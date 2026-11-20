@@ -152,7 +152,13 @@ More, each explained in the guide ([de](docs/guide/de.md), [en](docs/guide/en.md
   [Mira FRITZ!Box](https://github.com/miraassist/mira-fritz): "Ruf Oma an"
   from the satellite, new messages announced and played.
 - **Connections**: a skill signs in at a service over OAuth through Home
-  Assistant, such as X for reading posts or Strava for your activities.
+  Assistant, such as X for reading posts, Strava for your activities or
+  YouTube for new videos on your topics. Such a skill brings its tools as
+  small Starlark functions (`tools.star`): fixed tools for the service's web
+  API, without a server of its own.
+- **Scheduled jobs**: what a skill does at fixed times is a job you make on
+  the skill, with its own values and time (a YouTube list in the morning on
+  other topics than in the evening).
 - **Access tokens**: other programs (a partner who looks after Mira for you)
   get a named token of their own; what each did is listed on Mira's page.
 - **Mira's interface**: described at `/v1/openapi.yaml`; with a token it also

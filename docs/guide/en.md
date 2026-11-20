@@ -824,7 +824,89 @@ def suche(thema, tage = 7):
 - **What a function can do:** `api.get(address, params = {...})` fetches from the service, with the connection's token and only to the addresses under `api` in the section `oauth`; Mira puts the values into the address correctly, leaves out `None`, makes a time an ISO time. The answer has `status`, `ok`, `text` and `json`. Besides there are `json`, `time`, `math`, the skill's settings as `settings` (only those that are not secret), `fail("…")` for a message to the model and `print(…)` for the log. Nothing else: no files, no other network.
 - **Writing:** `api.post`, `api.put`, `api.patch` and `api.delete` are only for tools the skill names under `tools:` → `writes:`; a writing tool asks first when third-party text came before, one under `confirm:` always asks.
 - **Limits:** a tool may run at most 60 seconds, each request 20.
+- **All the details** are in the "Reference: tools in Starlark" right after.
 - **Finding mistakes:** if something in `tools.star` is wrong, the skill does not start; **Repairs** and its page say in which line what is wrong. Under Capabilities → Skills → your skill → **Try it** you call a tool yourself and see every request with its address, status and the start of the answer, every output of `print`, and the line of an error. The log has a line for every request.
+
+### Reference: tools in Starlark
+
+To look up what a `tools.star` may do and what Mira does with it. The introduction is in the section before.
+
+**File and tools**
+
+- The file is called `tools.star` and lives in the skill's folder. A skill with `tools.star` needs a section `api` under `oauth`, and a skill with `api` needs a `tools.star`; if one is missing, it does not start.
+- Every top-level function whose name does not begin with `_` is a tool `<skill>__<function>`. Allowed are small letters, digits and `_`, a letter first. Functions with `_` are helpers.
+- Mira offers the tools once a conversation opens the skill, and to its scheduled jobs and agents. Only while the skill is connected (page **Connections**); otherwise they are not there.
+- What a tool returns is third-party text for Mira, like a web page.
+
+**The docstring**
+
+```python
+def suche(thema, tage = 7, sprachen = ["de"]):
+    """What the tool does, in one or two sentences. The model reads this.
+
+    Args:
+      thema (str): What the value means.
+      tage (int): A longer explanation may
+        go on in the next line, indented deeper.
+      sprachen (list): A list of texts.
+    """
+```
+
+- The text before `Args:` is the tool's description. Every parameter of the function needs a line `name (type): text` under `Args:`, and every line there a parameter of the function.
+- Types: `str` (text), `int` (whole number), `float` (number), `bool` (yes/no), `list` (a list of texts).
+- Without a default a parameter is required, with a default it is optional. `= None` means optional without a default.
+- Before the function runs, Mira checks what the model sends: unknown parameters, missing required ones, wrong types. A whole number sent as `7.0` counts as `int`. What does not fit goes back to the model as an error, and the function does not run.
+- Allowed values and limits the function checks itself with `fail("…")`, and the parameter's text names them.
+
+**What the file has**
+
+| Name | What it is |
+|---|---|
+| `api.get(address, params = {})` | a request to the service, with the connection's token |
+| `api.delete(address, params = {})` | the same, deleting; only for tools under `writes` |
+| `api.post`, `api.put`, `api.patch` `(address, params = {}, body = …)` | writing, `body` goes along as JSON; only for tools under `writes` |
+| `json.encode`, `json.decode`, `json.indent` | JSON |
+| `time.now()`, `time.parse_time(text, format, location)`, `time.parse_duration`, `time.hour`, `time.minute` … | times; a time has `.year` … `.unix` and `.format("2006-01-02")`, `.in_location("Europe/Berlin")` |
+| `math.round`, `math.floor`, `math.ceil` … | arithmetic (Starlark itself has no `round`) |
+| `settings` | the skill's settings that are not secret, as a dictionary of texts |
+| `fail("…")` | ends the tool; the text goes to the model as an error |
+| `print(…)` | a line in Mira's log |
+
+Not there: `load()`, files, any network but the addresses under `api`. As usual in Starlark also no `while` (use `for … in range(…)`), no recursion and no `try`: an error ends the tool. The file's top level holds only functions and assignments.
+
+**Requests**
+
+- The address must begin with `https` and lie below an entry of `api` that allows the method; otherwise nothing goes out and the tool ends with an error naming the address.
+- `params` go into the address: texts and numbers as they are, `True`/`False` as `true`/`false`, a time as an ISO time in UTC, a list as a repeated parameter (`id=a&id=b`), `None` not at all. Mira encodes everything correctly.
+- The answer has `status` (the number), `ok` (2xx), `text` (at most 2 MB) and `json` (the JSON read, `None` if it is none). A status of 400 or more is no error: the function decides what to make of it, with `fail` say.
+- A request that does not come about (no answer within 20 seconds, no connection) ends the tool with an error.
+
+**The tool's answer**
+
+A text goes to the model as it is; anything else as JSON (a dictionary's keys must be texts). `None` is an empty answer. Return only what the model needs for its answer: short fields, numbers already rounded.
+
+**Tools that write**
+
+```yaml
+metadata:
+  mira:
+    tools:
+      writes: [posten]     # only these may use api.post, put, patch, delete
+      confirm: [posten]    # these always ask first
+```
+
+A tool under `writes` asks first when the conversation read third-party text before; one under `confirm` always asks. A name there that `tools.star` does not have is a problem of the skill.
+
+**Limits**
+
+100,000 steps and 60 seconds per call of a tool, 20 seconds per request, 2 MB per answer of the service.
+
+**When something is wrong**
+
+- At loading, it is a problem of the skill (log and **Repairs**, with the line and the reason): the file does not parse, a tool without a docstring, a parameter without a line under `Args:` or a line without a parameter, an unknown type, `*args` or `**kwargs`, a default that does not fit its type, a call of `api` at the top level, a file without a tool, a tool named like a script of the skill.
+- At a call, the model gets the text of `fail`, for any other error its first line; the log has the whole trace with line numbers.
+- Every request writes a line in Mira's log (`starlark tool request` with address, status, time and size; without the token), every `print` one of its own.
+- Under Capabilities → Skills → your skill → **Try it** you call a tool with values of your own and see every request with the start of the answer, every `print`, and the line of an error.
 
 ### Reading mails
 
