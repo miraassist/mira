@@ -126,11 +126,15 @@ func TestZP21_the_switch_writes_mira_yaml(t *testing.T) {
 	if a.edit.changed {
 		t.Error("a schedule asks for a restart")
 	}
-	// the skill's page shows it off, by its name (its link "Change")
+	// the skill's section "Geplante Aufträge" shows it off, by its name
 	a.registerAgents(nil)
 	for _, sk := range a.catalog(context.Background()).Skills {
-		if sk.Name == "plan" && (len(sk.Schedules) != 4 || sk.Schedules[1].Name != "abend" || !sk.Schedules[1].Off || sk.Schedules[1].Next != "") {
-			t.Errorf("catalog: %+v", sk.Schedules)
+		if sk.Name != "plan" {
+			continue
+		}
+		i := slices.IndexFunc(sk.Jobs, func(j ui.JobInfo) bool { return j.Name == "abend" })
+		if i < 0 || sk.Jobs[i].Enabled || sk.Jobs[i].Next != "" {
+			t.Errorf("catalog: %+v", sk.Jobs)
 		}
 	}
 	// on again: the line goes

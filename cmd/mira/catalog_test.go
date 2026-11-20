@@ -41,7 +41,8 @@ metadata:
       ort: { description: Der Ort, required: true }
       key: { description: Der Schlüssel, secret: true }
     schedules:
-      - cron: "0 7 * * *"
+      - name: morgens
+        cron: "0 7 * * *"
         task: Sag das Wetter.
     agents:
       wetter.helfer: { description: Schaut nach., instructions: Schau., conversation: true }
@@ -63,7 +64,7 @@ Sag das Wetter für {{ort}}.
 		byName[s.Name] = s
 	}
 	w := byName["wetter"]
-	if w.State != "active" || len(w.Settings) != 2 || len(w.Schedules) != 1 || w.Schedules[0].Next == "" ||
+	if w.State != "active" || len(w.Settings) != 2 || len(w.Jobs) != 1 || w.Jobs[0].Name != "morgens" || w.Jobs[0].Next == "" ||
 		!slices.Contains(w.Kinds, "schedules") || !slices.Contains(w.Agents, "wetter.helfer") || w.Guide != "Sag das Wetter für Karlsruhe." {
 		t.Errorf("wetter: %+v", w)
 	}

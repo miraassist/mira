@@ -88,13 +88,12 @@ type SkillInfo struct {
 	Description string `json:"description,omitempty"`
 	// State is active, problem (switched on, not started) or available
 	// (a folder, not switched on).
-	State     string         `json:"state"`
-	Problem   string         `json:"problem,omitempty"`
-	Kinds     []string       `json:"kinds,omitempty"`
-	Settings  []SettingInfo  `json:"settings,omitempty"`
-	Schedules []ScheduleInfo `json:"schedules,omitempty"`
-	Target    *TargetInfo    `json:"target,omitempty"`
-	MCP       *MCPInfo       `json:"mcp,omitempty"`
+	State    string        `json:"state"`
+	Problem  string        `json:"problem,omitempty"`
+	Kinds    []string      `json:"kinds,omitempty"`
+	Settings []SettingInfo `json:"settings,omitempty"`
+	Target   *TargetInfo   `json:"target,omitempty"`
+	MCP      *MCPInfo      `json:"mcp,omitempty"`
 	// Setup are the skill's setup tools (docs/spec/skill-programs.md);
 	// Program is its program's version and whether it is still being got.
 	Setup []SetupInfo `json:"setup,omitempty"`
@@ -138,16 +137,6 @@ type SettingInfo struct {
 	Set         bool   `json:"set"`
 	// Required: a template's parameter that a job must have.
 	Required bool `json:"required,omitempty"`
-}
-
-// ScheduleInfo is a skill's schedule with its next run.
-type ScheduleInfo struct {
-	// Name is how the page "Schedules" knows it ("" for one without).
-	Name      string `json:"name,omitempty"`
-	Off       bool   `json:"off,omitempty"`
-	Cron      string `json:"cron"`
-	PerPerson bool   `json:"per_person,omitempty"`
-	Next      string `json:"next,omitempty"`
 }
 
 // TargetInfo is a skill's target: its fields or a plan, and how it ends.

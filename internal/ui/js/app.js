@@ -616,10 +616,6 @@ class MiraSkills extends EditPage {
         ${!edit && (s.settings || []).length ? row(T.cat_settings, html`${s.settings.map(x => html`<div>
           <code>${x.name}</code>: ${x.secret ? (x.set ? T.cat_secret_set : T.cat_secret_unset) : (x.set ? x.value : html`<span class="hint">${T.cat_unset}</span>`)}
           ${x.description ? html`<div class="hint">${x.description}</div>` : nothing}</div>`)}`) : nothing}
-        ${(s.schedules || []).length ? row(T.cat_schedules, html`${s.schedules.map(x => html`<div>
-          ${cronWords(x.cron)}${x.per_person ? html` · ${T.cat_per_person}` : nothing}${x.off ? html` · ${T.sch_off}`
-            : x.next ? html` · ${T.cat_next} ${x.next}` : nothing}
-          ${x.name ? html` · <a href="#schedules" @click=${e => { e.preventDefault(); openSchedule(s.name, x.name); }}>${T.sch_change}</a>` : nothing}</div>`)}`) : nothing}
         ${t ? row(T.cat_target, html`
           ${t.plan ? html`<div>${T.cat_plan}${t.agent ? html` · ${T.cat_written_by} <code>${t.agent}</code>` : nothing}</div>` : nothing}
           ${(t.fields || []).map(f => html`<div><code>${f.name}</code>${f.optional ? html` <span class="hint">(${T.cat_optional})</span>` : nothing}:
@@ -700,23 +696,12 @@ function scheduleWords(it) {
   if (m) return T.sch_every_minutes(m[1]);
   return html`<code>${c}</code>`;
 }
-// openSchedule opens the page "Schedules" at one entry (from a skill).
-let scheduleFocus = null;
-function openSchedule(skill, name) { scheduleFocus = skill + "/" + name; go("schedules"); }
 const clockIcon = svg`<svg class="mira-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
 
 class MiraSchedules extends Light {
   static properties = { items: { state: true }, error: { state: true }, busy: { state: true }, failed: { state: true },
     forms: { state: true } };
   connectedCallback() { super.connectedCallback(); this.forms = {}; this.load(); }
-  // A schedule opened from a skill: unfolded and shown once the list is there.
-  updated() {
-    // Only the page shown takes it (the page may be built twice on the way).
-    if (!scheduleFocus || !this.items || !this.isConnected) return;
-    const d = this.querySelector(`details[data-key="${CSS.escape(scheduleFocus)}"]`);
-    scheduleFocus = null;
-    if (d) { d.open = true; d.scrollIntoView({ block: "center" }); }
-  }
   disconnectedCallback() { super.disconnectedCallback(); clearTimeout(this.poll); }
   key(it) { return it.skill + "/" + it.name; }
   async load() {

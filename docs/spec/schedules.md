@@ -86,9 +86,10 @@ Unfolded:
 
 Only admins see the page (it changes `mira.yaml`).
 
-On the page **Skills**, an opened skill lists its schedules as before (the time in words, "off", the next run), and
-each one with a name has a link **Change** that opens this page at its entry, unfolded (decided 2026-11-01: the
-schedule is changed in one place, found from both).
+On the page **Skills**, an opened skill lists its scheduled jobs in its section **Geplante Aufträge**
+([Scheduled jobs](scheduled-jobs.md), decision 13); its **Ändern** opens the job's form there. Until 2026-11-20 the
+skill listed its schedules in a row of their own with a link **Change** to this page (decided 2026-11-01); that row
+is gone, as it showed the jobs twice.
 
 ### When a change holds
 

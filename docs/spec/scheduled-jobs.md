@@ -29,6 +29,7 @@ on. The user makes and manages them on the skill; the skill only offers what can
 | 10 | The window of a job that runs more often | The task is told when this job last ran (4A), `{{since}}`, so that a second time does not bring the same items again |
 | 11 | Mira's own schedule | Stays as it is (5A): rebuilding the profiles at night is no skill's job |
 | 12 | What exists today | Stays working (6A, below, Compatibility): `schedules` in a `SKILL.md` is read as before, `schedules` in `mira.yaml` is moved to `jobs` the next time the page writes the skill's entry. Deprecated later, with its own decision; not now |
+| 13 | The skill's entry showed the jobs twice (added 2026-11-20, before the release) | The row "Zeitpläne" on the skill's entry, which listed the same schedules with a link "Ändern" to "Zeitplan", is gone: the jobs show only in the section **Geplante Aufträge**, where **Ändern** opens the job's form (the maintainer) |
 
 ## The concept it hangs on
 
@@ -123,13 +124,14 @@ to give the evening other topics, its `SKILL.md` is changed to `jobs` by its own
 
 ## On the page
 
-On the skill's entry in "Fähigkeiten", a section **Geplante Aufträge**:
+On the skill's entry in "Fähigkeiten", a section **Geplante Aufträge**; the entry shows its jobs only there
+(decision 13):
 
 - one line per scheduled job: name, template, when in words, on/off, the last run (as on "Zeitplan");
 - **Neu**: choose a template (when the skill has more than one), a name, its parameters (a form as for settings),
   time of day and weekdays; **Speichern**;
-- per job: change the parameters and the time, switch on and off, **Löschen** (with the page's dialog), **Jetzt
-  ausführen**.
+- per job: **Ändern** (the job's form: the parameters and the time, on and off), **Löschen** (with the page's
+  dialog), **Jetzt ausführen**.
 - A job made, changed or deleted here holds after Mira's restart, which the page offers as for a changed setting; a
   time changed on "Zeitplan" holds at once, as today.
 
