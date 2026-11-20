@@ -559,6 +559,14 @@ class MiraSkills extends EditPage {
     skillFocus = null;
     if (d) { d.open = true; d.scrollIntoView({ block: "center" }); }
   }
+  // hasForm: the skill has something its form changes. A bundled skill
+  // without settings and without a server to check has none: its switch is
+  // above, its jobs below.
+  hasForm(s) {
+    const e = ((this.ed || {}).skills || {})[s.name];
+    if (!e || e.own || (e.setting_defs || []).length) return true;
+    return !!(s.mcp || s.phonebook || s.name === "telefon");
+  }
   // on says whether the skill is switched on, as mira.yaml has it.
   on(s) {
     const e = ((this.ed || {}).skills || {})[s.name];
@@ -599,7 +607,7 @@ class MiraSkills extends EditPage {
         ${s.state === "problem" ? badge(T.cat_not_started, true) : nothing}
         ${edit ? toggleSwitch(this.on(s), T.ed_enabled, on => this.setOn(s, on), this.busy === s.name) : nothing}` }, !open ? nothing : html`
       ${s.problem ? html`<p class="msg err">${s.problem}</p>` : nothing}
-      ${edit ? this.editor("skill", s.name) : nothing}
+      ${edit && this.hasForm(s) ? this.editor("skill", s.name) : nothing}
       <table class="facts">
         ${row(T.cat_description, s.description)}
         ${s.connection ? row(T.conn_row, html`${T["conn_state_" + s.connection]} ·
