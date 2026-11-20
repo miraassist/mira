@@ -29,6 +29,8 @@ type Player struct {
 	Names []string
 	// Area is its area id, "" for none; AreaName its display name.
 	Area, AreaName string
+	// Device is its device id, "" for none.
+	Device string
 }
 
 func (p Player) label() string {

@@ -157,6 +157,13 @@ is used in a spec; a term that is not here is not a term yet.
 | cycle | Takt | On and off again and again all day | blueprint `duty_cycle` | — |
 | device run | Gerätelauf | A device's run of a programme, with a start and an end, now and then (a dishwasher, a washing machine) | blueprint `device_run` | run (alone: a schedule's or an agent's), programme run, cycle |
 
+## Music (new, [Music with Music Assistant](spec/music-players.md))
+
+| English | German | Meaning | Code / database | Not |
+|---|---|---|---|---|
+| Music Assistant player | Music-Assistant-Player | An exposed media player of the integration Music Assistant (`platform: music_assistant`): it searches and plays Music Assistant's music | `structure.Snapshot.MusicPlayers`, `music.Player` | speaker (for it) |
+| ducking | Absenken | Mira lowering the Music Assistant players that play in a satellite's area while it is in a turn (from listening to idle, follow-up questions included), and setting them back afterwards ([Music](spec/music-players.md), part 7). Not the satellite's own lowering of its playback, which its firmware does | `music.Ducker` (new) | muting, Stummschalten, pausing |
+
 ## Decided (2026-11-13)
 
 1. A device's usual behaviour is its **device profile** (Geräteprofil); the memory's is the **memory profile** (Gedächtnisprofil); "profile" alone is not used (changed the same day: first "habit").

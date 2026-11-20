@@ -226,3 +226,48 @@ Feature: MU Music with Music Assistant
     When music_more runs
     Then the tool's error has Home Assistant's message or the arguments, nothing is appended
     And a refusal's log line names the player and the seed
+
+  @step8
+  Scenario: MU-34 While a satellite listens, the players that play in its area go down to a third
+    Given in the living room the Onkyo plays at 70 %, the Sonos is paused, and a player of the satellite's own device plays
+    And Mira has seen the satellites' states once
+    When the living room's satellite starts listening
+    Then the living room's players are read once, without the satellite's own player
+    And only the Onkyo is set to 23 % with media_player.volume_set, and a log line names it with both volumes
+    And a satellite without an area lowers nothing and reads nothing
+
+  @step8
+  Scenario: MU-35 The follow-up question keeps the music low; idle sets it back
+    Given the kitchen's player plays at 60 %
+    When the kitchen's satellite goes listening, processing, responding, listening (the follow-up), processing, responding
+    Then the player is lowered once, to 20 %
+    And when the satellite is idle, or unavailable, the player is set back to 60 %, also when it was stopped during the turn
+
+  @step8
+  Scenario: MU-36 A volume set during the turn stays
+    Given the kitchen's player was lowered from 60 % to 20 %
+    When its volume is 30 % at the end of the turn
+    Then it is not set back, and a log line names it
+    And when its state still shows 60 % (Mira's volume not yet reported), it is set back
+
+  @step8
+  Scenario: MU-37 Two satellites in one room: the music comes back when both are idle
+    Given two satellites in the living room
+    When the first starts listening, then the second, then the first is idle
+    Then the music is lowered once and stays low
+    And it is set back when the second is idle too, or is removed
+
+  @step8
+  Scenario: MU-38 What fails leaves a log line and the rest goes on
+    Given reading the players fails, or Home Assistant refuses volume_set for one player, or the watch cannot start
+    Then a failed read when lowering lowers nothing for the turn, with a log line naming the players
+    And a refused player stays as it is while the others go down and come back
+    And a failed read when setting back sets the volumes back without the check, with a log line
+    And a refused setting back leaves a log line that the player stays lowered
+    And a watch that cannot start is the background task's error
+
+  @step8
+  Scenario: MU-39 The subscription's handler only signals
+    Given ducking runs on a watch of the satellites
+    When many state changes come at once on the connection's read loop
+    Then the handler never blocks, and the goroutine lowers and sets back from the satellite's states

@@ -24,7 +24,8 @@ Reading and writing:
 **Watching states:** Mira reads states only as Home Assistant filters them, and watches instead of asking again:
 - **Watching** an entity or a domain is a subscription (`subscribe_entities` with `entity_ids` or `include.domains`;
   triggers the same way, `SubscribeTrigger`; waiting for a state, `WaitState`): Home Assistant reports what changed,
-  nothing is polled. What Mira needs all the time is watched for as long as she runs: the persons (domain `person`).
+  nothing is polled. What Mira needs all the time is watched for as long as she runs: the persons (domain `person`) and the satellites
+  (domain `assist_satellite`, for ducking: [Music](music-players.md), part 7).
 - **Reading once** (`GetStates`) names the entities or domains it needs; Home Assistant filters, Mira takes its first
   answer and unsubscribes. `get_states` has no filter, so Mira never sends it: in the test house it is 722 states to
   look at a handful.

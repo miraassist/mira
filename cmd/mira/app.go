@@ -679,6 +679,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	internal = append(internal, music.Tool(musicOptions), music.GroupTool(musicOptions), music.QueueTool(musicOptions),
 		music.MoreTool(musicOptions))
+	// Lowering the music in a satellite's area while it listens
+	// (docs/spec/music-players.md, part 7).
+	if a.ha != nil {
+		a.goRun(ctx, "ducking", music.NewDucker(a.duckOptions(snapshot)).Run)
+	}
 	// Phone calls from the satellite of the turn (docs/spec/phone.md).
 	a.phonebook = &phone.Book{On: a.phoneBookOn, Read: a.readPhonebook}
 	internal = append(internal, phone.Tool(phone.Options{Lang: a.lang, Book: a.phonebook,
