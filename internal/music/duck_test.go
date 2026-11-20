@@ -34,30 +34,35 @@ func newDuckHA() *duckHA {
 	}
 }
 
-// The satellites of the tests: two in the living room, one in the kitchen,
-// one without an area. The living room's first one is a device that also has
-// a Music Assistant player (media_player.wohnzimmer_echo).
-var satellites = map[string][2]string{
-	"assist_satellite.wohnzimmer": {"wohnzimmer", "dev-wz"},
-	"assist_satellite.couch":      {"wohnzimmer", "dev-couch"},
-	"assist_satellite.kueche":     {"kueche", "dev-kueche"},
-	"assist_satellite.flur":       {"", "dev-flur"},
+// The satellites of the tests and their areas: two in the living room, one
+// in the kitchen, one without an area.
+var satellites = map[string]string{
+	"assist_satellite.wohnzimmer": "wohnzimmer",
+	"assist_satellite.couch":      "wohnzimmer",
+	"assist_satellite.kueche":     "kueche",
+	"assist_satellite.flur":       "",
 }
 
+// duckPlayers are the house's players, a Cast group in the living room
+// (paused unless a test plays it), and two devices there that lower
+// themselves while they listen (decision 39), both playing.
 func duckPlayers() []music.Player {
-	return append(house(), music.Player{Entity: "media_player.wohnzimmer_echo", Area: "wohnzimmer", Device: "dev-wz"})
+	return append(house(),
+		music.Player{Entity: "media_player.wohnzimmer_cast", Area: "wohnzimmer", Manufacturer: "Google Inc."},
+		music.Player{Entity: "media_player.wohnzimmer_dot", Area: "wohnzimmer", Manufacturer: "TECHO5"},
+		music.Player{Entity: "media_player.wohnzimmer_echo", Area: "wohnzimmer", Manufacturer: "EchoLocal"})
 }
 
 func duckOptions(ha *duckHA, logs *bytes.Buffer) music.DuckOptions {
-	ha.states["media_player.wohnzimmer_echo"] = "playing"
-	ha.volumes["media_player.wohnzimmer_echo"] = 0.9
+	ha.states["media_player.wohnzimmer_cast"] = "paused"
+	ha.volumes["media_player.wohnzimmer_cast"] = 0.9
+	for _, id := range []string{"media_player.wohnzimmer_dot", "media_player.wohnzimmer_echo"} {
+		ha.states[id], ha.volumes[id] = "playing", 0.8
+	}
 	return music.DuckOptions{
-		Logger:  slog.New(slog.NewTextHandler(logs, nil)),
-		Players: duckPlayers,
-		Satellite: func(entity string) (string, string) {
-			s := satellites[entity]
-			return s[0], s[1]
-		},
+		Logger:    slog.New(slog.NewTextHandler(logs, nil)),
+		Players:   duckPlayers,
+		Satellite: func(entity string) string { return satellites[entity] },
 		Named: func(name, area string) []string {
 			var out []string
 			for _, p := range duckPlayers() {
@@ -116,19 +121,20 @@ func wantCalls(t *testing.T, ha *duckHA, want ...string) {
 	}
 }
 
-// MU-34 While a satellite listens, the players that play in its area go down to a third
-func TestMU34_WhileASatelliteListensThePlayersThatPlayInItsAreaGoDown(t *testing.T) {
+// MU-41 While a satellite listens, the players that play in its area go down to a third, but not those that lower themselves
+func TestMU41_WhileASatelliteListensThePlayersThatPlayInItsAreaGoDownButNotThoseThatLowerThemselves(t *testing.T) {
 	ha, logs := newDuckHA(), &bytes.Buffer{}
 	d := newDucker(ha, logs)
 	if len(ha.reads) != 0 || len(ha.calls) != 0 {
 		t.Fatalf("the first states lowered something: reads %v, calls %v", ha.reads, ha.calls)
 	}
 	step(d, map[string]string{"assist_satellite.wohnzimmer": "listening"})
-	// Onkyo plays (0.7 -> 0.23); Sonos is paused; the kitchen is another
-	// area; the satellite's own device's player is left to its firmware.
+	// Onkyo plays (0.7 -> 0.23); Sonos and the Cast group are paused; the
+	// kitchen is another area; the TECHO5 and EchoLocal devices play but
+	// lower themselves.
 	wantCalls(t, ha, "media_player.onkyo 0.23")
-	if len(ha.reads) != 1 || !slices.Equal(ha.reads[0], []string{"media_player.onkyo", "media_player.sonos"}) {
-		t.Errorf("reads %v, want one filtered to the living room's players without the satellite's own", ha.reads)
+	if len(ha.reads) != 1 || !slices.Equal(ha.reads[0], []string{"media_player.onkyo", "media_player.sonos", "media_player.wohnzimmer_cast"}) {
+		t.Errorf("reads %v, want one filtered to the living room's players without those that lower themselves", ha.reads)
 	}
 	if !strings.Contains(logs.String(), "music lowered while a satellite listens") {
 		t.Errorf("no log line:\n%s", logs)
@@ -176,8 +182,9 @@ func TestMU40_AVolumeToolCallKeepsThePlayersItReaches(t *testing.T) {
 		ha, logs := newDuckHA(), &bytes.Buffer{}
 		ha.states["media_player.sonos"] = "playing"
 		d := newDucker(ha, logs)
+		ha.states["media_player.wohnzimmer_cast"] = "playing"
 		step(d, map[string]string{"assist_satellite.couch": "listening"})
-		wantCalls(t, ha, "media_player.onkyo 0.23", "media_player.sonos 0.17", "media_player.wohnzimmer_echo 0.30")
+		wantCalls(t, ha, "media_player.onkyo 0.23", "media_player.sonos 0.17", "media_player.wohnzimmer_cast 0.30")
 		ha.calls = nil
 		return ha, logs, d
 	}
@@ -186,7 +193,7 @@ func TestMU40_AVolumeToolCallKeepsThePlayersItReaches(t *testing.T) {
 		ha, _, d := lowerBoth(t)
 		ha.volumes["media_player.onkyo"] = 0.06 // the device's own step, not Mira's 0.23
 		step(d, nil)
-		wantCalls(t, ha, "media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_echo 0.90")
+		wantCalls(t, ha, "media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_cast 0.90")
 		if len(ha.reads) != 1 {
 			t.Errorf("reads %v, want only the one when lowering", ha.reads)
 		}
@@ -204,13 +211,13 @@ func TestMU40_AVolumeToolCallKeepsThePlayersItReaches(t *testing.T) {
 		ha, _, d := lowerBoth(t)
 		d.VolumeSet(music.VolumeCall{TurnArea: wz, Name: "Onkyo"})
 		step(d, nil)
-		wantCalls(t, ha, "media_player.sonos 0.50", "media_player.wohnzimmer_echo 0.90")
+		wantCalls(t, ha, "media_player.sonos 0.50", "media_player.wohnzimmer_cast 0.90")
 	})
 	t.Run("an area keeps the players of that area; another area keeps nothing here", func(t *testing.T) {
 		ha, _, d := lowerBoth(t)
 		d.VolumeSet(music.VolumeCall{TurnArea: wz, Area: "Küche"})
 		step(d, nil)
-		wantCalls(t, ha, "media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_echo 0.90")
+		wantCalls(t, ha, "media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_cast 0.90")
 		ha.calls = nil
 		step(d, map[string]string{"assist_satellite.couch": "listening"})
 		ha.calls = nil
@@ -229,7 +236,7 @@ func TestMU40_AVolumeToolCallKeepsThePlayersItReaches(t *testing.T) {
 		d.VolumeSet(music.VolumeCall{TurnArea: "kueche", Name: "Onkyo"})
 		d.VolumeSet(music.VolumeCall{Name: "Onkyo"})
 		step(d, nil)
-		wantCalls(t, ha, "media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_echo 0.90")
+		wantCalls(t, ha, "media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_cast 0.90")
 	})
 	t.Run("the mark ends with the turn", func(t *testing.T) {
 		ha, _, d := lowerBoth(t)
@@ -237,11 +244,11 @@ func TestMU40_AVolumeToolCallKeepsThePlayersItReaches(t *testing.T) {
 		step(d, nil)
 		wantCalls(t, ha)
 		// The user's new volumes, then the next turn: lowered and set back.
-		ha.volumes["media_player.onkyo"], ha.volumes["media_player.sonos"], ha.volumes["media_player.wohnzimmer_echo"] = 0.7, 0.5, 0.9
+		ha.volumes["media_player.onkyo"], ha.volumes["media_player.sonos"], ha.volumes["media_player.wohnzimmer_cast"] = 0.7, 0.5, 0.9
 		step(d, map[string]string{"assist_satellite.couch": "listening"})
 		step(d, nil)
-		wantCalls(t, ha, "media_player.onkyo 0.23", "media_player.sonos 0.17", "media_player.wohnzimmer_echo 0.30",
-			"media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_echo 0.90")
+		wantCalls(t, ha, "media_player.onkyo 0.23", "media_player.sonos 0.17", "media_player.wohnzimmer_cast 0.30",
+			"media_player.onkyo 0.70", "media_player.sonos 0.50", "media_player.wohnzimmer_cast 0.90")
 	})
 	t.Run("VolumeSet never blocks", func(t *testing.T) {
 		_, _, d := lowerBoth(t)
@@ -262,12 +269,10 @@ func TestMU37_TwoSatellitesInOneRoomTheMusicComesBackWhenBothAreIdle(t *testing.
 	wantCalls(t, ha, "media_player.onkyo 0.23")
 	step(d, nil)
 	wantCalls(t, ha, "media_player.onkyo 0.23", "media_player.onkyo 0.70")
-	// A satellite that is removed while it listens ends its turn. The couch's
-	// satellite is another device: the Echo's player goes down too.
+	// A satellite that is removed while it listens ends its turn.
 	step(d, map[string]string{"assist_satellite.couch": "listening"})
 	d.Update(context.Background(), map[string]string{"assist_satellite.wohnzimmer": "idle"})
-	wantCalls(t, ha, "media_player.onkyo 0.23", "media_player.onkyo 0.70", "media_player.onkyo 0.23",
-		"media_player.wohnzimmer_echo 0.30", "media_player.onkyo 0.70", "media_player.wohnzimmer_echo 0.90")
+	wantCalls(t, ha, "media_player.onkyo 0.23", "media_player.onkyo 0.70", "media_player.onkyo 0.23", "media_player.onkyo 0.70")
 }
 
 // MU-38 What fails leaves a log line and the rest goes on

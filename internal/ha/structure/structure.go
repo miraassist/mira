@@ -321,7 +321,10 @@ func Domain(entityID string) string {
 
 // Same reports whether two snapshots know the same house: the same areas,
 // names, aliases, exposure, labels, satellites and asking devices. Only then is a rebuild a
-// change worth fetching Home Assistant's prompt again for.
+// change worth fetching Home Assistant's prompt again for. A device's
+// manufacturer or model is not compared: the prompt does not depend on it,
+// and what reads it (ducking, docs/spec/music-players.md, decision 39) takes
+// it from the newest snapshot.
 func Same(a, b Snapshot) bool {
 	return a.ExposureKnown == b.ExposureKnown &&
 		reflect.DeepEqual(a.AreaNames, b.AreaNames) && reflect.DeepEqual(a.AreaKeys, b.AreaKeys) &&

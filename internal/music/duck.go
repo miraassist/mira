@@ -23,8 +23,8 @@ type DuckOptions struct {
 	// and device.
 	Players func() []Player
 	// Satellite is an assist_satellite's area (its entity's, else its
-	// device's; "" for none) and its device ("" for none).
-	Satellite func(entity string) (area, device string)
+	// device's; "" for none).
+	Satellite func(entity string) (area string)
 	// Named is the entities a name of a tool call reaches (in the area, when
 	// one is given), as the house structure resolves names and aliases.
 	Named func(name, area string) []string
@@ -219,19 +219,19 @@ func lowerTo(level float64) float64 {
 	return math.Max(0.01, math.Round(level*100/3)/100)
 }
 
-// onSatellite says whether a player plays on the satellite itself, whose
-// firmware lowers its own playback: for now only a player of the satellite's
-// device. A Music Assistant player is mostly a device of its own (the Show's
-// on the test HA), so this is open (docs/spec/music-players.md, part 7,
-// Open); a later rule is one more check here.
-func onSatellite(p Player, satelliteDevice string) bool {
-	return satelliteDevice != "" && p.Device == satelliteDevice
+// lowersItself says whether a player is a device that lowers its own
+// playback while it listens: its device's manufacturer is TECHO5 or
+// EchoLocal (docs/spec/music-players.md, part 7, decision 39). Mira never
+// lowers one, in any area: lowering it made her answer on it too quiet and
+// hid its "listening" animation on the LED ring.
+func lowersItself(p Player) bool {
+	return p.Manufacturer == "TECHO5" || p.Manufacturer == "EchoLocal"
 }
 
 // listen lowers the players that play in the satellite's area, unless
 // another satellite there is in a turn already.
 func (d *Ducker) listen(ctx context.Context, sat string) {
-	area, device := d.o.Satellite(sat)
+	area := d.o.Satellite(sat)
 	if area == "" {
 		return
 	}
@@ -244,7 +244,7 @@ func (d *Ducker) listen(ctx context.Context, sat string) {
 	d.areas[area] = dk
 	var ids []string
 	for _, p := range d.o.Players() {
-		if p.Area == area && !onSatellite(p, device) {
+		if p.Area == area && !lowersItself(p) {
 			ids = append(ids, p.Entity)
 		}
 	}

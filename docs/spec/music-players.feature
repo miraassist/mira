@@ -227,14 +227,9 @@ Feature: MU Music with Music Assistant
     Then the tool's error has Home Assistant's message or the arguments, nothing is appended
     And a refusal's log line names the player and the seed
 
-  @step8
-  Scenario: MU-34 While a satellite listens, the players that play in its area go down to a third
-    Given in the living room the Onkyo plays at 70 %, the Sonos is paused, and a player of the satellite's own device plays
-    And Mira has seen the satellites' states once
-    When the living room's satellite starts listening
-    Then the living room's players are read once, without the satellite's own player
-    And only the Onkyo is set to 23 % with media_player.volume_set, and a log line names it with both volumes
-    And a satellite without an area lowers nothing and reads nothing
+  # MU-34 (the players that play go down, without one of the satellite's own device) was retired on 2026-11-20
+  # with decision 39: the players that lower themselves are recognised by their device's manufacturer, in any
+  # area; replaced by MU-41.
 
   @step8
   Scenario: MU-35 The follow-up question keeps the music low; idle sets it back
@@ -269,7 +264,7 @@ Feature: MU Music with Music Assistant
 
   @step8
   Scenario: MU-40 A volume tool call of the turn keeps the players it reaches; any other volume is set back
-    Given in the living room the Onkyo (70 %), the Sonos (50 %) and the Echo (90 %) were lowered while a satellite there listens
+    Given in the living room the Onkyo (70 %), the Sonos (50 %) and a Cast group (90 %) were lowered while a satellite there listens
     When the satellite is idle and the Onkyo reports 6 % (the device rounded Mira's 23 %), with no volume tool call
     Then all three are set back to their volumes before, without reading their states
     And when during the turn Home Assistant carried out HassSetVolume or HassSetVolumeRelative without a target, none is set back, with a log line
@@ -278,3 +273,13 @@ Feature: MU Music with Music Assistant
     And a call that Home Assistant answered with an error, a mute, or a tool of another server keeps nothing
     And the marks end with the turn: the next turn sets the players back again
     And noting a call never blocks the turn
+
+  @step8
+  Scenario: MU-41 While a satellite listens, the players that play in its area go down to a third, but not those that lower themselves
+    Given in the living room the Onkyo plays at 70 %, the Sonos is paused, and two players whose devices' manufacturer is TECHO5 and EchoLocal play
+    And Mira has seen the satellites' states once
+    When the living room's satellite starts listening
+    Then the living room's players are read once, without the TECHO5 and EchoLocal players
+    And only the Onkyo is set to 23 % with media_player.volume_set, and a log line names it with both volumes
+    And a satellite without an area lowers nothing and reads nothing
+    And the manufacturer is the one the device registry gives the player's device

@@ -31,6 +31,9 @@ type Player struct {
 	Area, AreaName string
 	// Device is its device id, "" for none.
 	Device string
+	// Manufacturer is its device's manufacturer in Home Assistant's device
+	// registry ("TECHO5"), "" for none.
+	Manufacturer string
 }
 
 func (p Player) label() string {

@@ -21,7 +21,8 @@ func musicPlayers(snap structure.Snapshot) []music.Player {
 	for id := range snap.MusicPlayers {
 		area := snap.EntityArea[id]
 		out = append(out, music.Player{Entity: id, Name: snap.EntityLabel[id], Names: snap.EntityNames[id],
-			Area: area, AreaName: snap.AreaNames[area], Device: snap.EntityDevice[id]})
+			Area: area, AreaName: snap.AreaNames[area], Device: snap.EntityDevice[id],
+			Manufacturer: snap.Devices[snap.EntityDevice[id]].Manufacturer})
 	}
 	return out
 }
@@ -71,13 +72,13 @@ func (a *app) duckOptions(snapshot func() structure.Snapshot) music.DuckOptions 
 	return music.DuckOptions{
 		Logger:  a.log,
 		Players: func() []music.Player { return musicPlayers(snapshot()) },
-		Satellite: func(entity string) (string, string) {
+		Satellite: func(entity string) string {
 			snap := snapshot()
 			e := snap.Entities[entity]
 			if e.AreaID != "" {
-				return e.AreaID, e.DeviceID
+				return e.AreaID
 			}
-			return snap.DeviceArea[e.DeviceID], e.DeviceID
+			return snap.DeviceArea[e.DeviceID]
 		},
 		Named: func(name, area string) []string { return snapshot().ResolveName(name, area) },
 		Area:  func(name string) string { return snapshot().ResolveArea(name) },

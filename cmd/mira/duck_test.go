@@ -5,12 +5,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/ha/structure"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/music"
 	"github.com/miraassist/mira/internal/testsupport/fakemcp"
@@ -50,7 +53,7 @@ func TestMU40_OnlyHomeAssistantsVolumeToolsThatSucceededReachTheDucker(t *testin
 			Players: func() []music.Player {
 				return []music.Player{{Entity: "media_player.onkyo", Area: "wohnzimmer"}}
 			},
-			Satellite: func(string) (string, string) { return "wohnzimmer", "dev-sat" },
+			Satellite: func(string) string { return "wohnzimmer" },
 			Named:     func(string, string) []string { return nil },
 			Area:      func(string) string { return "" },
 			Volumes: func(_ context.Context, ids []string) (map[string]music.Volume, error) {
@@ -93,5 +96,29 @@ func TestMU40_OnlyHomeAssistantsVolumeToolsThatSucceededReachTheDucker(t *testin
 	}
 	if !strings.Contains(logs.String(), "these players keep their new volume") {
 		t.Errorf("no log line of the volume command:\n%s", logs)
+	}
+}
+
+// MU-41 … not those that lower themselves: the manufacturer is the one the
+// device registry gives the player's device, read through the house
+// structure.
+func TestMU41_TheManufacturerComesFromTheDeviceRegistry(t *testing.T) {
+	snap := structure.Build(structure.Registry{
+		Areas:   []haws.Area{{AreaID: "wohnzimmer", Name: "Wohnzimmer"}},
+		Devices: []haws.Device{{ID: "dev-dot", Manufacturer: "TECHO5"}, {ID: "dev-onkyo", Manufacturer: "Unknown manufacturer"}},
+		Entities: []haws.Entity{
+			{EntityID: "media_player.dot_2", Platform: "music_assistant", DeviceID: "dev-dot", AreaID: "wohnzimmer"},
+			{EntityID: "media_player.onkyo", Platform: "music_assistant", DeviceID: "dev-onkyo", AreaID: "wohnzimmer"},
+			{EntityID: "media_player.cast", Platform: "music_assistant", AreaID: "wohnzimmer"},
+		},
+		Exposed: map[string]bool{"media_player.dot_2": true, "media_player.onkyo": true, "media_player.cast": true},
+	})
+	got := map[string]string{}
+	for _, p := range musicPlayers(snap) {
+		got[p.Entity] = p.Manufacturer
+	}
+	want := map[string]string{"media_player.dot_2": "TECHO5", "media_player.onkyo": "Unknown manufacturer", "media_player.cast": ""}
+	if !maps.Equal(got, want) {
+		t.Errorf("manufacturers %v, want %v", got, want)
 	}
 }

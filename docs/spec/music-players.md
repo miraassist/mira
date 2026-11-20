@@ -1,6 +1,6 @@
 # Music with Music Assistant – spec
 
-Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live; step 7 (part 6, `music_more`) built, not on live; step 8 (part 7, ducking) built, its setting back changed after live (decision 35), not run end to end on the test HA. Scenarios: [music-players.feature](music-players.feature).
+Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live; step 5 (part 4, radio) built, tried on the test HA; step 6 (part 5, `music_queue`) built, not on live; step 7 (part 6, `music_more`) built, not on live; step 8 (part 7, ducking) built, its setting back changed after live (decision 35), the players that lower themselves recognised by their manufacturer (decision 39), not run end to end on the test HA. Scenarios: [music-players.feature](music-players.feature).
 
 ## Goal
 
@@ -358,7 +358,7 @@ lowers only for its own `play_announcement`.
 
 No thread, no tool: a watch of Mira's own for as long as she runs, as the persons are watched
 ([Home Assistant integration](ha-integration.md), Watching states), on the house structure of part 1 (the Music
-Assistant players and their areas, the satellites' areas). It is no tool: nothing changes in what the model is told,
+Assistant players with their areas and their devices' manufacturers, the satellites' areas). It is no tool: nothing changes in what the model is told,
 and no text of Mira's changes. It also hears of the model's calls of Home Assistant's volume tools, which it already
 has (decision 35): through the tool registry, which tells it of every MCP call that succeeded.
 
@@ -370,23 +370,12 @@ has (decision 35): through the tool registry, which tells it of every MCP call t
 | 31 | A volume command during the turn ("lauter", "leiser", "auf 30 %") | It counts as the new volume: it is not overwritten when the turn ends (the maintainer). How Mira recognises one: decision 35 |
 | 32 | How far down | To a third of the player's volume, in whole percent, at least 1 %; no setting (taken in the build, 2026-11-20; for the maintainer to confirm) |
 | 33 | Which players | The Music Assistant players of part 1 (exposed) in the satellite's area that are `playing` when it starts listening; a paused or idle one, and one that starts during the turn, is not touched (taken in the build, 2026-11-20; for the maintainer to confirm) |
-| 34 | A player that plays on the satellite itself | Not lowered: its firmware lowers its own playback (the maintainer). The rule is per player: every other playing player of the area is lowered, the players of a group too. Recognised for now only as a player of the satellite's own device; see Open |
+| 34 | A player that plays on the satellite itself | Not lowered: its firmware lowers its own playback (the maintainer). The rule is per player: every other playing player of the area is lowered, the players of a group too. Recognised since 2026-11-20 by its device's manufacturer, in any area: decision 39 |
 | 35 | Setting back | Changed 2026-11-20 after live: devices round the volume to their own steps (Mira set 0.08, the player reported 0.06), so comparing values took Mira's own volume for a command of the user and left the music quiet. Now no value is compared: when the last satellite of the area is idle, every lowered player gets its remembered volume back, unless during the turn the model called one of Home Assistant's volume tools (`HassSetVolume`, `HassSetVolumeRelative`) for it and Home Assistant carried the call out: that call is the signal of decision 31, not the value. Muting and unmuting (`HassMediaPlayerMute`, `HassMediaPlayerUnmute`) do not count: setting the volume back does not touch the mute. Which players a call reaches, kept simple: a `name` → the lowered players of that name (or alias, as the house structure resolves names, in the call's `area` if it names one); else an `area` → the lowered players of that area; else a `floor` → every lowered player (the house structure knows no floors); no target → the lowered players of the turn's area (Home Assistant takes the satellite's area). Only a call of a turn from an area that is lowered counts. A volume changed in another way (an app, a remote) is overwritten. A player stopped during the turn is set back too (the maintainer, 2026-11-20) |
 | 36 | Which satellites | Every `assist_satellite` with an area (its entity's, else its device's, as the house structure finds a satellite's area); one without an area lowers nothing (taken in the build, 2026-11-20; for the maintainer to confirm) |
 | 37 | Reading the players fails when setting back | No longer applies (2026-11-20, with decision 35): setting back reads no state, so there is no read to fail |
 | 38 | A Mira restart during a turn | The remembered volumes are lost: the players stay lowered until the user turns them up. A nuisance only; nothing is stored (taken in the build, 2026-11-20; for the maintainer to confirm) |
-
-### Open
-
-**Recognising a player that plays on the satellite itself** (decision 34). A Music Assistant player is mostly a
-device of its own in Home Assistant, not the satellite's: on the test HA (2026-11-20) the Show's Music Assistant
-player (`media_player.show`) is a separate device from the satellite's ESPHome device (the same name "Show" and the
-same model, but the Music Assistant device has only the identifier `music_assistant` and no connections; the ESPHome
-device has its MAC as a connection). So today's check (the same device id) never holds for the Show, and its Music
-Assistant player is lowered by Mira too while it plays (lowered twice, by the firmware and by Mira; a nuisance, set
-back after the turn). Candidates, for the maintainer to decide: (A) the firmware reports its Sendspin id to Home
-Assistant and Mira matches it with the Music Assistant identifier; (B) devices of the same name and model in the same
-area count as one. The check is one function (`onSatellite`); a later rule is one more check in it.
+| 39 | Players that lower themselves | Mira never lowers a Music Assistant player whose device's manufacturer in Home Assistant's device registry is `TECHO5` or `EchoLocal`, in any area, not only the satellite's own (the maintainer, 2026-11-20). These devices lower their own playback while they listen. Seen on live 2026-11-20: Mira lowering an Echo Dot 2 with the TECHO5 firmware lowered the device's volume itself, so her spoken answer on it was too quiet to understand, and the volume change showed on its LED ring and hid the "listening" animation. On live every Echo and Show with the firmware has the manufacturer `TECHO5`, one Echo Dot 2 `EchoLocal`; other players have their own (`Google Inc.`, `Samsung Electronics`, `Music Assistant` for a sync group, "Unknown manufacturer" for an AV receiver). It replaces the check by the satellite's device id, which never held (a Music Assistant player is a device of its own) and is gone. The manufacturer comes from the device registry through the house structure (part 1), read from the structure at each turn: a changed manufacturer counts from the next rebuild (the registry events), and like a changed model it is no change that fetches Home Assistant's prompt again (the structure counts as the same, MU-04); it changes nothing in what the model is told |
 
 ### The signals (checked on the test HA, 2026-11-20)
 
@@ -407,10 +396,10 @@ satellite's state changes; no time is computed.
    only signals a goroutine (a channel of one; signals that come while it works fold into one); the goroutine reads
    the satellites' states the watch keeps and compares them with the last ones. A satellite seen the first time
    (Mira's start, a new satellite) is only recorded.
-2. **A satellite starts a turn** (from a state outside the turn to one in it): its area and device from the house
+2. **A satellite starts a turn** (from a state outside the turn to one in it): its area from the house
    structure (decision 36). When another satellite of the area is in a turn already, it only joins it (nothing is read
-   or called). Otherwise the Music Assistant players of the area, without one that plays on the satellite itself
-   (decision 34), are read once (`GetStates` filtered to them, with `volume_level`); each that is `playing` with a
+   or called). Otherwise the Music Assistant players of the area, without those whose device's manufacturer is
+   `TECHO5` or `EchoLocal` (decisions 34 and 39), are read once (`GetStates` filtered to them, with `volume_level`); each that is `playing` with a
    volume goes to a third (decision 32) with `media_player.volume_set`; its volume before and Mira's are remembered in
    memory. A player whose third is not below its volume (1 % or less) is left. One log line names the satellite, the
    area and the players with both volumes.
@@ -487,9 +476,8 @@ prefix.
    live ("Spiel danach …" while music plays, row Q4) is left for the maintainer.
 7. **`music_more`** (part 6; `internal/music`, `cmd/mira`). Scenarios MU-27 to MU-33. Built 2026-11-20; the run on
    live ("Spiel mehr davon" while music plays, "Spiel was wie Queen", row M4) is left for the maintainer.
-8. **Ducking** (part 7; `internal/music`, `cmd/mira`, `internal/tools`). Scenarios MU-34, MU-35, MU-37 to MU-40
-   (MU-36 retired). Built 2026-11-20; setting back changed the same day after live (decision 35: a volume tool
-   call is the signal, no value is compared). The run end to
-   end on the test HA (a turn with a follow-up on the fake satellite while a Music Assistant player of its area
-   plays) is open; the recognition of a player that plays on the satellite itself (part 7, Open) is for the
-   maintainer to decide.
+8. **Ducking** (part 7; `internal/music`, `cmd/mira`, `internal/tools`). Scenarios MU-35, MU-37 to MU-41
+   (MU-34 and MU-36 retired). Built 2026-11-20; setting back changed the same day after live (decision 35: a volume
+   tool call is the signal, no value is compared), and the players that lower themselves are recognised by their
+   device's manufacturer (decision 39). The run end to end on the test HA (a turn with a follow-up on the fake
+   satellite while a Music Assistant player of its area plays) is open.
