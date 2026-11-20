@@ -110,6 +110,9 @@ type call struct {
 	mu        sync.Mutex
 	st        state
 	artifacts []*sdk.Artifact
+	// saving keeps the call's writes of its state in order: each writes the
+	// state as it is then, so an older one never comes last.
+	saving    sync.Mutex
 	ended     bool
 	cancelled bool
 	// stop ends what follows the call now: its stream, its send.
@@ -556,10 +559,9 @@ func (h *Host) take(c *call, ev sdk.Event) {
 		c.addArtifact(e.Artifact, e.Append)
 	}
 	if status == nil {
-		snap := c.st
 		c.mu.Unlock()
 		if save {
-			h.save(c, snap)
+			h.save(c)
 		}
 		return
 	}
@@ -584,19 +586,17 @@ func (h *Host) take(c *call, ev sdk.Event) {
 			return
 		}
 		c.st.State, c.st.Asked = string(stateNow), text
-		snap := c.st
 		c.mu.Unlock()
-		h.save(c, snap)
+		h.save(c)
 		h.asked(c, text)
 		return
 	case sdk.TaskStateSubmitted, sdk.TaskStateWorking:
 		if c.st.State != string(stateNow) {
 			c.st.State, c.st.Asked, save = string(stateNow), "", true
 		}
-		snap := c.st
 		c.mu.Unlock()
 		if save {
-			h.save(c, snap)
+			h.save(c)
 		}
 		return
 	}
@@ -697,7 +697,15 @@ func artifactsText(artifacts []*sdk.Artifact) string {
 }
 
 // save keeps what the call knows in its row.
-func (h *Host) save(c *call, st state) {
+// save stores the call's state as it is now, not as a caller saw it: two
+// events of one call taken at the same time (the send's answer and a push)
+// must not leave the older state in the store.
+func (h *Host) save(c *call) {
+	c.saving.Lock()
+	defer c.saving.Unlock()
+	c.mu.Lock()
+	st := c.st
+	c.mu.Unlock()
 	raw, _ := json.Marshal(st)
 	if err := h.runs.SetAgentRunRemote(context.WithoutCancel(c.ctx), c.id, raw); err != nil {
 		h.log.Error("could not store a remote agent's task", "agent", c.agent.Name, "call_id", c.id,
@@ -733,9 +741,8 @@ func (h *Host) fail(c *call, reason string) { h.failSaid(c, reason, "") }
 func (h *Host) failSaid(c *call, reason, said string) {
 	c.mu.Lock()
 	c.st.Said = said
-	snap := c.st
 	c.mu.Unlock()
-	h.save(c, snap)
+	h.save(c)
 	h.end(c, statusFailed, "", fmt.Sprintf("%s: %s", c.label, reason))
 }
 
@@ -1033,7 +1040,7 @@ func (h *Host) Answer(ctx context.Context, callID, text string) error {
 	if skill := c.agent.def.Remote.A2ASkill; skill != "" {
 		m.Metadata = map[string]any{skillMeta: skill}
 	}
-	h.save(c, snap)
+	h.save(c)
 	result := make(chan error, 1)
 	var once sync.Once
 	tell := func(err error) { once.Do(func() { result <- err }) }

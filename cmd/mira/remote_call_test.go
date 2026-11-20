@@ -405,9 +405,11 @@ func TestRM10_TheThreadIsCancelled(t *testing.T) {
 			if len(runs) != 0 {
 				t.Errorf("still running: %+v", runs)
 			}
-			if !strings.Contains(env.log.String(), "remote agent's task cancelled") {
-				t.Errorf("log:\n%s", env.log.String())
-			}
+			// Mira logs the cancel once the agent answered it, after the
+			// fake recorded it: wait for her line, not for the fake's.
+			waitFor(t, "the log of the cancel", func() bool {
+				return strings.Contains(env.log.String(), "remote agent's task cancelled")
+			})
 		})
 	}
 }

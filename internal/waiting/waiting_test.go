@@ -210,6 +210,10 @@ func TestWA03_CancellingStopsTheVideo(t *testing.T) {
 	}
 	ha.push("sensor.show_timers", "Mira wartet at 4:21 PM")
 	w.Stop(context.Background(), thread)
+	// A stop while the start is still answering cancels the timer once its
+	// id is there (waiting.go, timer): wait for the cancel, not right after
+	// Stop.
+	waitFor(t, "the cancel", func() bool { return len(ha.callsOf("esphome.show_timer_cancel")) == 1 })
 	if got := ha.callsOf("esphome.show_timer_cancel"); len(got) != 1 || !strings.Contains(got[0], `"id":"local:t1"`) {
 		t.Fatalf("cancel = %v", got)
 	}
