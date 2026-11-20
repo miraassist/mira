@@ -54,7 +54,10 @@ type Prefix struct {
 	Style     string
 	Tools     []llm.Tool
 	Structure string
-	Profile   string
+	// Music is the section on the Music Assistant players
+	// (docs/spec/music-players.md), with its own header; "" for none.
+	Music   string
+	Profile string
 	// Examples follow the system message: a fixed sample exchange that shows
 	// the model how tools are used here. See Examples.
 	Examples []llm.Message
@@ -77,6 +80,10 @@ func (p Prefix) SystemText() string {
 		b.WriteString("\n\n")
 		b.WriteString(t.headerStructure)
 		b.WriteString("\n")
+		b.WriteString(s)
+	}
+	if s := strings.TrimSpace(p.Music); s != "" {
+		b.WriteString("\n\n")
 		b.WriteString(s)
 	}
 	if s := strings.TrimSpace(p.Profile); s != "" {
@@ -107,6 +114,11 @@ func (p Prefix) StyleMessages() []llm.Message {
 // that the cache was broken, deliberately or not.
 func (p Prefix) Hash() string {
 	layers := []string{p.Agent, p.Style, renderTools(p.Tools), p.Structure, p.Profile}
+	// Only a section that is there counts: a house without Music Assistant
+	// keeps the hash it had.
+	if p.Music != "" {
+		layers = append(layers, "music:"+p.Music)
+	}
 	if p.Lang != "" && p.Lang != i18n.Default {
 		layers = append(layers, string(p.Lang))
 	}

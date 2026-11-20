@@ -11,6 +11,7 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/ha/structure"
+	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/store"
@@ -40,6 +41,7 @@ func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, 
 		Style:     prompt.StyleFor(e.lang(ctx), ch),
 		Tools:     toolList,
 		Structure: structure,
+		Music:     e.musicText(e.lang(ctx)),
 		Profile:   clipProfile(profile, e.cfg.Memory.MaxProfileChars),
 		Examples:  prompt.Examples(e.lang(ctx), toolList),
 	}, nil
@@ -52,6 +54,14 @@ func (e *Engine) currentPersona() string {
 		return e.persona()
 	}
 	return e.cfg.Prompt.Persona
+}
+
+// musicText is the section on the Music Assistant players; "" without.
+func (e *Engine) musicText(l i18n.Lang) string {
+	if e.music == nil {
+		return ""
+	}
+	return e.music(l)
 }
 
 // ErrNoHousePrompt is a prompt asked for while Home Assistant's prompt is

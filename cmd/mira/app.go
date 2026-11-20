@@ -43,6 +43,7 @@ import (
 	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/matter"
 	"github.com/miraassist/mira/internal/mcp"
+	"github.com/miraassist/mira/internal/music"
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/phone"
@@ -625,6 +626,28 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return id
 		},
 	}))
+	// Music with Music Assistant: take what plays along to another room
+	// (docs/spec/music-players.md, part 2).
+	internal = append(internal, music.Tool(music.Options{
+		Lang: a.lang, Logger: a.log,
+		Players: func() []music.Player { return musicPlayers(snapshot()) },
+		Area:    func(name string) string { return snapshot().AreaKeys[name] },
+		States: func(ctx context.Context, entities []string) (map[string]string, error) {
+			states, err := a.ha.GetStates(ctx, haws.StateFilter{EntityIDs: entities})
+			if err != nil {
+				return nil, err
+			}
+			out := map[string]string{}
+			for _, s := range states {
+				out[s.EntityID] = s.State
+			}
+			return out, nil
+		},
+		Transfer: func(ctx context.Context, target, source string) error {
+			return a.ha.CallService(ctx, "music_assistant", "transfer_queue", map[string]any{"source_player": source},
+				&haws.Target{EntityID: []string{target}})
+		},
+	}))
 	// Phone calls from the satellite of the turn (docs/spec/phone.md).
 	a.phonebook = &phone.Book{On: a.phoneBookOn, Read: a.readPhonebook}
 	internal = append(internal, phone.Tool(phone.Options{Lang: a.lang, Book: a.phonebook,
@@ -795,7 +818,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Spoke: heardOf.Spoke, Interrupted: heardOf.Take,
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard: guard, Agents: a.agents,
-		Structure: snapshot, StructurePrompt: a.assist.Text, DeviceHints: a.assist.TailFor, DeviceTools: a.mcp.DeviceTools, Telemetry: tel, Logger: a.log,
+		Structure: snapshot, StructurePrompt: a.assist.Text,
+		Music: func(l i18n.Lang) string { return music.Section(l, musicPlayers(snapshot())) }, DeviceHints: a.assist.TailFor, DeviceTools: a.mcp.DeviceTools, Telemetry: tel, Logger: a.log,
 		Thread: a.threads.Context, JoinThread: a.threads.Join, SummarizeThread: a.threads.Summarize, Identify: a.identify, PersonName: func(p string) string { return a.persons()[p].Name },
 		Persona: func() string { return a.liveConfig().Prompt.Persona },
 		// No listening while a clip plays (docs/spec/music-quiz.md).

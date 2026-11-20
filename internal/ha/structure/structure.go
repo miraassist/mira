@@ -52,6 +52,10 @@ type Snapshot struct {
 	// (LabelPrivate): what starts in one stays there (docs/spec/agents.md,
 	// What a turn belongs to).
 	Private map[string]bool
+	// MusicPlayers are the exposed media players of Music Assistant
+	// (platform music_assistant), which can search and play its music
+	// (docs/spec/music-players.md).
+	MusicPlayers map[string]bool
 	// ExposureKnown is false while the integration has not sent which
 	// entities are exposed; then nothing counts as exposed.
 	ExposureKnown bool
@@ -108,6 +112,7 @@ func Build(reg Registry) Snapshot {
 		AreaKeys:        map[string]string{},
 		Confirm:         map[string]bool{},
 		Private:         map[string]bool{},
+		MusicPlayers:    map[string]bool{},
 		ExposureKnown:   reg.Exposed != nil,
 		Devices:         make(map[string]haws.Device, len(reg.Devices)),
 		Entities:        make(map[string]haws.Entity, len(reg.Entities)),
@@ -194,6 +199,9 @@ func Build(reg Registry) Snapshot {
 			snap.EntityDevice[e.EntityID] = e.DeviceID
 		}
 		snap.ExposedEntities[e.EntityID] = true
+		if e.Platform == "music_assistant" && Domain(e.EntityID) == "media_player" && e.DisabledBy == "" {
+			snap.MusicPlayers[e.EntityID] = true
+		}
 
 		name := e.DisplayName()
 		if name == "" {
@@ -321,5 +329,6 @@ func Same(a, b Snapshot) bool {
 		reflect.DeepEqual(a.EntityDevice, b.EntityDevice) && reflect.DeepEqual(a.ExposedEntities, b.ExposedEntities) &&
 		reflect.DeepEqual(a.EntityNames, b.EntityNames) && reflect.DeepEqual(a.EntityLabel, b.EntityLabel) &&
 		reflect.DeepEqual(a.Confirm, b.Confirm) && reflect.DeepEqual(a.Private, b.Private) &&
+		reflect.DeepEqual(a.MusicPlayers, b.MusicPlayers) &&
 		slices.Equal(a.SatelliteDevices, b.SatelliteDevices) && slices.Equal(a.AskingDevices, b.AskingDevices)
 }

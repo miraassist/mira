@@ -120,6 +120,9 @@ type Options struct {
 	// while there is none. Nothing replaces it: without it the engine does
 	// not answer (docs/spec/context.md, 1.2).
 	StructurePrompt func() string
+	// Music is the prefix's section on the Music Assistant players in a
+	// language, "" for none (docs/spec/music-players.md).
+	Music func(l i18n.Lang) string
 	// DeviceHints returns the lines Home Assistant's Assist prompt adds for a
 	// satellite ("" for none); they go into the turn layer, not layer 4. An
 	// error is a satellite whose lines cannot be fetched: its turn does not
@@ -189,6 +192,7 @@ type Engine struct {
 	agents      *agent.Runtime
 	structure   func() structure.Snapshot
 	assist      func() string
+	music       func(i18n.Lang) string
 	deviceHints func(ctx context.Context, device string) (string, error)
 	deviceTools func(ctx context.Context, device string) error
 	afterword   func(ctx context.Context, area, device string) string
@@ -258,6 +262,7 @@ func New(opts Options) *Engine {
 		agents:      opts.Agents,
 		structure:   opts.Structure,
 		assist:      opts.StructurePrompt,
+		music:       opts.Music,
 		deviceHints: opts.DeviceHints,
 		playing:     opts.Playing,
 		spoke:       opts.Spoke,
