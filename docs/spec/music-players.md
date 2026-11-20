@@ -125,6 +125,10 @@ Per call: one `GetStates` filtered to the Music Assistant players (only when `fr
 | 7 | Fixed groups | Set up in Music Assistant's settings, not by voice. Mira only adds a player to what plays and takes one out again ("Spiel das auch im Bad", "Nimm das Bad wieder raus") |
 | 8 | "Überall" | Every Music Assistant player |
 | 9 | To which player the others are added | The one that plays, found as the source of `music_move` (part 2) |
+| 10 | A room with several Music Assistant players | All of them are added (1A) |
+| 11 | Taking out the player that plays | Mira does what Music Assistant does with `unjoin` on it (2A): the music goes on on the others, there it stops (row G3, checked on live) |
+| 12 | A fixed group player plays (set up in Music Assistant, such as `werkstatt_stereo`) | Mira adds to it all the same; what Music Assistant refuses comes back as Home Assistant's error (3A). Adding to a fixed group works: tried by the maintainer, 2026-11-20 |
+| 13 | Volume | Who joins keeps its own volume (4A), as the target of `music_move` |
 
 ### What Home Assistant does
 
@@ -135,8 +139,10 @@ what it refuses comes back as Home Assistant's error.
 
 | # | Transition | Signal | How Mira learns of it | Checked on live |
 |---|---|---|---|---|
-| G1 | a player added | the join's success; the playing player's `group_members` holds it | the call's answer | open, the maintainer tests it |
+| G1 | a player added | the join's success; the playing player's `group_members` holds it | the call's answer | 2026-11-20 19:30 on live: `join` on Show Five (playing) with Dot 2, HTTP 200; after 4 s both `playing` the same title, both list `[show_five, dot_2]` as `group_members`, each keeps its volume |
 | G2 | a player taken out | the unjoin's success; it is no longer in `group_members` | the call's answer | open |
+| G3 | the player that plays taken out | the leader stops (`idle`), the other member plays on alone, the group is gone (`group_members` empty) | the call's answer; the states after it | 2026-11-20 19:30 on live: `unjoin` on Show Five, HTTP 200; after 4 s Show Five `idle`, Dot 2 `playing` the same title at 40 s, both without members |
+| G4 | a player added to a fixed group player | the join's success | the call's answer | 2026-11-20, tried by the maintainer: works |
 
 ### What the tool does
 
