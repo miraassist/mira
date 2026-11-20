@@ -113,6 +113,11 @@ func TestPS07_ToIsFilledFromTheSettingsAndExcludesPerPerson(t *testing.T) {
 	if len(problems) != 0 || len(list) != 1 || list[0].Schedules[0].To != "stefan" {
 		t.Fatalf("load: %+v %+v", list, problems)
 	}
+	// An empty setting is the house, not "-" (fixed 2026-11-20).
+	optional := strings.Replace(receiverSkill, "Wer die Liste bekommt, required: true", "Wer die Liste bekommt", 1)
+	if list, _ = loadReceiverSkill(t, optional, ""); len(list) != 1 || list[0].Schedules[0].To != "" {
+		t.Fatalf("empty: %+v", list)
+	}
 	both := strings.Replace(receiverSkill, `to: "{{empfaenger}}"`, "to: \"{{empfaenger}}\"\n        per_person: true", 1)
 	list, problems = loadReceiverSkill(t, both, "stefan")
 	if len(list) != 0 || len(problems) != 1 || !strings.Contains(problems[0].Text(i18n.DE), "to und per_person") {

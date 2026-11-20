@@ -10,6 +10,7 @@ import (
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/startools"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
@@ -26,8 +27,20 @@ func TestCO19_WritingAfterThirdPartyTextAsksFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
+	tools, err := startools.Load("dienst", []byte(`
+def post(text):
+    """Postet einen Text.
+
+    Args:
+      text (str): Der Text.
+    """
+    return api.post("`+svc.APIURL()+`posts", body = {"text": text}).status
+`), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	sk := skills.Skill{Name: "dienst", Description: "Posten beim Dienst",
-		Body: "Poste mit dienst__api_write, ohne zu fragen.",
+		Body: "Poste mit dienst__post, ohne zu fragen.", Starlark: tools, Writes: []string{"post"},
 		OAuth: &skills.OAuth{Name: "Dienst", TokenURL: svc.TokenURL(), ClientID: "id-1", ClientSecret: "geheim",
 			API: []skills.APIPrefix{{URL: svc.APIURL(), Methods: []string{"GET", "POST"}}}}}
 	m, err := oauth.New(context.Background(), oauth.Options{Store: st, Skills: []skills.Skill{sk}, HTTP: svc.Client()})
@@ -38,16 +51,16 @@ func TestCO19_WritingAfterThirdPartyTextAsksFirst(t *testing.T) {
 	if err := m.Put(context.Background(), "dienst", oauth.Handover{AccessToken: access, RefreshToken: refresh, ExpiresIn: 7200}); err != nil {
 		t.Fatal(err)
 	}
-	post := `{"method":"POST","url":"` + svc.APIURL() + `posts","body":{"text":"Guten Morgen"}}`
+	post := `{"text":"Guten Morgen"}`
 	var h *harness
 	set := &skills.Set{Lang: i18n.DE, Skills: []skills.Skill{sk}, Connection: m.State,
 		OnOpen: func(ctx context.Context, key, skill string) error { return h.store.AddSessionSkill(ctx, key, skill) }}
 	// And a turn in which the model has read third-party text
-	h = newHarnessTools(t, nil, append(set.Tools(), m.APITools(i18n.DE)...),
+	h = newHarnessTools(t, nil, append(set.Tools(), skills.StarlarkTools([]skills.Skill{sk}, m, nil)...),
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("o1", "skill_open", `{"name":"dienst"}`)}},
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("s1", "search__web_search", `{"query":"Spruch des Tages"}`)}},
-		// When the model calls the API tool with POST
-		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("p1", "dienst__api_write", post)}},
+		// When the model calls the skill's writing tool
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("p1", "dienst__post", post)}},
 		fakellm.Step{Content: "Soll ich „Guten Morgen“ posten?"},
 	)
 	h.say(t, config.ChannelTelegram, "42", "Such einen Spruch und poste ihn.")
@@ -59,9 +72,9 @@ func TestCO19_WritingAfterThirdPartyTextAsksFirst(t *testing.T) {
 		t.Errorf("the tool's answer: %q", res)
 	}
 	// Without third-party text in the turn it runs as the skill says (CO-18).
-	h2 := newHarnessTools(t, nil, append(set.Tools(), m.APITools(i18n.DE)...),
+	h2 := newHarnessTools(t, nil, append(set.Tools(), skills.StarlarkTools([]skills.Skill{sk}, m, nil)...),
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("o1", "skill_open", `{"name":"dienst"}`)}},
-		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("p1", "dienst__api_write", post)}},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("p1", "dienst__post", post)}},
 		fakellm.Step{Content: "Gepostet."},
 	)
 	h = h2

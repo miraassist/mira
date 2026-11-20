@@ -35,6 +35,7 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/schedule"
+	"github.com/miraassist/mira/internal/startools"
 )
 
 // Skill is one loaded and enabled skill.
@@ -105,6 +106,12 @@ type Skill struct {
 	// OAuth is the skill's login at a service, with its settings filled in
 	// (docs/spec/oauth.md); nil for none.
 	OAuth *OAuth
+	// Starlark are the skill's tools in tools.star (docs/spec/api-tools.md);
+	// nil for none. Writes and Confirm are its tools under tools.writes and
+	// tools.confirm in SKILL.md.
+	Starlark *startools.File
+	Writes   []string
+	Confirm  []string
 	// Random are the skill's axes (metadata.mira.random), which random_pick
 	// draws from (docs/spec/random-pick.md); nil for none.
 	Random []Axis
@@ -369,6 +376,7 @@ type frontmatter struct {
 			MCP       *config.MCPServer    `yaml:"mcp"`
 			Program   *programSection      `yaml:"program"`
 			OAuth     *OAuth               `yaml:"oauth"`
+			Tools     *toolsSection        `yaml:"tools"`
 			Language  string               `yaml:"language"`
 			Chapter   string               `yaml:"chapter"`
 			Random    yaml.Node            `yaml:"random"`
@@ -618,7 +626,9 @@ func load(root Root, name string, values map[string]any, opts Options) (Skill, *
 			sc.Off = ch.Off
 		}
 		sc.Task = fill(sc.Task, vals, m.Settings)
-		sc.To = strings.TrimSpace(fill(sc.To, vals, m.Settings))
+		// An empty setting leaves to empty: the house (docs/spec/schedule-receiver.md),
+		// not "-" as in a task's text.
+		sc.To = strings.TrimSpace(fillOrEmpty(sc.To, vals, m.Settings))
 		if sc.To != "" && sc.PerPerson {
 			return Skill{}, problem("toperperson", i+1)
 		}
@@ -742,6 +752,9 @@ func load(root Root, name string, values map[string]any, opts Options) (Skill, *
 		return Skill{}, p
 	}
 	if s.Scripts, p = automations("script", files, m.Scripts, values, vals, m.Settings); p != nil {
+		return Skill{}, p
+	}
+	if p := starlarkTools(&s, files, m.Tools, vals, m.Settings, opts); p != nil {
 		return Skill{}, p
 	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)
@@ -922,6 +935,17 @@ func fill(body string, vals map[string]string, decl map[string]Setting) string {
 		}
 		if vals[key] == "" {
 			return "-"
+		}
+		return vals[key]
+	})
+}
+
+// fillOrEmpty is fill with an empty setting left empty instead of "-".
+func fillOrEmpty(text string, vals map[string]string, decl map[string]Setting) string {
+	return placeholder.ReplaceAllStringFunc(text, func(m string) string {
+		key := placeholder.FindStringSubmatch(m)[1]
+		if d, ok := decl[key]; !ok || d.Secret {
+			return m
 		}
 		return vals[key]
 	})

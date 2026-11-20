@@ -120,6 +120,9 @@ type Options struct {
 	Connections Connections
 	// Setup calls a skill's setup tools (docs/spec/skill-programs.md).
 	Setup Setup
+	// Try runs a skill's Starlark tool for an admin ("Ausprobieren",
+	// docs/spec/api-tools.md, decision 11).
+	Try Try
 	// Tokens are the named access tokens (docs/spec/access-tokens.md); nil
 	// without them.
 	Tokens Tokens
@@ -190,6 +193,7 @@ func New(opts Options) *Handler {
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/voice/{person}/assign", Summary: "Assign a heard sample to a person", Request: VoiceAssign{}, Response: OK{}, Errors: []int{400, 403, 404, 409, 502}}), h.authAnyone(h.assign))
 	// The stored agent runs, for debugging (agents.go).
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/catalog", Summary: "The skills, agents and models", Response: Catalog{}, Errors: []int{403}}), h.auth(h.catalog))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/skills/{skill}/tools/{tool}/try", Summary: "Try a skill's Starlark tool and see what went over the wire (admins only)", Request: TryCall{}, Response: TryResult{}, Errors: []int{400, 403, 404, 503}}), h.auth(h.tryTool))
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/skills/{skill}/setup/{tool}", Summary: "Call a skill's setup tool (admins only, never a model)", Request: SetupCall{}, Response: SetupResult{}, Errors: []int{400, 403, 404, 502, 503}}), h.auth(h.callSetup))
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/schedules", Summary: "The skills' and Mira's jobs at a time", Response: ScheduleList{}, Errors: []int{403, 500, 503}}), h.auth(h.schedules))
 	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/schedules/{skill}/{name}", Summary: "Change a job's time", Request: ScheduleEdit{}, Response: Saved{}, Errors: []int{400, 403, 503}}), h.auth(h.changeSchedule))

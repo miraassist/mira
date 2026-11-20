@@ -17,6 +17,11 @@ func writeOAuthSkill(t *testing.T, dir, mira string) {
 	if err := os.WriteFile(filepath.Join(dir, "dienst", "SKILL.md"), []byte(text), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// A skill with an api section brings its tools (docs/spec/api-tools.md).
+	star := "def suche():\n    \"\"\"Sucht.\"\"\"\n    return api.get(\"https://dienst.example/api/suche\").json\n"
+	if err := os.WriteFile(filepath.Join(dir, "dienst", "tools.star"), []byte(star), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 const testOAuth = `    oauth:

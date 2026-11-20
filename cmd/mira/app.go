@@ -528,7 +528,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// random_pick draws from the axes of every skill, those with a target too
 	// (docs/spec/random-pick.md).
 	internal = append(internal, skills.RandomTools(a.lang, usable)...)
-	internal = append(internal, a.oauth.APITools(a.lang)...)
+	// The skills' tools in tools.star (docs/spec/api-tools.md).
+	internal = append(internal, skills.StarlarkTools(loaded, a.oauth, a.log)...)
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules))
 	}
@@ -1500,7 +1501,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	uiOpts := ui.Options{
 		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
 		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log, Version: version,
-		SetExposed: a.setExposed, SetLogins: a.setLogins, Phone: a.phonePage, Connections: connections{a: a}, Setup: setupCalls{a: a},
+		SetExposed: a.setExposed, SetLogins: a.setLogins, Phone: a.phonePage, Connections: connections{a: a}, Setup: setupCalls{a: a}, Try: starlarkTry{a: a},
 		Tokens: a.tokens,
 		Persons: func() []string {
 			keys := make([]string, 0, len(a.persons()))

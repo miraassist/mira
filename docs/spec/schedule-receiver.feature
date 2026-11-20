@@ -51,6 +51,7 @@ Feature: PS A schedule for one person
     Given a skill with the setting empfaenger "stefan" and a schedule with to "{{empfaenger}}"
     When the skill is loaded
     Then the schedule's to is "stefan"
+    And with empfaenger empty the schedule's to is empty: the house
     And a schedule with to and per_person: true does not start the skill
 
   @step2

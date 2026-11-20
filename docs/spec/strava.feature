@@ -1,5 +1,6 @@
 # Scenarios of docs/spec/strava.md. Every scenario has a number (SV-01, …); the Go test that checks it carries the
-# number in its name (TestSV01_…). @step1 is the skill file (Go), @step2 the run end to end on the test HA.
+# number in its name (TestSV01_…). @step1 is the skill file (Go), @step2 the run end to end on the test HA, @step4 the
+# tools in Starlark (Go).
 
 Feature: SV Strava
 
@@ -15,14 +16,14 @@ Feature: SV Strava
   Scenario: SV-02 Only reading below Strava's web API
     Given the skill strava connected
     When Mira offers its tools
-    Then there is strava__api_get for https://www.strava.com/api/v3/ and no strava__api_write
-    And an address outside it is refused without a request
+    Then they are its Starlark tools, all reading, and there is no strava__api_get
+    And an address outside https://www.strava.com/api/v3/, or a method other than GET, is refused without a request
 
   @step1
   Scenario: SV-03 Without a connection there is no Strava tool
     Given the skill strava not connected
     When Mira offers its tools
-    Then strava__api_get is not offered
+    Then none of its tools is offered
 
   @step1
   Scenario: SV-04 No Strava data into memory
@@ -32,10 +33,29 @@ Feature: SV Strava
 
   @step1
   Scenario: SV-05 The best efforts come from the activities
-    Given the skill strava
-    When its instructions are read
+    Given a connected account with activities and stats
+    When strava__bestleistungen runs
     Then the longest ride and the biggest climb come from the last 100 activities and the totals from the stats
-    And they name no field biggest_ride_distance or biggest_climb_elevation_gain
+    And no field biggest_ride_distance or biggest_climb_elevation_gain is used
+
+  @step4
+  Scenario: SV-06 The week and the month are counted by the tool
+    Given activities this week, earlier this month and last month
+    When strava__zeitraum runs with woche and with monat
+    Then the week counts from Monday in Mira's time zone and the month from the first, per sport: number, kilometres,
+      metres of climbing, minutes
+
+  @step4
+  Scenario: SV-07 The series counts weeks in a row
+    Given activities this week and in earlier weeks with a gap
+    When strava__serie runs
+    Then it counts the weeks in a row up to this one, from last week when this one has none
+
+  @step4
+  Scenario: SV-08 Strava's errors become sentences
+    Given Strava answers 401 with activity:read_permission, 429 or 5xx
+    When a tool reads
+    Then the tool's error is the sentence the skill says, and no activity is a hint, not an error
 
   @step2
   Scenario: SV-10 The last tour

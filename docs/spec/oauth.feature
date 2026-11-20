@@ -1,6 +1,6 @@
 # Scenarios of docs/spec/oauth.md. Every scenario has a number (CO-01, …); the Go or pytest test that checks it
 # carries the number in its name (TestCO01_…). @step2 is the Mira service, @step3 the login and the page, @step4 the
-# web API tool.
+# web API tool (since 2026-11-20 the api module of a skill's Starlark tools, docs/spec/api-tools.md).
 
 Feature: CO Connections (OAuth)
 
@@ -97,30 +97,30 @@ Feature: CO Connections (OAuth)
   @step4
   Scenario: CO-15 The API tool calls only below the skill's prefixes
     Given a connected skill whose api names https://api.example/2/ with GET
-    When the model calls the API tool with a path below it
-    Then the request carries the token and the answer is third-party text
+    When a Starlark tool of the skill calls the api module with a path below it
+    Then the request carries the token
 
   @step4
   Scenario: CO-16 No token outside the prefixes
     Given a connected skill whose api names https://api.example/2/
-    When the model calls an address outside it, or the service redirects to another host
+    When a tool calls an address outside it, or the service redirects to another host
     Then no request with the token is made
 
   @step4
   Scenario: CO-17 A method the skill does not name is refused
     Given a connected skill whose api allows only GET
-    When the model calls the API tool with POST
+    When a tool calls the api module with POST
     Then the call is refused with that reason
 
   @step4
   Scenario: CO-18 A method the skill names runs as the skill says
-    Given a connected skill whose api allows POST and whose instructions say to post without asking
-    When the model calls the API tool with POST
+    Given a connected skill whose api allows POST
+    When a tool calls the api module with POST
     Then the request is made without a question of Mira's own
 
   @step4
   Scenario: CO-19 Writing after third-party text asks first
-    Given a connected skill whose api allows POST and whose instructions say to post without asking
+    Given a connected skill whose api allows POST, with a tool under writes, and whose instructions say to post without asking
     And a turn in which the model has read third-party text
-    When the model calls the API tool with POST
+    When the model calls the writing tool
     Then Mira asks the user first and calls it only after the yes

@@ -42,7 +42,7 @@ The concepts it hangs on:
   Assistant's automation config API, loaded by `automation.reload` with the id, labelled "Mira" by the integration,
   noted in `own_automations` (kind `task`).
 - **A skill's tools** ([MCP servers in skills](skill-mcp.md), When the tools are there): its MCP tools and Mira's own
-  tools for it (`<skill>__api_get`, oauth.md) come only with the skill; a skill script's tool is one more.
+  tools for it (its Starlark tools, api-tools.md) come only with the skill; a skill script's tool is one more.
 
 Departures, each with its reason:
 

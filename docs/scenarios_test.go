@@ -66,7 +66,9 @@ var builtSteps = map[string][]int{
 	"SB": {1, 2, 3, 5},                 // docs/spec/skill-files.md, Steps; step 4 is the guide
 	"HE": {1, 2},                       // docs/spec/ha-api.md, Steps
 	"OA": {1, 2},                       // docs/spec/openapi.md, Steps
-	"SV": {1},                          // docs/spec/strava.md, Steps; step 2 is the run end to end on the test HA
+	"SV": {1, 4},                       // docs/spec/strava.md, Steps; step 2 is the run end to end on the test HA
+	"SL": {1, 2, 3, 4},                 // docs/spec/api-tools.md, Steps
+	"YT": {2},                          // docs/spec/youtube.md, Steps; step 3 is the run end to end on the test HA
 	"FS": {1, 3},                       // docs/spec/flight-status.md, Steps; step 2 is the run on the test HA
 	"TC": {2, 3, 5},                    // docs/spec/telegram-history.md, Steps; step 1 is tested in pytest (TC-01, TC-02)
 }

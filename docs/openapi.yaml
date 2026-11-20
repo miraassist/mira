@@ -2519,6 +2519,22 @@ paths:
                             required:
                               - tool
                               - label
+                        tools:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              description:
+                                type: string
+                              schema: true
+                              writes:
+                                type: boolean
+                            required:
+                              - name
                         program:
                           type:
                             - "null"
@@ -6353,6 +6369,109 @@ paths:
                 $ref: '#/components/schemas/Error'
         "502":
           description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/skills/{skill}/tools/{tool}/try:
+    post:
+      tags:
+        - page
+      summary: Try a skill's Starlark tool and see what went over the wire (admins only)
+      operationId: postV1UiSkillsSkillToolsToolTry
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: tool
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                args:
+                  type: object
+                  additionalProperties: true
+              required:
+                - args
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text:
+                    type: string
+                  error:
+                    type: string
+                  backtrace:
+                    type: string
+                  events:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        kind:
+                          type: string
+                        method:
+                          type: string
+                        url:
+                          type: string
+                        status:
+                          type: integer
+                        ms:
+                          type: integer
+                        size:
+                          type: integer
+                        start:
+                          type: string
+                        error:
+                          type: string
+                        message:
+                          type: string
+                      required:
+                        - kind
+                required:
+                  - events
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
           content:
             application/json:
               schema:

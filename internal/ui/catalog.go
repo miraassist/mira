@@ -97,7 +97,10 @@ type SkillInfo struct {
 	MCP       *MCPInfo       `json:"mcp,omitempty"`
 	// Setup are the skill's setup tools (docs/spec/skill-programs.md);
 	// Program is its program's version and whether it is still being got.
-	Setup   []SetupInfo  `json:"setup,omitempty"`
+	Setup []SetupInfo `json:"setup,omitempty"`
+	// Tools are the skill's Starlark tools (docs/spec/api-tools.md), for
+	// "Ausprobieren".
+	Tools   []ToolInfo   `json:"tools,omitempty"`
 	Program *ProgramInfo `json:"program,omitempty"`
 	// DataDir is the skill's own folder.
 	DataDir string `json:"data_dir,omitempty"`

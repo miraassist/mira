@@ -1,7 +1,7 @@
 # Strava – spec
 
-Status 2026-11-18: steps 1 and 2 built and run (the skill file and its tests; connected on the test HA and run end to
-end on the empty account), released; step 3 (the morning line) later. Scenarios: [strava.feature](strava.feature).
+Status 2026-11-20: steps 1 and 2 built and run (the skill file and its tests; connected on the test HA and run end to
+end on the empty account), released; step 4 (the tools in Starlark) built; step 3 (the morning line) later. Scenarios: [strava.feature](strava.feature).
 
 ## Goal
 
@@ -9,9 +9,11 @@ end on the empty account), released; step 3 (the morning line) later. Scenarios:
 sport: "Wie war meine letzte Tour?", "Wie viele Kilometer bin ich diese Woche gefahren?", "Wie viel hat mein
 Rennrad schon drauf?". Mira reads it from Strava and answers in a few spoken sentences.
 
-The concept it hangs on: a **skill with a connection** ([Connections (OAuth)](oauth.md)) and its **web API tool**
-(`<skill>__api_get`, read only). No MCP server, no code of Mira's own for Strava: the skill is a SKILL.md with an
-`oauth` and an `api` section and the instructions.
+The concept it hangs on: a **skill with a connection** ([Connections (OAuth)](oauth.md)) and **its tools in
+Starlark** ([API tools in Starlark](api-tools.md), since 2026-11-20; before, the web API tool `strava__api_get`). No
+MCP server, no code of Mira's own for Strava: the skill is a SKILL.md with an `oauth` and an `api` section, its
+`tools.star` and the instructions. The tools compute what the model used to count (the week, the series, the best
+efforts) and turn Strava's errors into the sentences below.
 
 ## Decided (2026-11-18, the maintainer)
 
@@ -31,7 +33,7 @@ The concept it hangs on: a **skill with a connection** ([Connections (OAuth)](oa
 3. **No Strava data into memory** (§5.5, no "Persistent Index"): the skill tells Mira never to save activities,
    distances or times with `memory_save`. What Mira reads lives in the turn and the conversation's history only.
 4. **The skill is public**, `skills/strava`, in German (2B).
-5. **Read only** (`api`: `GET` below `https://www.strava.com/api/v3/`): no `strava__api_write`, no uploads, no
+5. **Read only** (`api`: `GET` below `https://www.strava.com/api/v3/`): no tool under `writes`, no uploads, no
    changes at Strava.
 6. **The scopes as Strava's documentation allows them**: `read`, `activity:read_all`, `profile:read_all`. The
    integration joins them with spaces (`custom_components/mira/oauth.py`); Strava's authorize takes "a comma- or
@@ -87,9 +89,12 @@ metadata:
 
 ## What Mira does, per use case
 
-Every use case is a few calls of `strava__api_get`; the turn waits for them (each at most 20 s, the tool's limit).
-The model reads the JSON and says it in a few spoken sentences: kilometres rounded, metres of climbing, hours and
-minutes, no ids. Distances in Strava's answers are metres, times seconds, speeds metres per second.
+Every use case is one tool of the skill (since 2026-11-20, step 4): `strava__letzte_tour` (1), `strava__zeitraum`
+with `woche` or `monat` (2), `strava__serie` (3), `strava__ausruestung` (4), `strava__bestleistungen` (5). Each makes
+the requests below and returns kilometres (one decimal), metres of climbing, minutes and km/h; the model says it in a
+few spoken sentences, no ids. The turn waits for the tool (each request at most 20 s, the whole tool at most 60 s).
+What the model counted before (the week from Monday in Mira's time zone, the month, the series, the maxima) the tool
+counts.
 
 | # | Asked | Calls (all `GET https://www.strava.com/api/v3/…`) | Said |
 |---|---|---|---|
@@ -136,6 +141,9 @@ Every request and its status is in the turn's tool log (the address without the 
    the longest tour of 18 November, 10 km and 200 m, and 10 km this year (right).
 3. **A line in the morning briefing** ("Gestern 42 km geradelt") as a schedule of the skill (decision 8). Later; its
    spec (time, for whom, nothing when there was no activity) before building.
+4. **The tools in Starlark** ([API tools in Starlark](api-tools.md), step 4; 2026-11-20): `skills/strava/tools.star`
+   with the five tools, the instructions on them, `strava__api_get` gone. Go tests SV-02, SV-03, SV-05 (changed)
+   and SV-06 to SV-08. Built.
 
 ## Open
 

@@ -74,6 +74,9 @@ table.facts th { width: 11em; }
 .setup-field span { min-width: 6em; font-family: monospace; }
 .setup-field input[type=text], .setup-field input[type=number] { flex: 1; min-width: 12em; }
 .setup-answer { font-size: 13px; margin-top: 6px; overflow-wrap: anywhere; }
+.try-ev { margin: 6px 0; font-size: 13px; }
+.try-url { font-family: monospace; overflow-wrap: anywhere; }
+.try-result pre.setup-answer { max-height: 20em; overflow: auto; white-space: pre-wrap; }
 main { max-width: 940px; margin: 0 auto; padding: 20px 16px 48px; }
 section.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--shadow); }
 h2 { font-size: 17px; font-weight: 750; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -827,6 +830,9 @@ const I18N = {
   "cat_program": "Programm", "cat_program_loading": "wird geladen", "cat_data_dir": "Ordner des Skills",
   "setup_head": "Einrichten", "setup_hint": "Nur für Admins: Diese Schritte richten das Programm des Skills ein. Ein Modell bekommt sie nie.",
   "setup_offline": "Das Programm ist noch nicht verbunden; die Felder kommen, sobald es läuft.", "setup_empty": "nichts",
+  "try_head": "Ausprobieren", "try_hint": "Nur für Admins: Ruf ein Werkzeug des Skills selbst auf und sieh, was an den Dienst ging und was zurückkam.",
+  "try_run": "Ausführen", "try_writes": "schreibt", "try_default": "sonst", "try_requests": "Anfragen und Ausgaben", "try_answer": "Antwort",
+  "try_writes_confirm": n => `${n} schreibt beim Dienst. Wirklich ausführen?`,
   "ed_pending": "neu, gilt nach dem Neustart",
   "ed_delete_confirm": n => `„${n}“ wirklich löschen?`,
   "ed_name": "Name",
@@ -1372,6 +1378,9 @@ const I18N = {
   "cat_program": "Program", "cat_program_loading": "being downloaded", "cat_data_dir": "The skill's folder",
   "setup_head": "Set up", "setup_hint": "Admins only: these steps set up the skill's program. A model never gets them.",
   "setup_offline": "The program is not connected yet; the fields come once it runs.", "setup_empty": "nothing",
+  "try_head": "Try it", "try_hint": "Admins only: call one of the skill's tools yourself and see what went to the service and what came back.",
+  "try_run": "Run", "try_writes": "writes", "try_default": "otherwise", "try_requests": "Requests and output", "try_answer": "Answer",
+  "try_writes_confirm": n => `${n} writes to the service. Run it?`,
   "ed_pending": "new, holds after the restart",
   "ed_delete_confirm": n => `Really delete "${n}"?`,
   "ed_name": "Name",

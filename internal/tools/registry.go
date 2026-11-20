@@ -116,6 +116,9 @@ type InternalTool struct {
 	Background bool
 	// PlaysAfter: see Spec.
 	PlaysAfter bool
+	// Confirm: see Spec (a Starlark tool under tools.confirm,
+	// docs/spec/api-tools.md, decision 15).
+	Confirm bool
 	// DescribeIn, when set, gives the description in a turn's language: for
 	// tools that list skills, whose texts may come in several languages
 	// (docs/spec/skill-languages.md). Description is then the one in the
@@ -258,6 +261,7 @@ func internalSpec(t InternalTool) Spec {
 		Skill:       t.Skill,
 		Skills:      t.Skills,
 		PlaysAfter:  t.PlaysAfter,
+		Confirm:     t.Confirm,
 	}
 }
 

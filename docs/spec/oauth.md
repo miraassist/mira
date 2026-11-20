@@ -36,7 +36,7 @@ Assistant, the stored tokens, the Connections page and a tool for a service's ow
    installation, they take placeholders from the skill's settings (2026-11-04, 6A).
 8. **Client id and secret are entered on the Connections page** only; the skill's page points there (2026-11-04,
    7A).
-9. **The web API tool is used as the skill's instructions say** (2026-11-04): the methods the `api` section names
+9. **The web API is used as the skill's instructions say** (2026-11-04; since 2026-11-20 through the skill's Starlark tools, [API tools in Starlark](api-tools.md)): the methods the `api` section names
    are the limit; Mira adds no question of her own for writing. Whether a post needs a yes is for the skill to say.
 10. **Writing after third-party text counts as passing on** (2026-11-04, 10A): in a turn that has read third-party
     text (`web_content`), a method other than `GET` through the API tool asks first (`AskAfterWeb`); otherwise it
@@ -77,7 +77,7 @@ metadata:
   on the page. They are entered on the Connections page, not among the skill's settings (decision 8).
 - **`token: oauth`** in the `mcp` section: the connection's current access token goes into each request to the
   server. Without a connection the server is not connected, and the skill says what is missing (below, Problems).
-- **`api`**: the addresses the skill's web API tool may call with the token, each a prefix of an `https` address,
+- **`api`**: the addresses the skill's Starlark tools ([API tools in Starlark](api-tools.md)) may call with the token, each a prefix of an `https` address,
   and the methods allowed there. Without `api` there is no such tool.
 - **A mistake in the `oauth` section** (no `authorize_url` or `token_url`, an address that is not `https`, an
   unknown `token_auth`) is a problem of the skill: it does not start, as for a wrong `mcp` section.
@@ -133,7 +133,7 @@ Assistant. The page says to open it in Home Assistant. Inside it the page sends 
 - **The token goes only where the skill says** (decision 5): the skill's MCP server (`mcp.url`), the `api`
   prefixes and `token_url`. A request to another address, also after a redirect, gets no token; redirects to
   another host are not followed with the token.
-- **The web API tools:** `<skill>__api_get` (an address) for the `GET` prefixes, read only, and `<skill>__api_write`
+- **The web API tools** (until 2026-11-20; replaced by the skill's Starlark tools and their `api` module, [API tools in Starlark](api-tools.md), which keep the rules below):** `<skill>__api_get` (an address) for the `GET` prefixes, read only, and `<skill>__api_write`
   (method, address, body) for the other methods the `api` section names; answer: the service's status and body
   (at most 2 MB, shortened like every tool's answer). They are there only with an `api` section and only while the
   skill is connected, offered like the skill's MCP tools (from opening the skill, to its agents and schedules).
@@ -230,7 +230,7 @@ Left for the maintainer: Connect and Disconnect by hand on the page (CO-12, CO-1
    `GET /v1/oauth/<skill>` and `PUT /v1/oauth/<skill>/token`. Scenarios CO-01 to CO-08. Built.
 3. **The login in the integration and the Connections page.** Scenarios CO-09 to CO-14 (pytest: CO-09, CO-10, CO-11,
    CO-14; CO-12 and CO-13 are the page's, run by hand). Built.
-4. **The web API tools.** Scenarios CO-15 to CO-19. Built.
+4. **The web API tools.** Scenarios CO-15 to CO-19. Built; since 2026-11-20 the `api` module of the Starlark tools ([API tools in Starlark](api-tools.md)), CO-15 to CO-19 tested through it.
 5. **The skill `x`** (reading: search, posts of an account, own timeline and mentions). Costs per call: one request
    to X's MCP server, which X bills per post read (about 0.005 USD a post, measured 2026-11-04); the skill asks for
    10 posts in a search (X's least) and 5 elsewhere, and for nothing twice in a conversation. Built.

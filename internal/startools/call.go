@@ -1,0 +1,427 @@
+package startools
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"net/http"
+	"net/url"
+	"sort"
+	"strings"
+	"time"
+
+	starjson "go.starlark.net/lib/json"
+	starmath "go.starlark.net/lib/math"
+	starlarktime "go.starlark.net/lib/time"
+	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
+)
+
+// Timeout is the most a whole tool call may take (decision 14).
+const Timeout = 60 * time.Second
+
+// Requester makes one request of a skill's tool with the connection's token
+// (oauth.Manager.Request): only below the skill's api prefixes, for the
+// methods allowed there; the answer's status and body.
+type Requester interface {
+	Request(ctx context.Context, skill, method, rawURL string, body []byte) (int, []byte, error)
+}
+
+// Env is what a call needs besides its arguments.
+type Env struct {
+	Requester Requester
+	// Writes: the tool is under writes in SKILL.md and may use a method
+	// other than GET (decision 15).
+	Writes bool
+	// Now is the clock of time.now(); nil is the real one.
+	Now func() time.Time
+}
+
+// Event is one thing a call did, in order: a request or a print
+// (docs/spec/api-tools.md, Seeing what went over the wire).
+type Event struct {
+	Kind    string `json:"kind"` // "request" or "print"
+	Method  string `json:"method,omitempty"`
+	URL     string `json:"url,omitempty"`
+	Status  int    `json:"status,omitempty"`
+	MS      int64  `json:"ms,omitempty"`
+	Size    int    `json:"size,omitempty"`
+	Start   string `json:"start,omitempty"`
+	Error   string `json:"error,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+// Result is a call's outcome. Err is what the model reads when the call
+// failed; Backtrace is the error's place in the file, for the log and the
+// page.
+type Result struct {
+	Text      string
+	Events    []Event
+	Err       error
+	Backtrace string
+}
+
+// startLen is how much of an answer an event keeps.
+const startLen = 500
+
+// call is the state of one tool call, as the thread's local "call".
+type call struct {
+	ctx    context.Context
+	skill  string
+	tool   string
+	env    Env
+	events []Event
+	f      *File
+}
+
+// Call runs the tool with the model's arguments: checked against the
+// tool's schema first (decision 6), then the function, with its limits.
+func (f *File) Call(ctx context.Context, name string, args json.RawMessage, env Env) Result {
+	t, ok := f.Tool(name)
+	if !ok {
+		return Result{Err: fmt.Errorf("%s has no tool %s", f.Skill, name)}
+	}
+	kwargs, err := t.arguments(args)
+	if err != nil {
+		f.log.Warn("starlark tool: arguments refused", "skill", f.Skill, "tool", name, "error", err)
+		return Result{Err: err}
+	}
+	ctx, cancel := context.WithTimeout(ctx, Timeout)
+	defer cancel()
+	c := &call{ctx: ctx, skill: f.Skill, tool: name, env: env, f: f}
+	thread := &starlark.Thread{Name: f.Skill + "/" + name, Print: func(_ *starlark.Thread, msg string) {
+		c.events = append(c.events, Event{Kind: "print", Message: msg})
+		f.log.Info("starlark tool print", "skill", f.Skill, "tool", name, "message", msg)
+	}}
+	thread.SetMaxExecutionSteps(maxSteps)
+	thread.SetLocal("call", c)
+	if env.Now != nil {
+		now := env.Now
+		starlarktime.SetNow(thread, func() (time.Time, error) { return now(), nil })
+	}
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			thread.Cancel("the tool took longer than " + Timeout.String())
+		case <-done:
+		}
+	}()
+	v, err := starlark.Call(thread, t.fn, nil, kwargs)
+	res := Result{Events: c.events}
+	if err != nil {
+		res.Backtrace, res.Err = f.failure(name, err)
+		return res
+	}
+	res.Text, err = answer(thread, v)
+	if err != nil {
+		res.Err = fmt.Errorf("%s gave an answer that is no JSON: %v", name, err)
+		f.log.Warn("starlark tool: answer is no JSON", "skill", f.Skill, "tool", name, "error", err)
+	}
+	return res
+}
+
+// failure is what the model reads of a failed call, and the log line with
+// the backtrace (docs/spec/api-tools.md, Calling).
+func (f *File) failure(tool string, err error) (string, error) {
+	trace := ""
+	var ev *starlark.EvalError
+	if errors.As(err, &ev) {
+		trace = strings.TrimSpace(ev.Backtrace())
+	}
+	msg := err.Error()
+	if ev != nil {
+		msg = ev.Msg
+	}
+	var ae *apiError
+	switch {
+	case errors.As(err, &ae):
+		f.log.Warn("starlark tool: request failed", "skill", f.Skill, "tool", tool, "error", ae.err, "backtrace", trace)
+		return trace, ae
+	case strings.HasPrefix(msg, "fail: "):
+		text := strings.TrimPrefix(msg, "fail: ")
+		f.log.Info("starlark tool failed", "skill", f.Skill, "tool", tool, "message", text, "backtrace", trace)
+		return trace, errors.New(text)
+	case strings.Contains(msg, "too many steps"):
+		f.log.Warn("starlark tool: step limit reached", "skill", f.Skill, "tool", tool, "limit", maxSteps, "backtrace", trace)
+		return trace, fmt.Errorf("the tool %s took too long (more than %d steps)", tool, maxSteps)
+	case strings.Contains(msg, "took longer than"):
+		f.log.Warn("starlark tool: time limit reached", "skill", f.Skill, "tool", tool, "limit", Timeout.String(), "backtrace", trace)
+		return trace, fmt.Errorf("the tool %s took longer than %s", tool, Timeout)
+	}
+	first, _, _ := strings.Cut(msg, "\n")
+	f.log.Error("starlark tool failed", "skill", f.Skill, "tool", tool, "error", msg, "backtrace", trace)
+	return trace, fmt.Errorf("the tool %s failed: %s", tool, first)
+}
+
+// answer is the function's return value for the model: a string as it is,
+// anything else as JSON.
+func answer(thread *starlark.Thread, v starlark.Value) (string, error) {
+	switch x := v.(type) {
+	case starlark.String:
+		return string(x), nil
+	case starlark.NoneType:
+		return "", nil
+	}
+	enc, err := starlark.Call(thread, starjson.Module.Members["encode"], starlark.Tuple{v}, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(enc.(starlark.String)), nil
+}
+
+// arguments checks the model's arguments against the tool's parameters and
+// makes them Starlark values.
+func (t *Tool) arguments(raw json.RawMessage) ([]starlark.Tuple, error) {
+	in := map[string]any{}
+	if s := strings.TrimSpace(string(raw)); s != "" && s != "null" {
+		dec := json.NewDecoder(strings.NewReader(s))
+		dec.UseNumber()
+		if err := dec.Decode(&in); err != nil {
+			return nil, fmt.Errorf("the arguments of %s are no JSON object: %.200q", t.Name, s)
+		}
+	}
+	known := map[string]Param{}
+	for _, p := range t.Params {
+		known[p.Name] = p
+	}
+	names := make([]string, 0, len(in))
+	for n := range in {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		if _, ok := known[n]; !ok {
+			return nil, fmt.Errorf("%s has no parameter %s", t.Name, n)
+		}
+	}
+	var out []starlark.Tuple
+	for _, p := range t.Params {
+		v, given := in[p.Name]
+		if !given || v == nil {
+			if p.Required {
+				return nil, fmt.Errorf("%s needs the parameter %s", t.Name, p.Name)
+			}
+			continue
+		}
+		sv, err := value(v, p.Type)
+		if err != nil {
+			return nil, fmt.Errorf("the parameter %s of %s: %v", p.Name, t.Name, err)
+		}
+		out = append(out, starlark.Tuple{starlark.String(p.Name), sv})
+	}
+	return out, nil
+}
+
+// value is one argument as the parameter's type.
+func value(v any, typ string) (starlark.Value, error) {
+	bad := func() error { return fmt.Errorf("%s is no %s", short(v), typ) }
+	switch typ {
+	case "str":
+		if s, ok := v.(string); ok {
+			return starlark.String(s), nil
+		}
+	case "int":
+		if n, ok := v.(json.Number); ok {
+			if i, err := n.Int64(); err == nil {
+				return starlark.MakeInt64(i), nil
+			}
+			if f, err := n.Float64(); err == nil && f == math.Trunc(f) && math.Abs(f) < 1<<53 {
+				return starlark.MakeInt64(int64(f)), nil
+			}
+		}
+	case "float":
+		if n, ok := v.(json.Number); ok {
+			if f, err := n.Float64(); err == nil {
+				return starlark.Float(f), nil
+			}
+		}
+	case "bool":
+		if b, ok := v.(bool); ok {
+			return starlark.Bool(b), nil
+		}
+	case "list":
+		if xs, ok := v.([]any); ok {
+			l := make([]starlark.Value, 0, len(xs))
+			for _, x := range xs {
+				s, ok := x.(string)
+				if !ok {
+					return nil, fmt.Errorf("%s is no list of strings", short(v))
+				}
+				l = append(l, starlark.String(s))
+			}
+			return starlark.NewList(l), nil
+		}
+	}
+	return nil, bad()
+}
+
+func short(v any) string {
+	b, _ := json.Marshal(v)
+	s := string(b)
+	if len(s) > 80 {
+		s = s[:80] + "…"
+	}
+	return s
+}
+
+// predeclared is what a tools.star sees (docs/spec/api-tools.md, What the
+// file may do).
+func (f *File) predeclared() starlark.StringDict {
+	methods := starlark.StringDict{}
+	for _, m := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		methods[strings.ToLower(m)] = starlark.NewBuiltin("api."+strings.ToLower(m), request(m))
+	}
+	return starlark.StringDict{
+		"api":      &starlarkstruct.Module{Name: "api", Members: methods},
+		"json":     starjson.Module,
+		"math":     starmath.Module,
+		"time":     starlarktime.Module,
+		"settings": f.settings,
+	}
+}
+
+// apiError is a request that could not be made or got no answer; the tool
+// fails with it (Starlark has no try).
+type apiError struct{ err error }
+
+func (e *apiError) Error() string { return e.err.Error() }
+
+// request is api.get and the others: one request with the connection's
+// token, logged and kept as an event.
+func request(method string) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+		var raw string
+		var params, body starlark.Value = starlark.None, starlark.None
+		if method == http.MethodGet || method == http.MethodDelete {
+			if err := starlark.UnpackArgs(b.Name(), args, kwargs, "url", &raw, "params?", &params); err != nil {
+				return nil, err
+			}
+		} else if err := starlark.UnpackArgs(b.Name(), args, kwargs, "url", &raw, "params?", &params, "body?", &body); err != nil {
+			return nil, err
+		}
+		c, _ := thread.Local("call").(*call)
+		if c == nil {
+			return nil, fmt.Errorf("%s works only inside a tool, not while %s loads", b.Name(), FileName)
+		}
+		if method != http.MethodGet && !c.env.Writes {
+			c.f.log.Warn("starlark tool: writing refused", "skill", c.skill, "tool", c.tool, "method", method)
+			return nil, &apiError{fmt.Errorf("%s may not use %s: only the tools under writes in SKILL.md write", c.tool, b.Name())}
+		}
+		u, err := withQuery(raw, params)
+		if err != nil {
+			return nil, &apiError{fmt.Errorf("%s: %v", b.Name(), err)}
+		}
+		var payload []byte
+		if body != starlark.None {
+			enc, err := starlark.Call(thread, starjson.Module.Members["encode"], starlark.Tuple{body}, nil)
+			if err != nil {
+				return nil, fmt.Errorf("%s: the body is no JSON: %v", b.Name(), err)
+			}
+			payload = []byte(enc.(starlark.String))
+		}
+		start := time.Now()
+		status, data, err := c.env.Requester.Request(c.ctx, c.skill, method, u, payload)
+		ev := Event{Kind: "request", Method: method, URL: u, Status: status, MS: time.Since(start).Milliseconds(), Size: len(data)}
+		if err != nil {
+			ev.Error = err.Error()
+			c.events = append(c.events, ev)
+			c.f.log.Warn("starlark tool request failed", "skill", c.skill, "tool", c.tool, "method", method, "url", u,
+				"ms", ev.MS, "error", err)
+			return nil, &apiError{fmt.Errorf("%s %s: %v", method, u, err)}
+		}
+		ev.Start = string(data)
+		if len(ev.Start) > startLen {
+			ev.Start = ev.Start[:startLen] + "…"
+		}
+		c.events = append(c.events, ev)
+		c.f.log.Info("starlark tool request", "skill", c.skill, "tool", c.tool, "method", method, "url", u,
+			"status", status, "ms", ev.MS, "bytes", len(data))
+		return response(thread, status, data), nil
+	}
+}
+
+// response is the answer as the function sees it: status, ok, text, json.
+func response(thread *starlark.Thread, status int, data []byte) starlark.Value {
+	var decoded starlark.Value = starlark.None
+	if s := strings.TrimSpace(string(data)); strings.HasPrefix(s, "{") || strings.HasPrefix(s, "[") {
+		if v, err := starlark.Call(thread, starjson.Module.Members["decode"], starlark.Tuple{starlark.String(s)}, nil); err == nil {
+			decoded = v
+		}
+	}
+	return starlarkstruct.FromStringDict(starlark.String("response"), starlark.StringDict{
+		"status": starlark.MakeInt(status),
+		"ok":     starlark.Bool(status >= 200 && status < 300),
+		"text":   starlark.String(data),
+		"json":   decoded,
+	})
+}
+
+// withQuery is the address with the query from params: every value encoded,
+// None left out, a list as repeated parameters, a time in RFC 3339 (UTC).
+func withQuery(raw string, params starlark.Value) (string, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return "", fmt.Errorf("%q is no https address", raw)
+	}
+	if params == starlark.None {
+		return u.String(), nil
+	}
+	d, ok := params.(*starlark.Dict)
+	if !ok {
+		return "", fmt.Errorf("params is a %s, not a dict", params.Type())
+	}
+	q := u.Query()
+	for _, item := range d.Items() {
+		k, ok := item[0].(starlark.String)
+		if !ok {
+			return "", fmt.Errorf("a key of params is a %s, not a string", item[0].Type())
+		}
+		var vals []starlark.Value
+		switch x := item[1].(type) {
+		case *starlark.List:
+			for i := 0; i < x.Len(); i++ {
+				vals = append(vals, x.Index(i))
+			}
+		case starlark.Tuple:
+			vals = x
+		default:
+			vals = []starlark.Value{x}
+		}
+		for _, v := range vals {
+			s, skip, err := queryValue(v)
+			if err != nil {
+				return "", fmt.Errorf("params[%q]: %v", string(k), err)
+			}
+			if !skip {
+				q.Add(string(k), s)
+			}
+		}
+	}
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
+func queryValue(v starlark.Value) (string, bool, error) {
+	switch x := v.(type) {
+	case starlark.NoneType:
+		return "", true, nil
+	case starlark.String:
+		return string(x), false, nil
+	case starlark.Int:
+		return x.String(), false, nil
+	case starlark.Float:
+		return x.String(), false, nil
+	case starlark.Bool:
+		if x {
+			return "true", false, nil
+		}
+		return "false", false, nil
+	case starlarktime.Time:
+		return time.Time(x).UTC().Format(time.RFC3339), false, nil
+	}
+	return "", false, fmt.Errorf("a %s cannot go into an address", v.Type())
+}

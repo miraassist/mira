@@ -784,7 +784,7 @@ metadata:
       scopes: [tweet.read, users.read, offline.access]
       pkce: true                                 # wenn der Dienst es verlangt
       token_auth: basic                          # Secret als HTTP Basic; sonst post
-      api:                                       # optional: Mira ruft die API direkt
+      api:                                       # optional: für die Werkzeuge des Skills
         - url: https://api.example.com/v1/
           methods: [GET, POST]
     mcp:
@@ -793,8 +793,39 @@ metadata:
 ```
 
 - Mit `mcp` und `token: oauth` bekommt der MCP-Server des Skills das Token der Verbindung.
-- Mit `api` bekommt der Skill zwei Werkzeuge: eins zum Lesen und eins zum Schreiben (das schreibende fragt nach, wenn vorher fremder Text im Spiel war). Das Token geht nur an die Adressen, die dort stehen.
+- Mit `api` bringt der Skill seine Werkzeuge in Starlark mit (nächster Abschnitt). Das Token geht nur an die Adressen, die dort stehen.
 - Ist der Skill nicht verbunden, versucht Mira den Server gar nicht erst und sagt beim Öffnen des Skills, dass die Verbindung fehlt.
+
+### Ein Skill bringt Werkzeuge in Starlark mit
+
+Manche Skills kommen ohne Code aus. Andere bringen Skripte, Blueprints oder Automationen für Home Assistant mit, ein Programm, oder Werkzeuge in Starlark, einer kleinen Sprache, die aussieht wie Python. So bekommt ein Skill mit Anmeldung feste Werkzeuge für die Web-API seines Dienstes, wie bei einem MCP-Server, ohne dass du einen Server schreibst: `strava` und `youtube` machen es so.
+
+Die Werkzeuge stehen in der Datei `tools.star` im Ordner des Skills. Jede Funktion, deren Name nicht mit `_` beginnt, ist ein Werkzeug `<skill>__<funktion>`; Funktionen mit `_` sind Helfer. Was das Werkzeug tut und welche Angaben es braucht, steht im Docstring der Funktion:
+
+```python
+def suche(thema, tage = 7):
+    """Sucht Videos zu einem Thema. Kostet 101 Einheiten.
+
+    Args:
+      thema (str): Suchbegriffe in wenigen Wörtern.
+      tage (int): Nur Videos der letzten so vielen Tage, 1 bis 30.
+    """
+    if tage < 1 or tage > 30:
+        fail("tage ist 1 bis 30, nicht %d" % tage)
+    r = api.get("https://www.googleapis.com/youtube/v3/search", params = {
+        "part": "snippet", "type": "video", "q": thema,
+        "publishedAfter": time.now() - tage * 24 * time.hour,
+    })
+    if not r.ok:
+        fail("YouTube antwortet %d" % r.status)
+    return [i["id"]["videoId"] for i in r.json["items"]]
+```
+
+- **Der Docstring:** Der Text vor `Args:` ist die Beschreibung, die das Modell liest. Unter `Args:` steht jede Angabe mit ihrem Typ: `str`, `int`, `float`, `bool` oder `list` (eine Liste von Texten). Eine Angabe mit Standardwert ist freiwillig. Mira prüft die Angaben des Modells, bevor die Funktion läuft.
+- **Was eine Funktion kann:** `api.get(adresse, params = {...})` holt etwas vom Dienst, mit dem Token der Verbindung und nur an die Adressen unter `api` im Abschnitt `oauth`; Mira setzt die Werte richtig in die Adresse, `None` lässt sie weg, eine Zeit wird ISO-Zeit. Die Antwort hat `status`, `ok`, `text` und `json`. Dazu gibt es `json`, `time`, `math`, die Einstellungen des Skills als `settings` (nur die nicht geheimen), `fail("…")` für eine Meldung an das Modell und `print(…)` fürs Log. Sonst nichts: keine Dateien, kein anderes Netz.
+- **Schreiben:** `api.post`, `api.put`, `api.patch` und `api.delete` dürfen nur Werkzeuge, die der Skill unter `tools:` → `writes:` nennt; ein schreibendes Werkzeug fragt nach, wenn vorher fremder Text im Spiel war, eins unter `confirm:` fragt immer.
+- **Grenzen:** Ein Werkzeug darf höchstens 60 Sekunden laufen, jede Anfrage 20.
+- **Fehler finden:** Stimmt etwas in `tools.star` nicht, startet der Skill nicht; unter **Reparaturen** und auf seiner Seite steht, in welcher Zeile was falsch ist. Unter Fähigkeiten → Skills → dein Skill → **Ausprobieren** rufst du ein Werkzeug selbst auf und siehst jede Anfrage mit Adresse, Status und dem Anfang der Antwort, jede Ausgabe von `print` und bei einem Fehler die Zeile. Im Log steht zu jeder Anfrage eine Zeile.
 
 ### Mails auswerten
 
@@ -1041,6 +1072,21 @@ Mira liest dir deine Aktivitäten aus Strava vor: „Wie war meine letzte Tour?�
 3. Mira → Einrichtung → **Verbindungen**: Client-ID und Client-Secret der App eintragen, **Übernehmen**, dann **Verbinden**. Bei Strava anmelden und **Autorisieren**; alle Haken drin lassen, auch den für die Aktivitäten.
 
 Eine neue Strava-App kann nur dein eigenes Konto lesen. Die Kilometer pro Rad zählen nur Aktivitäten, bei denen in Strava das Rad als Ausrüstung eingetragen ist.
+
+## Was auf YouTube läuft
+
+„Was ist gerade angesagt auf YouTube?“, „Was gibt's Neues zu Home Assistant auf YouTube?“, „Was hat @heise hochgeladen?“ Mira sieht auf YouTube nach und erzählt zwei, drei Videos in je einem Satz: von wem, worum es nach dem Titel geht, wie lange es her ist. Was in einem Video gesagt wird, weiß sie nicht; YouTube gibt das nicht heraus. YouTube hat seit 2025 keine allgemeinen Trends mehr, nur Charts für Musik, Filme und Gaming.
+
+**Jeden Morgen eine Liste:** Trägst du beim Skill unter `themen` etwas ein, etwa „Home Assistant Voice, lokale KI“, stellt Mira um 7 Uhr die neuen Videos des letzten Tages zu diesen Themen zusammen und lässt weg, was nicht passt. Unter `empfaenger` trägst du ein, wer die Liste bekommt; sie kommt dann mit den Links auf dessen Handy (etwa Telegram). Leer geht ein kurzer Satz ans Haus. Die Uhrzeit änderst du unter Fähigkeiten → **Zeitplan**.
+
+**Was es kostet:** nichts. YouTube erlaubt einem Google-Projekt am Tag etwa hundert Suchen; Charts und Kanäle kosten fast nichts. Ist das Kontingent aufgebraucht, sagt Mira es.
+
+**Einrichten:**
+1. In der [Google Cloud Console](https://console.cloud.google.com/) ein Projekt anlegen und die **YouTube Data API v3** aktivieren.
+2. Unter **Google Auth Platform**: bei **Branding** einen Namen und deine E-Mail eintragen; bei **Audience** den Typ „Extern“ wählen und **App veröffentlichen**; bei **Data access** das Recht `…/auth/youtube.readonly` hinzufügen. Bleibt die App im Testmodus, musst du dich unter **Audience** als Testnutzer eintragen, und die Anmeldung läuft nach sieben Tagen ab.
+3. Unter **Clients** einen Client vom Typ **Webanwendung** anlegen, mit der Weiterleitungs-URI `https://my.home-assistant.io/redirect/oauth`. Home Assistant braucht dafür [My Home Assistant](https://my.home-assistant.io) mit der Adresse deiner Instanz.
+4. Den Skill `youtube` einschalten: Mira → Fähigkeiten → Skills → youtube → **Einschalten**.
+5. Mira → Einrichtung → **Verbindungen**: Client-ID und Client-Secret eintragen, **Übernehmen**, dann **Verbinden**. Google warnt, dass die App nicht geprüft ist; über **Erweitert** geht es weiter. Mira darf nur lesen.
 
 ## Einkaufen bei REWE
 

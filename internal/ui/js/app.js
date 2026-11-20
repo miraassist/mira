@@ -391,8 +391,49 @@ function openSkill(name) { skillFocus = name; go("skills"); }
 
 class MiraSkills extends EditPage {
   static properties = { ...EditPage.properties, busy: { state: true }, switchError: { state: true },
-    setupVals: { state: true }, setupRes: { state: true }, setupBusy: { state: true } };
-  constructor() { super(); this.setupVals = {}; this.setupRes = {}; this.setupBusy = null; }
+    setupVals: { state: true }, setupRes: { state: true }, setupBusy: { state: true },
+    tryRes: { state: true } };
+  constructor() { super(); this.setupVals = {}; this.setupRes = {}; this.setupBusy = null; this.tryRes = {}; }
+  // "Ausprobieren" (docs/spec/api-tools.md, decision 11): a form per
+  // Starlark tool from its schema; it shows the answer or the error with its
+  // backtrace, and every request and print in order. Admins only.
+  tryTools(s) {
+    return html`<div class="setup"><h4>${T.try_head}</h4><p class="hint">${T.try_hint}</p>
+      ${s.tools.map(t => this.tryEntry(s, t))}</div>`;
+  }
+  tryEntry(s, t) {
+    const key = "try:" + s.name + "/" + t.name, vals = this.setupVals[key] || {}, res = this.tryRes[key];
+    const schema = t.schema ? (typeof t.schema === "string" ? JSON.parse(t.schema) : t.schema) : { properties: {} };
+    const props = schema.properties || {}, required = schema.required || [];
+    const set = (name, v) => { this.setupVals = { ...this.setupVals, [key]: { ...vals, [name]: v } }; };
+    const field = (name, p) => {
+      const label = html`<span>${name}${required.includes(name) ? " *" : ""}</span>`;
+      const hint = (p.description || "") + (p.default !== undefined ? ` (${T.try_default}: ${JSON.stringify(p.default)})` : "");
+      if (p.type === "boolean") return html`<label class="setup-field">${label}<input type="checkbox" .checked=${!!vals[name]} @change=${e => set(name, e.target.checked)}><span class="hint">${hint}</span></label>`;
+      const num = p.type === "integer" || p.type === "number", list = p.type === "array";
+      return html`<label class="setup-field">${label}<input type=${num ? "number" : "text"} .value=${vals[name] ?? ""}
+        placeholder=${hint} @input=${e => set(name, e.target.value === "" ? "" : num ? Number(e.target.value)
+          : list ? e.target.value.split(",").map(x => x.trim()).filter(Boolean) : e.target.value)}></label>`;
+    };
+    const missing = required.some(n => vals[n] === undefined || vals[n] === "");
+    return html`<div class="setup-entry">
+      <div><code>${s.name}__${t.name}</code>${t.writes ? html` <span class="badge warn">${T.try_writes}</span>` : nothing}</div>
+      ${t.description ? html`<div class="hint">${t.description}</div>` : nothing}
+      ${Object.entries(props).map(([n, p]) => field(n, p))}
+      <div class="actions left"><button class="secondary" ?disabled=${missing || this.setupBusy === key}
+        @click=${e => { e.preventDefault(); this.callTry(s, t, vals); }}>${T.try_run}</button></div>
+      ${res ? tryAnswer(res) : nothing}</div>`;
+  }
+  async callTry(s, t, vals) {
+    const key = "try:" + s.name + "/" + t.name;
+    if (t.writes && !await ask({ text: T.try_writes_confirm(s.name + "__" + t.name), ok: T.try_run, danger: true })) return;
+    this.setupBusy = key;
+    try {
+      const r = await api("POST", "/v1/ui/skills/" + encodeURIComponent(s.name) + "/tools/" + encodeURIComponent(t.name) + "/try", { args: vals });
+      this.tryRes = { ...this.tryRes, [key]: r };
+    } catch (err) { this.tryRes = { ...this.tryRes, [key]: { error: err.message, events: [] } }; }
+    this.setupBusy = null;
+  }
   // The setup of a skill's program (docs/spec/skill-programs.md): a button
   // per setup tool, its fields from the tool's input schema, its answer
   // below. Only for admins (the catalog is); never a model.
@@ -514,10 +555,30 @@ class MiraSkills extends EditPage {
         ${(s.agents || []).length ? row(T.cat_agents, html`${s.agents.map((a, i) => html`${i ? ", " : ""}<a href="#agents" @click=${e => { e.preventDefault(); go("agents"); }}><code>${a}</code></a>`)}`) : nothing}
       </table>
       ${(s.setup || []).length && s.state === "active" ? this.setup(s) : nothing}
+      ${(s.tools || []).length && s.state === "active" ? this.tryTools(s) : nothing}
       ${s.guide ? html`<details class="profile"><summary>${T.cat_guide}</summary><pre>${s.guide}</pre></details>` : nothing}`);
   }
 }
 customElements.define("mira-skills", MiraSkills);
+
+// tryAnswer shows what a try of a Starlark tool did: every request (method,
+// address, status, time, size, the start of the answer) and print in order,
+// then the answer, or the error with its backtrace.
+function tryAnswer(r) {
+  const ev = e => e.kind === "print"
+    ? html`<div class="try-ev"><span class="hint">print</span> ${e.message}</div>`
+    : html`<div class="try-ev"><code>${e.method}</code> <span class="try-url">${e.url}</span>
+        ${e.error ? html`<div class="msg err">${e.error}</div>` : html`<div class="hint">HTTP ${e.status} · ${e.ms} ms · ${e.size} B</div>
+        ${e.start ? html`<pre class="setup-answer">${e.start}</pre>` : nothing}`}</div>`;
+  return html`<div class="try-result">
+    ${(r.events || []).length ? html`<div class="hint">${T.try_requests}</div>${r.events.map(ev)}` : nothing}
+    ${r.error ? html`<div class="msg err">${r.error}</div>${r.backtrace ? html`<pre class="setup-answer">${r.backtrace}</pre>` : nothing}`
+      : html`<div class="hint">${T.try_answer}</div><pre class="setup-answer">${pretty(r.text)}</pre>`}</div>`;
+}
+function pretty(t) {
+  if (!t) return T.setup_empty;
+  try { return JSON.stringify(JSON.parse(t), null, 2); } catch { return t; }
+}
 
 // setupAnswer shows a setup tool's answer: JSON as a short list, addresses
 // as links, an error in red.

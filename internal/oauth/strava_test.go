@@ -2,9 +2,12 @@ package oauth_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -12,11 +15,12 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/config"
-	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/startools"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 // The shipped skill strava (docs/spec/strava.md): Strava's login and its
@@ -71,9 +75,16 @@ func stravaManager(t *testing.T) (*oauth.Manager, *requests) {
 	return m, rec
 }
 
-func toolNames(m *oauth.Manager) []string {
+// stravaTools are the skill's Starlark tools as Mira offers them, with the
+// manager's connection.
+func stravaTools(t *testing.T, m *oauth.Manager) []tools.InternalTool {
+	t.Helper()
+	return skills.StarlarkTools([]skills.Skill{stravaSkill(t)}, m, nil)
+}
+
+func toolNames(list []tools.InternalTool) []string {
 	var out []string
-	for _, tl := range m.APITools(i18n.DE) {
+	for _, tl := range list {
 		if tl.Enabled == nil || tl.Enabled() {
 			out = append(out, tl.Name)
 		}
@@ -114,19 +125,22 @@ func TestSV02_OnlyReadingBelowStravasWebAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	// When Mira offers its tools
-	// Then there is strava__api_get for Strava's web API and no strava__api_write
-	if got := toolNames(m); !slices.Equal(got, []string{"strava__api_get"}) {
+	list := stravaTools(t, m)
+	// Then they are its Starlark tools, all reading, and there is no strava__api_get
+	want := []string{"strava__ausruestung", "strava__bestleistungen", "strava__letzte_tour", "strava__serie", "strava__zeitraum"}
+	if got := toolNames(list); !slices.Equal(got, want) {
 		t.Fatalf("tools %v", got)
 	}
-	var get = m.APITools(i18n.DE)[0]
-	if !get.ReadOnly || !get.WebContent || !strings.Contains(get.Description, "https://www.strava.com/api/v3/") {
-		t.Errorf("tool %+v", get)
+	for _, tl := range list {
+		if !tl.ReadOnly || !tl.WebContent || tl.AskAfterWeb || tl.Skill != "strava" || !tl.Background {
+			t.Errorf("%s: %+v", tl.Name, tl)
+		}
 	}
-	// And an address outside it is refused without a request
-	for _, u := range []string{"https://www.strava.com/oauth/deauthorize", "https://www.strava.com/api/v2/athlete",
-		"https://strava.example/api/v3/athlete"} {
-		if _, err := run(get, `{"url":"`+u+`"}`); err == nil || !strings.Contains(err.Error(), "not allowed") {
-			t.Errorf("%s: %v", u, err)
+	// And an address outside Strava's web API, or a method other than GET, is refused without a request
+	for _, c := range [][2]string{{"GET", "https://www.strava.com/oauth/deauthorize"}, {"GET", "https://www.strava.com/api/v2/athlete"},
+		{"GET", "https://strava.example/api/v3/athlete"}, {"POST", "https://www.strava.com/api/v3/activities"}} {
+		if _, _, err := m.Request(context.Background(), "strava", c[0], c[1], nil); err == nil || !strings.Contains(err.Error(), "not allowed") {
+			t.Errorf("%v: %v", c, err)
 		}
 	}
 	if n := rec.count(); n != 0 {
@@ -139,8 +153,8 @@ func TestSV03_WithoutAConnectionThereIsNoStravaTool(t *testing.T) {
 	// Given the skill strava not connected
 	m, _ := stravaManager(t)
 	// When Mira offers its tools
-	// Then strava__api_get is not offered
-	if got := toolNames(m); len(got) != 0 {
+	// Then none is offered
+	if got := toolNames(stravaTools(t, m)); len(got) != 0 {
 		t.Errorf("offered without a connection: %v", got)
 	}
 }
@@ -156,29 +170,145 @@ func TestSV04_NoStravaDataIntoMemory(t *testing.T) {
 	}
 }
 
+// strava answers the skill's requests from fixed data, by path.
+type stravaFake map[string]string
+
+func (f stravaFake) Request(_ context.Context, _, method, raw string, _ []byte) (int, []byte, error) {
+	u, _ := url.Parse(raw)
+	body, ok := f[strings.TrimPrefix(u.Path, "/api/v3/")]
+	if !ok {
+		return 404, []byte(`{"message":"Record Not Found"}`), nil
+	}
+	if strings.HasPrefix(body, "HTTP ") {
+		var code int
+		fmt.Sscanf(body, "HTTP %d", &code)
+		return code, []byte(body[9:]), nil
+	}
+	return 200, []byte(body), nil
+}
+
+// activities are the newest first, as Strava gives them.
+const activities = `[
+ {"sport_type":"Ride","name":"Feierabend","start_date_local":"2026-11-19T17:30:00Z","distance":21500,"moving_time":3900,"total_elevation_gain":180.4,"average_speed":5.51},
+ {"sport_type":"Run","name":"Runde","start_date_local":"2026-11-17T07:00:00Z","distance":8000,"moving_time":2700,"total_elevation_gain":40,"average_speed":2.96},
+ {"sport_type":"Ride","name":"Berg","start_date_local":"2026-11-08T10:00:00Z","distance":64000,"moving_time":10800,"total_elevation_gain":1210,"average_speed":5.9},
+ {"sport_type":"Ride","name":"Alt","start_date_local":"2026-10-28T10:00:00Z","distance":90000,"moving_time":12600,"total_elevation_gain":600,"average_speed":7.1}
+]`
+
+func runStrava(t *testing.T, fake stravaFake, tool, args string) (map[string]any, error) {
+	t.Helper()
+	s := stravaSkill(t)
+	// Thursday, 20 November 2026, in Berlin.
+	now := time.Date(2026, 11, 20, 9, 0, 0, 0, time.FixedZone("CET", 3600))
+	res := s.Starlark.Call(context.Background(), tool, json.RawMessage(args), startools.Env{Requester: fake, Now: func() time.Time { return now }})
+	if res.Err != nil {
+		return nil, res.Err
+	}
+	var out map[string]any
+	if err := json.Unmarshal([]byte(res.Text), &out); err != nil {
+		t.Fatalf("%s: %q", tool, res.Text)
+	}
+	return out, nil
+}
+
 // SV-05 The best efforts come from the activities
 func TestSV05_TheBestEffortsComeFromTheActivities(t *testing.T) {
-	// Given the skill strava
-	s := stravaSkill(t)
-	// When its instructions are read
-	i := strings.Index(s.Body, "**Bestleistungen**")
-	if i < 0 {
-		t.Fatalf("no best efforts in:\n%s", s.Body)
+	// Given a connected account with activities and stats
+	fake := stravaFake{"athlete/activities": activities, "athlete": `{"id":7}`,
+		"athletes/7/stats": `{"ytd_ride_totals":{"count":40,"distance":2500000,"elevation_gain":21000},"all_ride_totals":{"count":300,"distance":15000000,"elevation_gain":120000},"biggest_ride_distance":999999}`}
+	// When the best efforts are asked for
+	out, err := runStrava(t, fake, "bestleistungen", `{}`)
+	if err != nil {
+		t.Fatal(err)
 	}
-	best := s.Body[i:]
-	if j := strings.Index(best, "\n\n"); j > 0 {
-		best = best[:j]
+	// Then the longest ride and the biggest climb come from the activities and the totals from the stats
+	l, g := out["laengste"].(map[string]any), out["groesster_anstieg"].(map[string]any)
+	if l["name"] != "Alt" || l["km"] != 90.0 || g["name"] != "Berg" || g["hoehenmeter"] != 1210.0 {
+		t.Errorf("laengste %v, groesster_anstieg %v", l, g)
 	}
-	// Then the longest ride and the biggest climb come from the last 100
-	// activities and the totals from the stats
-	for _, want := range []string{"athlete/activities?per_page=100", "`distance`", "`total_elevation_gain`",
-		"athletes/<id>/stats", "ytd_ride_totals", "all_ride_totals"} {
-		if !strings.Contains(best, want) {
-			t.Errorf("best efforts without %s:\n%s", want, best)
+	if y := out["ytd_ride_totals"].(map[string]any); y["km"] != 2500.0 || y["anzahl"] != 40.0 {
+		t.Errorf("ytd %v", y)
+	}
+	// And no field biggest_ride_distance is used
+	if strings.Contains(fmt.Sprint(out), "999") {
+		t.Errorf("biggest_ used: %v", out)
+	}
+}
+
+// SV-06 The week and the month are counted by the tool
+func TestSV06_TheWeekAndTheMonthAreCountedByTheTool(t *testing.T) {
+	// Given activities on Wednesday and Monday of this week, earlier this month and last month
+	fake := stravaFake{"athlete/activities": activities}
+	// When the week and the month are asked for
+	week, err := runStrava(t, fake, "zeitraum", `{"zeitraum":"woche"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	month, _ := runStrava(t, fake, "zeitraum", `{"zeitraum":"monat"}`)
+	// Then the week from Monday has the ride and the run, the month also the ride of the 8th
+	ws := week["je_sportart"].(map[string]any)
+	if week["ab"] != "2026-11-16" || ws["Ride"].(map[string]any)["km"] != 21.5 || ws["Run"].(map[string]any)["anzahl"] != 1.0 {
+		t.Errorf("week %v", week)
+	}
+	mr := month["je_sportart"].(map[string]any)["Ride"].(map[string]any)
+	if month["ab"] != "2026-11-01" || mr["anzahl"] != 2.0 || mr["km"] != 85.5 || mr["hoehenmeter"] != 1390.0 || mr["minuten"] != 245.0 {
+		t.Errorf("month %v", month)
+	}
+	if _, err := runStrava(t, fake, "zeitraum", `{"zeitraum":"jahr"}`); err == nil || !strings.Contains(err.Error(), "woche") {
+		t.Errorf("jahr: %v", err)
+	}
+}
+
+// SV-07 The series counts weeks in a row
+func TestSV07_TheSeriesCountsWeeksInARow(t *testing.T) {
+	// Given activities this week, two weeks ago and three weeks ago, none last week
+	fake := stravaFake{"athlete/activities": activities}
+	// When the series is asked for
+	out, err := runStrava(t, fake, "serie", `{}`)
+	// Then it is one week (this one)
+	if err != nil || out["wochen"] != 1.0 {
+		t.Errorf("%v %v", out, err)
+	}
+	// Without an activity this week it counts from last week.
+	fake["athlete/activities"] = `[{"sport_type":"Ride","start_date_local":"2026-11-12T10:00:00Z","distance":1,"moving_time":60,"total_elevation_gain":0},
+		{"sport_type":"Ride","start_date_local":"2026-11-03T10:00:00Z","distance":1,"moving_time":60,"total_elevation_gain":0}]`
+	if out, _ := runStrava(t, fake, "serie", `{}`); out["wochen"] != 2.0 {
+		t.Errorf("from last week: %v", out)
+	}
+}
+
+// SV-08 Strava's errors become sentences
+func TestSV08_StravasErrorsBecomeSentences(t *testing.T) {
+	for body, want := range map[string]string{
+		`HTTP 401 {"errors":[{"field":"activity:read_permission"}]}`: "Strava erlaubt die Aktivitäten nicht",
+		`HTTP 429 {}`: "keine Anfragen mehr",
+		`HTTP 503 {}`: "nicht erreichbar",
+	} {
+		// Given Strava answers with an error
+		// When a tool reads
+		_, err := runStrava(t, stravaFake{"athlete/activities": body}, "letzte_tour", `{}`)
+		// Then the tool's error is the sentence the skill says
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: %v", body, err)
 		}
 	}
-	// And they name no field biggest_ride_distance or biggest_climb_elevation_gain
-	if strings.Contains(s.Body, "biggest_") {
-		t.Errorf("names a biggest_ field:\n%s", s.Body)
+	// No activity is a hint, not an error.
+	if out, err := runStrava(t, stravaFake{"athlete/activities": `[]`}, "letzte_tour", `{}`); err != nil || out["hinweis"] == nil {
+		t.Errorf("%v %v", out, err)
+	}
+}
+
+// SL-18 strava brings its tools in tools.star (docs/spec/api-tools.md, step 4)
+func TestSL18_StravaBringsItsToolsInToolsStar(t *testing.T) {
+	// Given the skill strava
+	// When it loads
+	s := stravaSkill(t)
+	// Then it has the tools letzte_tour, zeitraum, serie, ausruestung and bestleistungen and no strava__api_get
+	if s.Starlark == nil || !slices.Equal(s.Starlark.Names(), []string{"ausruestung", "bestleistungen", "letzte_tour", "serie", "zeitraum"}) {
+		t.Fatalf("tools %v", s.Starlark)
+	}
+	// And none of them writes
+	if len(s.Writes) != 0 || len(s.Confirm) != 0 {
+		t.Errorf("writes %v, confirm %v", s.Writes, s.Confirm)
 	}
 }

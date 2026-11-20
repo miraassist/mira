@@ -18,6 +18,7 @@ import (
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/startools"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/fakemcp"
@@ -309,7 +310,7 @@ func TestCO08_TheTokensReachNoModelAndNoLog(t *testing.T) {
 		t.Error("the log has nothing of the renewal; the test checks nothing")
 	}
 	set := &skills.Set{Lang: i18n.DE, Skills: []skills.Skill{e.skill}, Connection: e.m.State}
-	for _, tl := range append(set.Tools(), e.m.APITools(i18n.DE)...) {
+	for _, tl := range set.Tools() {
 		for _, text := range []string{tl.Description, tl.Schema} {
 			if strings.Contains(text, "geheim-secret") || strings.Contains(text, access) {
 				t.Errorf("%s carries a secret", tl.Name)
@@ -318,20 +319,14 @@ func TestCO08_TheTokensReachNoModelAndNoLog(t *testing.T) {
 	}
 }
 
-// apiTool is the skill's web API tool of that name.
-func (e *env) apiTool(t *testing.T, name string) tools.InternalTool {
-	t.Helper()
-	for _, tl := range e.m.APITools(i18n.DE) {
-		if tl.Name == name {
-			return tl
-		}
+// request is a request of the skill's Starlark tools through the api module
+// (docs/spec/api-tools.md): oauth.Manager.Request.
+func (e *env) request(method, u, body string) (int, []byte, error) {
+	var b []byte
+	if body != "" {
+		b = []byte(body)
 	}
-	t.Fatalf("no tool %s", name)
-	return tools.InternalTool{}
-}
-
-func run(tl tools.InternalTool, args string) (string, error) {
-	return tl.Run(context.Background(), tools.Invocation{Name: tl.Name, Args: json.RawMessage(args)})
+	return e.m.Request(context.Background(), "dienst", method, u, b)
 }
 
 // CO-15 The API tool calls only below the skill's prefixes
@@ -339,22 +334,18 @@ func TestCO15_TheAPIToolCallsOnlyBelowTheSkillsPrefixes(t *testing.T) {
 	// Given a connected skill whose api names https://api.example/2/ with GET
 	e := newEnv(t)
 	access, _ := e.connect(t, time.Hour)
-	get := e.apiTool(t, "dienst__api_get")
-	// When the model calls the API tool with a path below it
-	out, err := run(get, `{"url":"`+e.svc.APIURL()+`v2/users/me?fields=name"}`)
-	// Then the request carries the token and the answer is third-party text
+	// When a Starlark tool of the skill calls the api module with a path below it
+	status, body, err := e.request("GET", e.svc.APIURL()+"v2/users/me?fields=name", "")
+	// Then the request carries the token
 	calls := e.svc.Calls()
-	if err != nil || !strings.HasPrefix(out, "HTTP 200") || len(calls) != 1 || calls[0].Token != access || calls[0].Path != "/api/v2/users/me" {
-		t.Fatalf("%q %v %+v", out, err, calls)
+	if err != nil || status != 200 || len(body) == 0 || len(calls) != 1 || calls[0].Token != access || calls[0].Path != "/api/v2/users/me" {
+		t.Fatalf("%d %q %v %+v", status, body, err, calls)
 	}
-	if !get.WebContent || !get.ReadOnly || !get.Background || get.Skill != "dienst" {
-		t.Errorf("flags %+v", get)
-	}
-	// Not connected, the tool is not offered.
+	// Not connected, no request goes out with a token.
 	e.m.Disconnect(context.Background(), "dienst")
 	<-e.changes
-	if get.Enabled() {
-		t.Error("offered without a connection")
+	if e.m.Connected("dienst") {
+		t.Error("connected after Disconnect")
 	}
 }
 
@@ -363,11 +354,10 @@ func TestCO16_NoTokenOutsideThePrefixes(t *testing.T) {
 	// Given a connected skill whose api names https://api.example/2/
 	e := newEnv(t)
 	e.connect(t, time.Hour)
-	get := e.apiTool(t, "dienst__api_get")
-	// When the model calls an address outside it
+	// When a tool calls an address outside it
 	for _, u := range []string{e.svc.APIURL() + "v1/users", e.svc.APIURL() + "v2x", "https://elsewhere.example/api/v2/", e.svc.URL() + "/token"} {
-		if out, err := run(get, `{"url":"`+u+`"}`); err == nil {
-			t.Errorf("%s: %q", u, out)
+		if status, _, err := e.request("GET", u, ""); err == nil {
+			t.Errorf("%s: %d", u, status)
 		}
 	}
 	if n := len(e.svc.Calls()); n != 0 {
@@ -384,13 +374,9 @@ func TestCO16_NoTokenOutsideThePrefixes(t *testing.T) {
 		Skills: []skills.Skill{{Name: "dienst", OAuth: &skills.OAuth{Name: "Dienst", TokenURL: e.svc.TokenURL(),
 			TokenAuth: skills.TokenAuthBasic, ClientID: "id-1", ClientSecret: "geheim-secret",
 			API: []skills.APIPrefix{{URL: redirect.URL + "/", Methods: []string{"GET"}}}}}}})
-	var tl tools.InternalTool
-	for _, x := range m.APITools(i18n.DE) {
-		tl = x
-	}
 	// Then no request with the token is made
-	if out, err := run(tl, `{"url":"`+redirect.URL+`/api"}`); err == nil || !strings.Contains(err.Error(), "does not go to") {
-		t.Errorf("followed: %q %v", out, err)
+	if status, _, err := m.Request(context.Background(), "dienst", "GET", redirect.URL+"/api", nil); err == nil || !strings.Contains(err.Error(), "does not go to") {
+		t.Errorf("followed: %d %v", status, err)
 	}
 }
 
@@ -399,15 +385,11 @@ func TestCO17_AMethodTheSkillDoesNotNameIsRefused(t *testing.T) {
 	// Given a connected skill whose api allows only GET (below v2/; POST only at v2/posts)
 	e := newEnv(t)
 	e.connect(t, time.Hour)
-	write := e.apiTool(t, "dienst__api_write")
-	// When the model calls the API tool with POST
-	for _, args := range []string{
-		`{"method":"POST","url":"` + e.svc.APIURL() + `v2/users"}`,
-		`{"method":"DELETE","url":"` + e.svc.APIURL() + `v2/posts/1"}`,
-	} {
+	// When a tool calls the api module with POST
+	for _, c := range [][2]string{{"POST", e.svc.APIURL() + "v2/users"}, {"DELETE", e.svc.APIURL() + "v2/posts/1"}} {
 		// Then the call is refused with that reason
-		if out, err := run(write, args); err == nil || !strings.Contains(err.Error(), "not allowed") {
-			t.Errorf("%s: %q %v", args, out, err)
+		if status, _, err := e.request(c[0], c[1], ""); err == nil || !strings.Contains(err.Error(), "not allowed") {
+			t.Errorf("%v: %d %v", c, status, err)
 		}
 	}
 	if n := len(e.svc.Calls()); n != 0 {
@@ -417,20 +399,47 @@ func TestCO17_AMethodTheSkillDoesNotNameIsRefused(t *testing.T) {
 
 // CO-18 A method the skill names runs as the skill says
 func TestCO18_AMethodTheSkillNamesRunsAsTheSkillSays(t *testing.T) {
-	// Given a connected skill whose api allows POST and whose instructions say to post without asking
+	// Given a connected skill whose api allows POST
 	e := newEnv(t)
 	e.connect(t, time.Hour)
-	write := e.apiTool(t, "dienst__api_write")
-	// When the model calls the API tool with POST
-	out, err := run(write, `{"method":"POST","url":"`+e.svc.APIURL()+`v2/posts","body":{"text":"Guten Morgen"}}`)
+	// When a tool calls the api module with POST
+	status, _, err := e.request("POST", e.svc.APIURL()+"v2/posts", `{"text":"Guten Morgen"}`)
 	// Then the request is made without a question of Mira's own
 	calls := e.svc.Calls()
-	if err != nil || !strings.HasPrefix(out, "HTTP 200") || len(calls) != 1 || calls[0].Method != "POST" || calls[0].Body != `{"text":"Guten Morgen"}` {
-		t.Fatalf("%q %v %+v", out, err, calls)
+	if err != nil || status != 200 || len(calls) != 1 || calls[0].Method != "POST" || calls[0].Body != `{"text":"Guten Morgen"}` {
+		t.Fatalf("%d %v %+v", status, err, calls)
 	}
-	// The tool asks only after third-party text (CO-19): it is not read only
-	// and keeps or passes on.
-	if write.ReadOnly || !write.AskAfterWeb || !write.WebContent {
-		t.Errorf("flags %+v", write)
+}
+
+// SL-09 The request carries the token only below the skill's prefixes
+// (docs/spec/api-tools.md)
+func TestSL09_TheRequestCarriesTheTokenOnlyBelowTheSkillsPrefixes(t *testing.T) {
+	// Given a connected skill whose api names a prefix with GET
+	e := newEnv(t)
+	access, _ := e.connect(t, time.Hour)
+	f, err := startools.Load("dienst", []byte(`
+def ich():
+    """Wer bin ich."""
+    r = api.get("`+e.svc.APIURL()+`v2/users/me", params = {"fields": "name"})
+    return {"status": r.status, "ok": r.ok, "text": len(r.text) > 0, "json": r.json != None}
+
+def fremd():
+    """Woanders."""
+    return api.get("https://elsewhere.example/api/v2/users").status
+`), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// When a tool calls api.get below it, and another tool outside it
+	in := f.Call(context.Background(), "ich", nil, startools.Env{Requester: e.m})
+	out := f.Call(context.Background(), "fremd", nil, startools.Env{Requester: e.m})
+	// Then the first request carries the connection's token and its answer gives status, ok, text and json
+	calls := e.svc.Calls()
+	if in.Err != nil || in.Text != `{"json":true,"ok":true,"status":200,"text":true}` || len(calls) != 1 || calls[0].Token != access {
+		t.Fatalf("%q %v %+v", in.Text, in.Err, calls)
+	}
+	// And the second is refused before anything is sent, and the tool fails with the address
+	if out.Err == nil || !strings.Contains(out.Err.Error(), "https://elsewhere.example/api/v2/users is not allowed") || len(e.svc.Calls()) != 1 {
+		t.Errorf("%v %+v", out.Err, e.svc.Calls())
 	}
 }
