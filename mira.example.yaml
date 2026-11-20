@@ -114,7 +114,7 @@ mcp_servers:
     web_content: true
     # tools: [search]          # only these tools of the server; without it, all
     # confirm: [delete]        # these tools run only after the user's yes
-    # conversation: false      # its tools only for agents and schedules, not the conversation
+    # conversation: false      # its tools only for agents and scheduled jobs, not the conversation
   # A server Mira starts herself as a program (stdio). It gets only the bare
   # minimum of Mira's environment, none of her credentials: what it needs
   # goes under env. The image has no runtime such as node for it.
@@ -275,6 +275,6 @@ skills:
   briefing:                            # morning and evening briefing, also on request
     kalender: Familie                  # the house's calendars; empty = all exposed, personal ones too
     themen: Deutschland                # news topics for the morning; empty = no news
-    # schedules:                       # a schedule's own time, or off; the page "Schedules" writes this
-    #   morgen: { cron: "45 6 * * 1-5" }   # the house briefing on weekdays at 6:45
-    #   abend: { enabled: false }          # no evening briefing
+    # jobs:                            # the scheduled jobs, made from the skill's job templates; the page writes this
+    #   morgen: { template: morgen, cron: "45 6 * * 1-5" }            # the house briefing on weekdays at 6:45
+    #   abend: { template: abend, cron: "0 18 * * *", enabled: false } # no evening briefing

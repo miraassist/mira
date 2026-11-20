@@ -513,11 +513,11 @@ Some skills speak up by themselves at fixed times: the morning briefing at 5:30,
 - **You manage scheduled jobs on the skill**: under **Skills**, in the skill's section **Scheduled jobs**. There **New job** makes one (template, name, its values, time of day and weekdays); you change, switch off, delete or run one at once. A skill such as `youtube` can have several lists this way, in the morning on other topics than in the evening. New, changed and deleted jobs hold after Mira's restart; a time changed here under Schedules holds at once. When a skill is switched on, Mira writes its first jobs into `mira.yaml`; one that lacks a required value (the topics, say) is not made.
 - **Mira's own schedules** can be moved, not switched off.
 - A time such as "every hour" cannot be set here as a time of day; it is shown in words and changed in `mira.yaml` only. Switching it off works all the same.
-- A skill under **Skills** has **Change** at each of its schedules; it leads here.
+- A skill under **Skills** lists its jobs in its section **Scheduled jobs**; **Change** there opens the job's form with its values, time of day and weekdays.
 
 ## Creating your own skill
 
-A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, optionally with settings and schedules.
+A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, optionally with settings, job templates for scheduled jobs and tools of its own in Starlark.
 
 **1. Create the folder.** Skills live in the skills directory, `skills/` next to Mira by default. Create a folder there. Its name is the skill's name: lower-case words with hyphens, such as `plants`. If Mira runs in a container, put a skills folder of your own into the folder `config` (`/etc/mira` in the container) and add it under `skills.dirs` in `mira.yaml`. The skills that come with Mira stay available.
 
@@ -823,7 +823,7 @@ def suche(thema, tage = 7):
 - **The docstring:** the text before `Args:` is the description the model reads. Under `Args:` each value with its type: `str`, `int`, `float`, `bool` or `list` (a list of texts). A value with a default is optional. Mira checks the model's values before the function runs.
 - **What a function can do:** `api.get(address, params = {...})` fetches from the service, with the connection's token and only to the addresses under `api` in the section `oauth`; Mira puts the values into the address correctly, leaves out `None`, makes a time an ISO time. The answer has `status`, `ok`, `text` and `json`. Besides there are `json`, `time`, `math`, the skill's settings as `settings` (only those that are not secret), `fail("…")` for a message to the model and `print(…)` for the log. Nothing else: no files, no other network.
 - **Writing:** `api.post`, `api.put`, `api.patch` and `api.delete` are only for tools the skill names under `tools:` → `writes:`; a writing tool asks first when third-party text came before, one under `confirm:` always asks.
-- **Limits:** a tool may run at most 60 seconds, each request 20.
+- **Limits:** a tool may run at most 60 seconds, each request 20. A call that needs more than 256 MB of memory ends; a tool's answer above 1 MB is refused.
 - **All the details** are in the "Reference: tools in Starlark" right after.
 - **Finding mistakes:** if something in `tools.star` is wrong, the skill does not start; **Repairs** and its page say in which line what is wrong. Under Capabilities → Skills → your skill → **Try it** you call a tool yourself and see every request with its address, status and the start of the answer, every output of `print`, and the line of an error. The log has a line for every request.
 
@@ -877,6 +877,7 @@ Not there: `load()`, files, any network but the addresses under `api`. As usual 
 **Requests**
 
 - The address must begin with `https` and lie below an entry of `api` that allows the method; otherwise nothing goes out and the tool ends with an error naming the address.
+- An address is refused the same way if its path has a part `.` or `..`, encoded dots or slashes (`%2e`, `%2f`, `%5c`) or a backslash: so a tool cannot leave the range under `api` through the path.
 - `params` go into the address: texts and numbers as they are, `True`/`False` as `true`/`false`, a time as an ISO time in UTC, a list as a repeated parameter (`id=a&id=b`), `None` not at all. Mira encodes everything correctly.
 - The answer has `status` (the number), `ok` (2xx), `text` (at most 2 MB) and `json` (the JSON read, `None` if it is none). A status of 400 or more is no error: the function decides what to make of it, with `fail` say.
 - A request that does not come about (no answer within 20 seconds, no connection) ends the tool with an error.
@@ -899,7 +900,7 @@ A tool under `writes` asks first when the conversation read third-party text bef
 
 **Limits**
 
-100,000 steps and 60 seconds per call of a tool, 20 seconds per request, 2 MB per answer of the service.
+100,000 steps, 60 seconds and 256 MB of memory per call of a tool, 20 seconds per request, 2 MB per answer of the service, 1 MB per answer of the tool. A call that needs more memory ends; a larger answer of the tool does not go to the model. The model gets either as an error, and the log says `starlark tool: memory limit reached` or `starlark tool: answer too large`.
 
 **When something is wrong**
 
@@ -1071,9 +1072,31 @@ Mira uses the calendars and to-do lists from Home Assistant that are exposed to 
 - "Put milk on the shopping list." – "Add batteries, due Friday." – "What's on the list?"
 - **To-dos with a due date:** "Put the tax return on my list, due Monday." Without a list named, Mira takes your own, the one named like you (as with the calendar), else your remembered default or the only one; she does not take other persons' lists. A list that cannot keep a due date (such as Home Assistant's shopping list) she does not take for it and names those that can; a local to-do list can. What is due today or overdue, the morning briefing tells you.
 
+## Music with Music Assistant
+
+"Play Queen in the kitchen." – "Take the music to the bathroom." – "Play this in the living room too." With Music Assistant, Mira becomes the music system for the whole house: the music goes with you from room to room, plays in several rooms at once and gets quieter while you talk to Mira.
+
+**What you need:** the Music Assistant integration in Home Assistant, with its players exposed to Assist (Settings → Voice assistants → Expose entities). Music plays only on these players. A satellite's speaker that Music Assistant does not know as a player cannot play music from Music Assistant.
+
+- **Playing:** "Play Queen in the kitchen." – "Play the album A Night at the Opera." If a room has several players, Mira takes one of them, or the one you name.
+- **Taking it along:** "Take the music to the kitchen." – "Bring the music here." – "Let the music go on here." The music goes on in the new room at the same place in the song and stops in the old one. Each room keeps its volume. If different music plays in several rooms, Mira takes the one from your room or asks which one you mean.
+- **In several rooms:** "Play this in the bathroom too." – "Put the music on everywhere." – "Take the bathroom out again." The rooms then play the same, each at its own volume. Fixed groups, such as two speakers that always play together, are set up in Music Assistant, not by voice.
+- **What comes next:** "Play Bohemian Rhapsody after this." – "Put that on the list." Mira adds it right after the song playing or at the end. While a radio station plays, it comes only when you say "next": a station does not end by itself.
+- **More of the same:** "Play more like this." – "Play something like Queen." After the song playing come similar songs that Music Assistant picks. This works with songs, not with a radio station.
+- **Jumping:** "Skip ahead 30 seconds." – "Go to the beginning." – "Jump to minute three." Not with a radio station.
+- Louder, quieter, pause and resume work like on any media player.
+
+**Quieter while you talk:** when you talk to a satellite, the Music Assistant players playing in its room go down to a third of their volume until the conversation is over, follow-up questions included; then they come back. If you say "louder" or "quieter" meanwhile, the new volume stays. Mira never lowers Echos and Shows with TECHO5 or EchoLocal: they get quieter by themselves while they listen. A satellite without an area lowers nothing. There is nothing to set up for it.
+
 ## Listening to the radio
 
-"Play SWR3." – "Turn on the radio in the living room." Mira searches the station in Home Assistant's Radio Browser, which is always there, and plays it on the room's speaker. The speaker has to be exposed to Assist (Settings → Voice assistants → Expose entities). If several stations fit, she names a few and asks which one. Louder, quieter and pause work like on any media player. A satellite with TECHO5 (version 1.6.16 or later) shows the station's name and logo and the song playing.
+"Play SWR3." – "Turn on the radio in the living room."
+
+**With Music Assistant** (its players exposed to Assist, see "Music with Music Assistant") a station plays like music through these players: you can take it along and hear it in several rooms.
+
+**Without Music Assistant** Mira searches the station in Home Assistant's Radio Browser, which is always there, and plays it on the room's speaker. The speaker has to be exposed to Assist (Settings → Voice assistants → Expose entities). If several stations fit, she names a few and asks which one. A satellite with TECHO5 (version 1.6.16 or later) shows the station's name and logo and the song playing.
+
+Louder, quieter and pause work either way like on any media player.
 
 ## Phone calls
 
@@ -1136,7 +1159,7 @@ From then on Mira keeps the sign-in fresh herself. If X refuses it once, say bec
 
 ## Sport from Strava
 
-Mira reads your activities from Strava: "How was my last ride?", "How far did I ride this week?", "How long is my streak?", "How many kilometres does my bike have?", "What are my best efforts?". She only reads, she enters nothing, and she remembers none of it; she looks again for every question. The streak counts the weeks in a row with at least one activity.
+Mira reads your activities from Strava: "How was my last ride?", "How far did I ride this week?", "How long is my streak?", "How many kilometres does my bike have?", "How many kilometres are on my running shoes?", "What are my best efforts?". She only reads, she enters nothing, and she remembers none of it; she looks again for every question. The streak counts the weeks in a row with at least one activity.
 
 **Good to know:** since June 2026 Strava no longer allows data from its interface to be given to an AI (except to its own access for Claude and Gemini). Mira cannot use that access, Strava does not admit her there. The skill therefore goes through a Strava app of your own, and you use it at your own risk: Strava could block the app.
 
@@ -1145,7 +1168,7 @@ Mira reads your activities from Strava: "How was my last ride?", "How far did I 
 2. Switch on the skill `strava`: Mira → Capabilities → Skills → strava → **Switch on**.
 3. Mira → Setup → **Connections**: enter the app's client ID and client secret, **Apply**, then **Connect**. Sign in at Strava and **Authorize**; leave every box ticked, including the one for activities.
 
-A new Strava app can read only your own account. The kilometres per bike count only activities that have the bike set as gear in Strava.
+A new Strava app can read only your own account. The kilometres per bike or shoe count only activities that have the bike or the shoe set as gear in Strava.
 
 ## What's on YouTube
 
@@ -1375,7 +1398,7 @@ The **Overview** shows four cards. Each says briefly what is going on and leads 
 
 - **Day to day**: **Messages** (see open and delivered ones and mark them done), **Tasks** (on/off, dry run, log, delete, "Edit in Home Assistant"), **Plans** (running step-by-step runs such as a recipe) and **Memory** (the house's and your own; edit, forget, export and import as a file).
 - **Setup**: **Satellites** and **People** (all of them from Home Assistant, with what Mira needs on top; see below), **Notifications** (quiet hours, pauses, escalation, confidential and urgent messages) and **Connections** (sign-ins at services that skills need, X for one).
-- **Capabilities**: **Skills** (which run, with settings, schedules and instructions), **Schedules** (what Mira does by herself and when, with the last run; see "Schedules"), **Agents** (Mira's own and yours, with model and who calls them, the latest runs below) and **Models** (which ones Mira uses; **Check now** sends a real small request and shows whether and how fast the model answers) and **Rules** (your own rules; see "Rules of your own").
+- **Capabilities**: **Skills** (which run, with settings, scheduled jobs and instructions; under **Try it** admins call one of the skill's tools themselves), **Schedules** (what Mira does by herself and when, with the last run; see "Schedules"), **Agents** (Mira's own and yours, with model and who calls them, the latest runs below) and **Models** (which ones Mira uses; **Check now** sends a real small request and shows whether and how fast the model answers) and **Rules** (your own rules; see "Rules of your own").
 - **Guide**: this page, with jumps to the main chapters.
 
 ![The overview: Day to day, Setup, Capabilities and Guide](img/mira-uebersicht-en.png)
@@ -1428,7 +1451,7 @@ What Mira needs beyond that is easiest to set in Mira's panel under **Satellites
 
 - **Settings for a satellite**: motion sensors (several too, such as hallway and living room), announce on entry, indicator (LED ring). The room is the satellite's area.
 - **Several satellites in one room** (two in a large living room, say): each has its own settings. What you asked for at a satellite, such as a reminder, Mira says there; the announcement on entry comes at the satellite whose motion sensor fired; everything else, such as a message for the room, at the **main satellite**. That is the one that was in the room first; the switch **Main satellite** makes another one it. Every ring and screen in the room shows what waits.
-- **A satellite without an area** has no room: you can talk to it, but Mira does not speak there on her own, and its ring shows nothing. Home Assistant shows a message for it under Settings → **Repairs**, with a link to the device; give it an area there and the message goes.
+- **A satellite without an area** has no room: you can talk to it, but Mira does not speak there on her own, its ring shows nothing, and Mira lowers no music while you talk to it. Home Assistant shows a message for it under Settings → **Repairs**, with a link to the device; give it an area there and the message goes.
 - **Settings for a person**: **channels** (notify targets, e.g. the Telegram chat of HA's Telegram integration and the companion app; personal messages go to the first that works), **take messages from** (everyone, persons only, nobody) and "Alone at home, the satellites are me".
 
 **Two kinds of notify entities:** **Mira House** and **Mira ‹person›** (`notify.mira_…`) are Mira's mailboxes. What arrives there becomes a message, and Mira decides how it gets delivered: spoken, shown or private, with quiet hours and importance. A person's **channels**, on the other hand, deliver directly, such as the Telegram chat or the companion app. Automations send to the mailboxes; as channels you enter such direct notify entities, and the choice there does not even offer Mira's own mailboxes.
@@ -1568,7 +1591,7 @@ The `mira` program has a few commands. In the container you call them with `dock
 | `mira run` | starts Mira (that runs in the container anyway) |
 | `mira check` | checks the settings and whether the models, Home Assistant and the MCP servers can be reached |
 | `mira reset` | deletes Mira's data (memory, messages, settings from Home Assistant, the AI model) at the next start; `mira.yaml` stays. Then Mira pairs like a new one, without a code |
-| `mira skill NAME` | runs a skill's schedule right away and shows what Mira would say; with several, a number after it picks one (from 0) |
+| `mira skill NAME` | runs one of the skill's scheduled jobs right away and shows what Mira would say; if the skill has several, a number after it picks one (from 0) |
 | `mira chat "…"` | one conversation turn in the terminal, without Home Assistant as the interface; `-channel voice` or `telegram`, `-session` for another turn in the same conversation |
 | `mira profile` | rebuilds the memory profile from the remembered facts |
 | `mira memory export [-o FILE]`, `mira memory import FILE [-yes]` | the memory as a file, as on the page; the command line sees every memory |

@@ -30,4 +30,7 @@ blueprints, automations and scripts there. Findings in these areas are especiall
 - the HTTP API between the integration and the service, and Mira's pages;
 - access tokens and partner tokens (stored as a hash, `X-Partner-User`, the routes they are refused), the `/v1/ha`
   routes, and the skill source's subscription key;
+- the Starlark tools of skills (`tools.star`): the sandbox they run in (a bound on steps, run time and memory, a
+  bounded answer, no `load`, no files, no network but the skill's service) and the connection's token, which goes
+  only to the addresses under the skill's `api`, never to a path that climbs up (`..`, encoded dots or slashes);
 - anything that lets a voice, a chat message, a web page or a skill make Mira act beyond what the user allowed.

@@ -89,9 +89,10 @@ its answer. Only local models are
 warmed up; a cloud model is billed per token, and each turn logs its model
 and token counts.
 
-Reminders: "remind me tomorrow at seven" and timers are built in
-(`reminder_set`). At the time Mira speaks the reminder in the room it was
-asked in, or sends it privately.
+Reminders: "remind me tomorrow at seven" is built in (`reminder_set`). At the
+time Mira speaks the reminder in the room it was asked in, or sends it
+privately. Timers are Home Assistant's own: Mira uses the tools Home Assistant
+gives its voice assistants, and the timer runs on the satellite.
 
 Messages are shown and spoken: per room, an indicator (such as an
 Echo's LED ring) pulses while messages wait, satellites with a screen
@@ -113,16 +114,19 @@ triggers and conditions decide when; the integration's actions `mira.assess`
 docs/spec/tasks.md and docs/system.md.
 
 Skills: folders under `skills/` with a `SKILL.md` in the Agent Skills format
-(frontmatter `name`, `description`; Mira's settings, calendars and schedules
-under `metadata.mira`). Enable them under `skills` with their
+(frontmatter `name`, `description`; Mira's settings, calendars and job
+templates (`jobs`) under `metadata.mira`). Enable them under `skills` with their
 settings (`enabled: false` switches one off). A skill that cannot start (a missing setting, a typo) is left out
 and Mira starts anyway: the log says in plain words what is wrong, and
 Home Assistant shows it under Repairs. The guide has a section on writing your own. The prompt lists them in one line each; Mira opens a skill with
 `skill_open` when a question needs it. Skills use the
 core's building blocks, such as `calendar_events`, which reads a skill's
-calendar by name so its URL never reaches a model. A skill's schedules run
-as background jobs and may queue one message. `mira skill NAME` runs a
-schedule now. The first skill, `abfall`, reads a waste collection calendar
+calendar by name so its URL never reaches a model. What a skill does at
+fixed times are scheduled jobs: made on the skill from its job templates, each
+with its own values and time, kept in `mira.yaml` under `skills.<skill>.jobs`;
+they run in the background and may queue one message. `mira skill NAME` runs a
+scheduled job now. A skill may bring its own tools in Starlark (`tools.star`)
+for a service's web API, with a connection's token. The first skill, `abfall`, reads a waste collection calendar
 and reminds the evening before. A skill may also bring Home Assistant
 blueprints: Mira makes automations and scripts from them in Home Assistant
 (a skill's script is a tool of that skill only, once it is opened). Skills
@@ -159,6 +163,12 @@ More, each explained in the guide ([de](docs/guide/de.md), [en](docs/guide/en.md
 - **Scheduled jobs**: what a skill does at fixed times is a job you make on
   the skill, with its own values and time (a YouTube list in the morning on
   other topics than in the evening).
+- **Music with Music Assistant**: music and radio play on Music Assistant's
+  players; "Nimm die Musik mit in die Küche" takes it along at the same place
+  in the song, "Spiel das auch im Bad" adds a room, and the queue ("Spiel
+  danach …"), more of the same ("Spiel mehr davon") and jumping within the
+  song ("Spring 30 Sekunden vor") work by voice. While a satellite listens,
+  the players playing in its room go down to a third.
 - **Access tokens**: other programs (a partner who looks after Mira for you)
   get a named token of their own; what each did is listed on Mira's page.
 - **Mira's interface**: described at `/v1/openapi.yaml`; with a token it also

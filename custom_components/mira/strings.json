@@ -482,7 +482,7 @@
     },
     "satellite_no_area": {
       "title": "Mira does not know where {name} stands",
-      "description": "{name} has no area in Home Assistant, so Mira knows no room for it. You can talk to it, but Mira does not speak there on her own, its ring shows nothing, and a timer or the radio there needs the room named.\n\n[Open {name}]({link}) and choose an area in its settings. This message disappears once it has an area."
+      "description": "{name} has no area in Home Assistant, so Mira knows no room for it. You can talk to it, but Mira does not speak there on her own, its ring shows nothing, a timer, the radio or music there needs the room named, and music in the room does not get quieter while you talk to it.\n\n[Open {name}]({link}) and choose an area in its settings. This message disappears once it has an area."
     },
     "backup_missing_unreachable": {
       "title": "Mira was not in the last backup",

@@ -26,8 +26,11 @@ not only how; often Home Assistant or an existing skill already has a piece of i
 
 Skills are the easiest way to add something: a folder under `skills/` with a `SKILL.md` that tells Mira what to do,
 with the tools she already has. It may bring Home Assistant blueprints, from which Mira makes
-automations and scripts. The guide explains the format (section "Creating your own skill",
-in German "Eigenen Skill erstellen"). Mira's bundled skills are written in German; a few (the quizzes, the
+automations and scripts; job templates for what it does at fixed times; its own tools in Starlark (`tools.star`), for
+a service's web API with a connection; an MCP server; or a program. The guide explains the format (section "Creating
+your own skill", in German "Eigenen Skill erstellen"), and the tools in the sections "A skill brings tools in
+Starlark" and "Reference: tools in Starlark" ("Ein Skill bringt Werkzeuge in Starlark mit", "Referenz: Werkzeuge in
+Starlark"). Mira's bundled skills are written in German; a few (the quizzes, the
 vocabulary test) also have an English `SKILL.en.md` next to them.
 
 ## A pull request
