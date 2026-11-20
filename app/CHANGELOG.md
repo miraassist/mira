@@ -3,6 +3,15 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.29.0
+
+- **Music with Music Assistant.** "Nimm die Musik mit in die Küche", "Spiel das auch im Bad", "Spiel danach Bohemian
+  Rhapsody", "Spiel mehr davon", "Spring 30 Sekunden vor". Radio plays through Music Assistant too where it has
+  players, so it can be taken along as well. While you talk to a satellite, other music in its room goes quieter.
+- **Skills bring tools in Starlark** for a service's web API, tried out on Mira's page. New skill `youtube`.
+- **Scheduled jobs.** A skill's jobs (when, for whom, on which topics) are set up on its entry under **Geplante
+  Aufträge**; existing schedules keep working.
+
 ## 0.28.0
 
 - **Shopping at REWE** (skill `rewe`, German). "Bestell den Einkaufszettel bei REWE": Mira fills a basket from the
