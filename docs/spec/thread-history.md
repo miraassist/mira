@@ -1,6 +1,6 @@
 # The thread's history – Spec
 
-Status 2026-11-16: decided (decisions 1 to 8); steps 1 to 3 built (not released); the run at the Show (step 4) is open. Builds on [Threads](threads.md) (Assignment) and
+Status 2026-11-16: decided (decisions 1 to 8); steps 1 to 3 built (released); the run at the Show (step 4) is open. Builds on [Threads](threads.md) (Assignment) and
 [Context](context.md) (History and thread). Terms: [Glossary](../glossary.md), Conversation. Scenarios:
 [thread-history.feature](thread-history.feature).
 

@@ -1,6 +1,6 @@
 # Mira's inbox – Spec
 
-Status 2026-11-13: steps 1 to 4 and 6 to 9 built and released in 0.23.0; step 8 changed on 2026-11-12 to knowing a mail by its hash (decision 24); step 9 is the model writing the plan, entering through the calendar's tool (decision 28); of step 5 the guide's text is written and released, the end-to-end test is open. Step 10 (kinds by meaning, decision 29) built 2026-11-15, not released; guide updated (de/en); several things in one answer go in one round since decision 34. Scenarios: [inbox.feature](inbox.feature).
+Status 2026-11-13: steps 1 to 4 and 6 to 9 built and released in 0.23.0; step 8 changed on 2026-11-12 to knowing a mail by its hash (decision 24); step 9 is the model writing the plan, entering through the calendar's tool (decision 28); of step 5 the guide's text is written and released, the end-to-end test is open. Step 10 (kinds by meaning, decision 29) built 2026-11-15, released; guide updated (de/en); several things in one answer go in one round since decision 34. Scenarios: [inbox.feature](inbox.feature).
 First source: Paperless-ngx; first kind of finding: appointments.
 
 ## Goal

@@ -1,6 +1,6 @@
 # Compatibility with Home Assistant – Spec
 
-Status 2026-11-05: step 1 built, not released. Scenarios: [ha-compat.feature](ha-compat.feature).
+Status 2026-11-05: step 1 built, released. Scenarios: [ha-compat.feature](ha-compat.feature).
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Access tokens – Spec
 
-Status 2026-11-16: steps 1 to 4 built (not released). Scenarios:
+Status 2026-11-16: steps 1 to 4 built (released). Scenarios:
 [access-tokens.feature](access-tokens.feature).
 
 ## Goal

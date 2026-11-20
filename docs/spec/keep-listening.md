@@ -1,6 +1,6 @@
 # When the satellite keeps listening – Spec
 
-Status 2026-11-11: built (steps 1 and 2), not released: the mark in the turn's state, the fourth source in the engine, and the answers of Matter, Zigbee and the room that carry it. Scenarios: [keep-listening.feature](keep-listening.feature).
+Status 2026-11-11: built (steps 1 and 2), released: the mark in the turn's state, the fourth source in the engine, and the answers of Matter, Zigbee and the room that carry it. Scenarios: [keep-listening.feature](keep-listening.feature).
 
 ## Goal
 

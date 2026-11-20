@@ -1,6 +1,6 @@
 # Always a warm slot for local models – Spec
 
-Status 2026-11-08: built (steps 1 to 3, in 0.15.2; step 4, the reading at the start, 2026-11-08, not released), checked on the test machine; the guide explains it under "Several models". Scenarios: [warm-slot.feature](warm-slot.feature).
+Status 2026-11-08: built (steps 1 to 3, in 0.15.2; step 4, the reading at the start, 2026-11-08, released), checked on the test machine; the guide explains it under "Several models". Scenarios: [warm-slot.feature](warm-slot.feature).
 
 ## Goal
 

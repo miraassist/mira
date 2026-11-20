@@ -1,6 +1,6 @@
 # To-dos with a due date – spec
 
-Status 2026-11-15: decided (decisions 1 to 10); steps 2 to 5 built (not released), step 1 dropped; step 3 with the inbox's step 10. Builds on [Calendars and to-do lists](calendar.md) (the to-do lists, the
+Status 2026-11-15: decided (decisions 1 to 10); steps 2 to 5 built (released), step 1 dropped; step 3 with the inbox's step 10. Builds on [Calendars and to-do lists](calendar.md) (the to-do lists, the
 skill `todo`, the calendar's one building block as the model), [Mira's inbox](inbox.md) (section 8, kinds by meaning)
 and the skill `briefing`. Terms: [Glossary](../glossary.md), Calendars and lists. Scenarios: [todo-due.feature](todo-due.feature).
 

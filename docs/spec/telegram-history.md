@@ -1,6 +1,6 @@
 # The chat's history – Spec
 
-Status 2026-11-19: decided (decisions 1 to 7); steps 1 to 5 built and run on the test HA (not released). Builds on
+Status 2026-11-19: decided (decisions 1 to 7); steps 1 to 5 built and run on the test HA (released). Builds on
 [The thread's history](thread-history.md), [Channels](channels.md) (Telegram via Home Assistant) and
 [Context](context.md) (History). Terms: [Glossary](../glossary.md), Conversation. Scenarios:
 [telegram-history.feature](telegram-history.feature).

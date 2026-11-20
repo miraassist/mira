@@ -1,7 +1,7 @@
 # Flight status – spec
 
 Status 2026-11-18: step 1 built (the skill `flug`, its landing automation, the script in the guide), step 2 run on
-the test HA with real flights; step 3 built (the skill brings its script; the delay named); not released. Scenarios: [flight-status.feature](flight-status.feature).
+the test HA with real flights; step 3 built (the skill brings its script; the delay named); released. Scenarios: [flight-status.feature](flight-status.feature).
 
 ## Goal
 

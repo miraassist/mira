@@ -1,6 +1,6 @@
 # Ending a plan on the page – Spec
 
-Status 2026-11-08: steps 1 and 2 built (not released). Scenarios: [plan-end.feature](plan-end.feature).
+Status 2026-11-08: steps 1 and 2 built (released). Scenarios: [plan-end.feature](plan-end.feature).
 
 ## Goal
 

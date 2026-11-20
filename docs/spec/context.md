@@ -1,6 +1,6 @@
 # Context – Spec
 
-Status 2026-11-05: built in 0.6.9; device part of HA's prompt (section 1.1) in 0.6.48; without HA's prompt an error (section 1.2), built, not released; a list of exposed entities rebuilds the house at once (section 1.3), built, not released; the companion app and every other asking device in the comparison (section 1.1, 2026-11-14), built, not released. Applies to all channels. See also [Threads](threads.md) and [Channels](channels.md).
+Status 2026-11-05: built in 0.6.9; device part of HA's prompt (section 1.1) in 0.6.48; without HA's prompt an error (section 1.2), built, released; a list of exposed entities rebuilds the house at once (section 1.3), built, released; the companion app and every other asking device in the comparison (section 1.1, 2026-11-14), built, released. Applies to all channels. See also [Threads](threads.md) and [Channels](channels.md).
 
 The **context** is everything the model sees with a request. Mira does two things with it:
 - **Composition**: what goes into the context window in which order;

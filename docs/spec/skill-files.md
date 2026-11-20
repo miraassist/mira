@@ -1,7 +1,7 @@
 # Skill files – Spec
 
 Status 2026-11-18: specified; steps 1 to 3 built 2026-11-16, step 4 (the guide) written 2026-11-18; step 5 (skill scripts) built
-2026-11-18, not released. Decisions 1 to 4 by the
+2026-11-18, released. Decisions 1 to 4 by the
 maintainer; 5 to 16 taken while writing and confirmed by him the same day. The testable rules are numbered scenarios in
 [skill-files.feature](skill-files.feature); each Go test for one carries the number in its name (`TestSB03_…`).
 

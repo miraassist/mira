@@ -1,6 +1,6 @@
 # A schedule for one person – Spec
 
-Status 2026-11-09: steps 1 and 2 built (not released). Scenarios: [schedule-receiver.feature](schedule-receiver.feature).
+Status 2026-11-09: steps 1 and 2 built (released). Scenarios: [schedule-receiver.feature](schedule-receiver.feature).
 
 ## Goal
 

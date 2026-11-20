@@ -1,6 +1,6 @@
 # Speaking while the answer is written – Spec
 
-Status 2026-11-18: built (steps 1 to 7, in 0.15.2; step 8 built, not released; steps 10 to 12 built 2026-11-18, not released); all rows of the state table checked except row 15 at the real Show. Scenarios: [streaming.feature](streaming.feature).
+Status 2026-11-18: built (steps 1 to 7, in 0.15.2; step 8 built, released; steps 10 to 12 built 2026-11-18, released); all rows of the state table checked except row 15 at the real Show. Scenarios: [streaming.feature](streaming.feature).
 
 ## Goal
 

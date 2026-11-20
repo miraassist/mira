@@ -1,6 +1,6 @@
 # Retries – Spec
 
-Status 2026-11-11: steps 1 to 6 built, not released; step 7 run on the test Mira except a channel that is down. Scenarios: [retry.feature](retry.feature).
+Status 2026-11-11: steps 1 to 6 built, released; step 7 run on the test Mira except a channel that is down. Scenarios: [retry.feature](retry.feature).
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Models
 
-Status: steps 1 to 7 built (step 6, a failing model said and shown: 2026-11-07; step 7, warming up on the page: 2026-11-08; both not released). Scenarios:
+Status: steps 1 to 7 built (step 6, a failing model said and shown: 2026-11-07; step 7, warming up on the page: 2026-11-08; both released). Scenarios:
 [models.feature](models.feature).
 
 ## Goal

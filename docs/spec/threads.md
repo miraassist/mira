@@ -2,7 +2,7 @@
 
 What the model sees of the conversation (the thread carries the concern, the history only the back-reference, the same for voice and chat) is described in [Context](context.md).
 
-Status 2026-10-15: built (service 0.4.0); "Started by code, with fields" built 2026-11-15 (not released). Applies to [tasks](tasks.md) and upcoming concerns
+Status 2026-10-15: built (service 0.4.0); "Started by code, with fields" built 2026-11-15 (released). Applies to [tasks](tasks.md) and upcoming concerns
 such as calendar or messages to others ([users](users.md)).
 
 ## Why

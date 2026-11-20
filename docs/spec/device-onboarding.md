@@ -1,6 +1,6 @@
 # Adding a device by voice: Zigbee and Matter – Spec
 
-Status 2026-11-11: steps 1 to 5 built (not released): the fake Zigbee2MQTT, the state table checked against it, the
+Status 2026-11-11: steps 1 to 5 built (released): the fake Zigbee2MQTT, the state table checked against it, the
 tools and the wait in the service, the skill, run end to end at the fake Show, the guide, and the real run against
 a household's Zigbee2MQTT (a new sensor added, the same sensor paired again). Step 6, ZHA, built against Home
 Assistant's source; its real run is open. Step 7, Matter over Wi-Fi, is built (2026-11-11, DV-20 to DV-29): its

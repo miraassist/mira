@@ -1,6 +1,6 @@
 # Home Assistant through Mira's interface – Spec
 
-Status 2026-11-16: steps 1 and 2 built (not released). Decisions 1 to 3, 10 and 11 by the maintainer, the others taken
+Status 2026-11-16: steps 1 and 2 built (released). Decisions 1 to 3, 10 and 11 by the maintainer, the others taken
 while writing, to be confirmed. Scenarios: [ha-api.feature](ha-api.feature) (`HE-…`).
 
 ## Goal

@@ -1,8 +1,8 @@
 # Group watch – Spec
 
 Status 2026-11-13: specified (decisions 1 to 20); steps 1 to 5 built 2026-11-13 (decisions 21 and on taken while building,
-to be confirmed by the maintainer), not released. The battery watch and the availability watch (decisions 36 to 47,
-taken without the maintainer, to be confirmed) specified 2026-11-13, steps 6 to 8 built 2026-11-13, not released. It builds on the
+to be confirmed by the maintainer), released. The battery watch and the availability watch (decisions 36 to 47,
+taken without the maintainer, to be confirmed) specified 2026-11-13, steps 6 to 8 built 2026-11-13, released. It builds on the
 [Device watch](device-watch.md). Scenarios: [group-watch.feature](group-watch.feature).
 
 ## Goal

@@ -1,6 +1,6 @@
 # Connections (OAuth) – spec
 
-Status 2026-11-04: steps 1–5 built, not released; run on the test HA, the sign-in at X included (see Steps). Scenarios: [oauth.feature](oauth.feature).
+Status 2026-11-04: steps 1–5 built, released; run on the test HA, the sign-in at X included (see Steps). Scenarios: [oauth.feature](oauth.feature).
 
 ## Goal
 

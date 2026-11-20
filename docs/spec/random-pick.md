@@ -1,6 +1,6 @@
 # Random pick – Spec
 
-Status 2026-11-07: steps 1 and 2 built (not released): the tool `random_pick`, the axes in the skill's
+Status 2026-11-07: steps 1 and 2 built (released): the tool `random_pick`, the axes in the skill's
 frontmatter, and the skills `quiz`, `vokabeln`, `musikquiz` and `geschichte` with their axes, as a trial. Step 3
 open. Changed after the trial on the test HA (2026-11-07): the vocabulary draws once per round, the quiz no age,
 the music quiz only year and origin (The skills, below). Scenarios: [random-pick.feature](random-pick.feature).

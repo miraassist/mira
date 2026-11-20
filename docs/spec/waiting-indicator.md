@@ -1,6 +1,6 @@
 # Showing that Mira waits – Spec
 
-Status 2026-11-10: steps 1 to 4 built (not released), `internal/waiting`; every row of the state table checked on the
+Status 2026-11-10: steps 1 to 4 built (released), `internal/waiting`; every row of the state table checked on the
 real Show and the Dot 2; the run through Mira at a real satellite is open. Scenarios: [waiting-indicator.feature](waiting-indicator.feature).
 
 ## Goal

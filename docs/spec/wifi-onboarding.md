@@ -1,6 +1,6 @@
 # Bringing a Wi-Fi device into the Wi-Fi by voice – Spec
 
-Status 2026-11-10: steps 2 and 3 built against fakes (not released): NetworkManager and the Supervisor, the four families, the tools and the thread handing over to the found devices; NetworkManager's API checked read-only on a desktop. A Tasmota bulb, a Shelly 1 (Gen1) and a Shelly Plus 1PM Mini (Gen2) taken in end to end 2026-11-10 (step 1); ESPHome and WLED are open. Step 5 (a connected Wi-Fi Home Assistant does not run over) built 2026-11-10. Scenarios:
+Status 2026-11-10: steps 2 and 3 built against fakes (released): NetworkManager and the Supervisor, the four families, the tools and the thread handing over to the found devices; NetworkManager's API checked read-only on a desktop. A Tasmota bulb, a Shelly 1 (Gen1) and a Shelly Plus 1PM Mini (Gen2) taken in end to end 2026-11-10 (step 1); ESPHome and WLED are open. Step 5 (a connected Wi-Fi Home Assistant does not run over) built 2026-11-10. Scenarios:
 [wifi-onboarding.feature](wifi-onboarding.feature).
 
 ## Goal

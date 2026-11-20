@@ -1,6 +1,6 @@
 # Silent fallbacks – Spec
 
-Status 2026-11-05: steps 1 to 3 built, not released; step 4 to decide; step 5 (FB-13 to FB-28) and step 6 (FB-29) built, not released. Scenarios: [fallbacks.feature](fallbacks.feature).
+Status 2026-11-05: steps 1 to 3 built, released; step 4 to decide; step 5 (FB-13 to FB-28) and step 6 (FB-29) built, released. Scenarios: [fallbacks.feature](fallbacks.feature).
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Device watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 9 built 2026-11-13 (decisions 22 to 57 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
+Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 9 built 2026-11-13 (decisions 22 to 57 taken while building, to be confirmed), released. Scenarios: [device-watch.feature](device-watch.feature). First part
 of "Mira watches over the house": a **device watch** watches one device against its own normal, learned from its
 history. A **group watch** watches a group of sensors against a rule for a situation (lights left on, windows open,
 motion while nobody is home, the checks at occasions): [Group watch](group-watch.md), specified later. "Wie geht's

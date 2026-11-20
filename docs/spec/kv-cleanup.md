@@ -1,6 +1,6 @@
 # Cleaning up the key-value table – Spec
 
-Status 2026-11-13: steps 1 and 2 built (not released): the dead keys, the description in [Database](../database.md) with its test, the log line, the five tables with their rows carried over; checked on the test Mira's own database (healthy, the page's last runs and the languages as before, one gone device forgotten). Scenarios: [kv-cleanup.feature](kv-cleanup.feature).
+Status 2026-11-13: steps 1 and 2 built (released): the dead keys, the description in [Database](../database.md) with its test, the log line, the five tables with their rows carried over; checked on the test Mira's own database (healthy, the page's last runs and the languages as before, one gone device forgotten). Scenarios: [kv-cleanup.feature](kv-cleanup.feature).
 
 ## Goal
 
