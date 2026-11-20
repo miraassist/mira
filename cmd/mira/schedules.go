@@ -179,6 +179,13 @@ func (s schedules) Change(ctx context.Context, skill, name string, c ui.Schedule
 	if c.Enabled != nil {
 		off = !*c.Enabled
 	}
+	var tpls []skills.JobTemplate
+	if sys == nil {
+		var err error
+		if _, tpls, err = a.skillFile(skill); err != nil {
+			return err
+		}
+	}
 	err := a.edit.editFile(func(top *yaml.Node) error {
 		if sys != nil {
 			if cron != "" {
@@ -190,6 +197,24 @@ func (s schedules) Change(ctx context.Context, skill, name string, c ui.Schedule
 		entry := config.MapGet(entries, skill)
 		if entry == nil || entry.Kind != yaml.MappingNode {
 			entry = &yaml.Node{Kind: yaml.MappingNode}
+		}
+		// The time of a scheduled job goes under jobs (docs/spec/scheduled-jobs.md);
+		// only a schedule of before without a name keeps the old way.
+		if err := a.moveSchedules(entry, skill, tpls); err == nil {
+			one := config.MapGet(config.MapGet(entry, config.SkillJobs), name)
+			if one == nil || one.Kind != yaml.MappingNode {
+				return fmt.Errorf("the skill %s has no scheduled job %q in mira.yaml", skill, name)
+			}
+			if cron != "" {
+				config.MapSet(one, skills.JobCronKey, &yaml.Node{Kind: yaml.ScalarNode, Value: cron, Style: yaml.DoubleQuotedStyle})
+			}
+			if off {
+				config.MapSet(one, config.SkillOn, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "false"})
+			} else {
+				config.MapDelete(one, config.SkillOn)
+			}
+			config.MapSet(entries, skill, entry)
+			return nil
 		}
 		list := config.MapGet(entry, config.SkillSchedules)
 		if list == nil || list.Kind != yaml.MappingNode {

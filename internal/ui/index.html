@@ -75,6 +75,7 @@ table.facts th { width: 11em; }
 .setup-field input[type=text], .setup-field input[type=number] { flex: 1; min-width: 12em; }
 .setup-answer { font-size: 13px; margin-top: 6px; overflow-wrap: anywhere; }
 .try-ev { margin: 6px 0; font-size: 13px; }
+.job-line { margin: 8px 0; padding-bottom: 6px; border-bottom: 1px solid var(--divider-color, #ddd); }
 .try-url { font-family: monospace; overflow-wrap: anywhere; }
 .try-result pre.setup-answer { max-height: 20em; overflow: auto; white-space: pre-wrap; }
 main { max-width: 940px; margin: 0 auto; padding: 20px 16px 48px; }
@@ -830,6 +831,10 @@ const I18N = {
   "cat_program": "Programm", "cat_program_loading": "wird geladen", "cat_data_dir": "Ordner des Skills",
   "setup_head": "Einrichten", "setup_hint": "Nur für Admins: Diese Schritte richten das Programm des Skills ein. Ein Modell bekommt sie nie.",
   "setup_offline": "Das Programm ist noch nicht verbunden; die Felder kommen, sobald es läuft.", "setup_empty": "nichts",
+  "job_head": "Geplante Aufträge", "job_hint": "Was der Skill zu festen Zeiten tut. Änderungen gelten nach einem Neustart von Mira; die Uhrzeit lässt sich auch unter Zeitplan ändern, sofort.",
+  "job_none": "Noch kein geplanter Auftrag.", "job_new": "Neuer Auftrag", "job_delete": "Löschen", "job_template": "Vorlage",
+  "job_name": "Name", "job_name_hint": "z. B. morgens", "job_cron_only": c => `Die Zeit (${c}) lässt sich nur in der mira.yaml ändern.`,
+  "job_delete_confirm": n => `Den Auftrag „${n}“ löschen?`,
   "try_head": "Ausprobieren", "try_hint": "Nur für Admins: Ruf ein Werkzeug des Skills selbst auf und sieh, was an den Dienst ging und was zurückkam.",
   "try_run": "Ausführen", "try_writes": "schreibt", "try_default": "sonst", "try_requests": "Anfragen und Ausgaben", "try_answer": "Antwort",
   "try_writes_confirm": n => `${n} schreibt beim Dienst. Wirklich ausführen?`,
@@ -1378,6 +1383,10 @@ const I18N = {
   "cat_program": "Program", "cat_program_loading": "being downloaded", "cat_data_dir": "The skill's folder",
   "setup_head": "Set up", "setup_hint": "Admins only: these steps set up the skill's program. A model never gets them.",
   "setup_offline": "The program is not connected yet; the fields come once it runs.", "setup_empty": "nothing",
+  "job_head": "Scheduled jobs", "job_hint": "What the skill does at fixed times. Changes hold after Mira's restart; the time can also be changed under Schedule, at once.",
+  "job_none": "No scheduled job yet.", "job_new": "New job", "job_delete": "Delete", "job_template": "Template",
+  "job_name": "Name", "job_name_hint": "e.g. morning", "job_cron_only": c => `The time (${c}) can only be changed in mira.yaml.`,
+  "job_delete_confirm": n => `Delete the job "${n}"?`,
   "try_head": "Try it", "try_hint": "Admins only: call one of the skill's tools yourself and see what went to the service and what came back.",
   "try_run": "Run", "try_writes": "writes", "try_default": "otherwise", "try_requests": "Requests and output", "try_answer": "Answer",
   "try_writes_confirm": n => `${n} writes to the service. Run it?`,

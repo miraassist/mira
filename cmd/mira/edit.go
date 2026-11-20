@@ -555,11 +555,28 @@ func (e *editor) SaveSkill(ctx context.Context, name string, s ui.SkillEdit) err
 		}
 		writeSkill = true
 	}
+	// Its job templates: switching it on writes its first jobs, and every
+	// write moves schedules of before into jobs (docs/spec/scheduled-jobs.md).
+	tpls, tplErr := f.Templates()
 	err = e.change(secrets, func(top *yaml.Node) error {
 		entries := config.MapChild(top, "skills")
 		values := config.MapGet(entries, name)
+		wasOff := values == nil || values.Kind != yaml.MappingNode
 		if values == nil || values.Kind != yaml.MappingNode {
 			values = &yaml.Node{Kind: yaml.MappingNode}
+		}
+		if on := config.MapGet(values, config.SkillOn); on != nil && on.Value == "false" {
+			wasOff = true
+		}
+		if tplErr == nil {
+			if s.Enabled && wasOff && !slices.Contains(alwaysOn(), name) {
+				firstJobsNode(values, tpls)
+			}
+			if config.MapGet(values, config.SkillSchedules) != nil {
+				if err := e.a.moveSchedules(values, name, tpls); err != nil {
+					e.a.log.Warn("schedules of before not moved to jobs; they stay as they are", "skill", name, "error", err)
+				}
+			}
 		}
 		// Off keeps the settings; on is the default, so it is no line.
 		if s.Enabled {

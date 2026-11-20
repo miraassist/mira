@@ -2411,6 +2411,8 @@ paths:
                                 type: boolean
                               set:
                                 type: boolean
+                              required:
+                                type: boolean
                             required:
                               - name
                               - set
@@ -2535,6 +2537,79 @@ paths:
                                 type: boolean
                             required:
                               - name
+                        templates:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              key:
+                                type: string
+                              description:
+                                type: string
+                              per_person:
+                                type: boolean
+                              parameters:
+                                type:
+                                  - "null"
+                                  - array
+                                items:
+                                  type: object
+                                  properties:
+                                    name:
+                                      type: string
+                                    description:
+                                      type: string
+                                    value:
+                                      type: string
+                                    secret:
+                                      type: boolean
+                                    set:
+                                      type: boolean
+                                    required:
+                                      type: boolean
+                                  required:
+                                    - name
+                                    - set
+                            required:
+                              - key
+                        jobs:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              template:
+                                type: string
+                              cron:
+                                type: string
+                              time:
+                                type: string
+                              days:
+                                type:
+                                  - "null"
+                                  - array
+                                items:
+                                  type: integer
+                              enabled:
+                                type: boolean
+                              params:
+                                type: object
+                                additionalProperties:
+                                  type: string
+                              problem:
+                                type: string
+                              next:
+                                type: string
+                            required:
+                              - name
+                              - template
+                              - cron
+                              - enabled
                         program:
                           type:
                             - "null"
@@ -6289,6 +6364,148 @@ paths:
                 $ref: '#/components/schemas/Error'
         "409":
           description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/skills/{skill}/jobs/{name}:
+    delete:
+      tags:
+        - page
+      summary: Delete a skill's scheduled job from mira.yaml (after a restart)
+      operationId: deleteV1UiSkillsSkillJobsName
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: boolean
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - page
+      summary: Make or change a skill's scheduled job in mira.yaml (after a restart)
+      operationId: putV1UiSkillsSkillJobsName
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template:
+                  type: string
+                time:
+                  type: string
+                days:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: integer
+                enabled:
+                  type: boolean
+                params:
+                  type: object
+                  additionalProperties:
+                    type: string
+              required:
+                - template
+                - time
+                - days
+                - enabled
+                - params
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: boolean
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
           content:
             application/json:
               schema:

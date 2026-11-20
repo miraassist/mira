@@ -583,7 +583,13 @@ func (r *Runner) task(ctx context.Context, sk Skill, index int, p Person) (bool,
 	}
 	now := r.Set.clock()
 	// One message per job, day (and person): a rerun updates it.
-	dedupe := fmt.Sprintf("skill:%s:%d:%s", sk.Name, index, now.In(r.Set.loc()).Format("2006-01-02"))
+	// By the job's name, so that the order of the jobs in mira.yaml does not
+	// matter; a schedule without a name by its place.
+	which := fmt.Sprint(index)
+	if n := sk.Schedules[index].Name; n != "" {
+		which = n
+	}
+	dedupe := fmt.Sprintf("skill:%s:%s:%s", sk.Name, which, now.In(r.Set.loc()).Format("2006-01-02"))
 	receiver, confidentiality := store.ReceiverHouse, store.ConfidentialityNormal
 	if p.Key != "" {
 		dedupe += ":" + p.Key

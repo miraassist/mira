@@ -100,8 +100,12 @@ type SkillInfo struct {
 	Setup []SetupInfo `json:"setup,omitempty"`
 	// Tools are the skill's Starlark tools (docs/spec/api-tools.md), for
 	// "Ausprobieren".
-	Tools   []ToolInfo   `json:"tools,omitempty"`
-	Program *ProgramInfo `json:"program,omitempty"`
+	Tools []ToolInfo `json:"tools,omitempty"`
+	// Templates and Jobs are the skill's job templates and scheduled jobs
+	// (docs/spec/scheduled-jobs.md).
+	Templates []TemplateInfo `json:"templates,omitempty"`
+	Jobs      []JobInfo      `json:"jobs,omitempty"`
+	Program   *ProgramInfo   `json:"program,omitempty"`
 	// DataDir is the skill's own folder.
 	DataDir string `json:"data_dir,omitempty"`
 	// Connection is the state of the skill's login at a service (none,
@@ -132,6 +136,8 @@ type SettingInfo struct {
 	Value       string `json:"value,omitempty"`
 	Secret      bool   `json:"secret,omitempty"`
 	Set         bool   `json:"set"`
+	// Required: a template's parameter that a job must have.
+	Required bool `json:"required,omitempty"`
 }
 
 // ScheduleInfo is a skill's schedule with its next run.

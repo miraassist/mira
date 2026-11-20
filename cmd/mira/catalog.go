@@ -202,6 +202,7 @@ func (a *app) skillInfo(sk skills.Skill) ui.SkillInfo {
 		}
 		info.Schedules = append(info.Schedules, si)
 	}
+	a.jobsInfo(sk, scheds, &info)
 	if t := sk.Target; t != nil {
 		ti := &ui.TargetInfo{Plan: t.Plan, Agent: t.Agent, Confirm: t.Confirm, Timeout: t.TimeoutDuration().String()}
 		switch {

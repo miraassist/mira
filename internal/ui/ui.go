@@ -123,6 +123,8 @@ type Options struct {
 	// Try runs a skill's Starlark tool for an admin ("Ausprobieren",
 	// docs/spec/api-tools.md, decision 11).
 	Try Try
+	// Jobs writes a skill's scheduled jobs (docs/spec/scheduled-jobs.md).
+	Jobs Jobs
 	// Tokens are the named access tokens (docs/spec/access-tokens.md); nil
 	// without them.
 	Tokens Tokens
@@ -193,6 +195,8 @@ func New(opts Options) *Handler {
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/voice/{person}/assign", Summary: "Assign a heard sample to a person", Request: VoiceAssign{}, Response: OK{}, Errors: []int{400, 403, 404, 409, 502}}), h.authAnyone(h.assign))
 	// The stored agent runs, for debugging (agents.go).
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/catalog", Summary: "The skills, agents and models", Response: Catalog{}, Errors: []int{403}}), h.auth(h.catalog))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/skills/{skill}/jobs/{name}", Summary: "Make or change a skill's scheduled job in mira.yaml (after a restart)", Request: JobEdit{}, Response: map[string]bool{}, Errors: []int{400, 403, 422, 503}}), h.auth(h.saveJob))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/skills/{skill}/jobs/{name}", Summary: "Delete a skill's scheduled job from mira.yaml (after a restart)", Response: map[string]bool{}, Errors: []int{403, 404, 422, 503}}), h.auth(h.deleteJob))
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/skills/{skill}/tools/{tool}/try", Summary: "Try a skill's Starlark tool and see what went over the wire (admins only)", Request: TryCall{}, Response: TryResult{}, Errors: []int{400, 403, 404, 503}}), h.auth(h.tryTool))
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/skills/{skill}/setup/{tool}", Summary: "Call a skill's setup tool (admins only, never a model)", Request: SetupCall{}, Response: SetupResult{}, Errors: []int{400, 403, 404, 502, 503}}), h.auth(h.callSetup))
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/schedules", Summary: "The skills' and Mira's jobs at a time", Response: ScheduleList{}, Errors: []int{403, 500, 503}}), h.auth(h.schedules))

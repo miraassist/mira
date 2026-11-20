@@ -392,8 +392,86 @@ function openSkill(name) { skillFocus = name; go("skills"); }
 class MiraSkills extends EditPage {
   static properties = { ...EditPage.properties, busy: { state: true }, switchError: { state: true },
     setupVals: { state: true }, setupRes: { state: true }, setupBusy: { state: true },
-    tryRes: { state: true } };
-  constructor() { super(); this.setupVals = {}; this.setupRes = {}; this.setupBusy = null; this.tryRes = {}; }
+    tryRes: { state: true }, jobForm: { state: true }, jobError: { state: true } };
+  constructor() { super(); this.setupVals = {}; this.setupRes = {}; this.setupBusy = null; this.tryRes = {}; this.jobForm = {}; this.jobError = {}; }
+  // "Geplante Aufträge" (docs/spec/scheduled-jobs.md): the skill's scheduled
+  // jobs with their time, switch, parameters and problem; a form to make one
+  // from a template or to change one. A change holds after a restart.
+  jobs(s) {
+    const form = this.jobForm[s.name], err = this.jobError[s.name];
+    const tpl = k => (s.templates || []).find(t => t.key === k);
+    const line = j => {
+      const t = tpl(j.template);
+      const params = Object.entries(j.params || {}).map(([k, v]) => html` · <code>${k}</code> ${v}`);
+      return html`<div class="job-line">
+        <strong>${j.name}</strong> · ${cronWords(j.cron)}${j.enabled ? (j.next ? html` · ${T.cat_next} ${j.next}` : nothing) : html` · ${badge(T.sch_off, true)}`}
+        ${t && t.description ? html`<span class="hint"> · ${t.description}</span>` : nothing}${params}
+        ${j.problem ? html`<div class="msg err">${j.problem}</div>` : nothing}
+        <div class="actions left">
+          <button class="secondary" @click=${e => { e.preventDefault(); this.openJob(s, j); }}>${T.sch_change}</button>
+          <button class="secondary" ?disabled=${!!j.problem} @click=${e => { e.preventDefault(); this.runJob(s, j); }}>${buttonIcon("run")}${T.sch_run_now}</button>
+          <button class="secondary" @click=${e => { e.preventDefault(); this.deleteJob(s, j); }}>${T.job_delete}</button></div></div>`;
+    };
+    return html`<div class="setup"><h4>${T.job_head}</h4><p class="hint">${T.job_hint}</p>
+      ${(s.jobs || []).length ? s.jobs.map(line) : html`<p class="hint">${T.job_none}</p>`}
+      ${err ? html`<p class="msg err">${err}</p>` : nothing}
+      ${form ? this.jobFormView(s, form) : (s.templates || []).length ? html`<div class="actions left">
+        <button class="secondary" @click=${e => { e.preventDefault(); this.openJob(s, null); }}>${T.job_new}</button></div>` : nothing}</div>`;
+  }
+  openJob(s, j) {
+    const t0 = (s.templates || [])[0] || {};
+    const f = j ? { old: j.name, name: j.name, template: j.template, time: j.time || "07:00", days: j.days || [0, 1, 2, 3, 4, 5, 6],
+        enabled: j.enabled, params: { ...(j.params || {}) }, cron: j.time ? "" : j.cron }
+      : { old: "", name: "", template: t0.key || "", time: "07:00", days: [0, 1, 2, 3, 4, 5, 6], enabled: true, params: {} };
+    this.jobForm = { ...this.jobForm, [s.name]: f };
+    this.jobError = { ...this.jobError, [s.name]: null };
+  }
+  jobFormView(s, f) {
+    const set = patch => { this.jobForm = { ...this.jobForm, [s.name]: { ...f, ...patch } }; };
+    const t = (s.templates || []).find(x => x.key === f.template);
+    const params = t ? t.parameters || [] : Object.keys(f.params).map(k => ({ name: k }));
+    const dayBox = d => html`<label class="day"><input type="checkbox" .checked=${f.days.includes(d)}
+      @change=${e => set({ days: e.target.checked ? [...f.days, d] : f.days.filter(x => x !== d) })}>${T.sch_days[d]}</label>`;
+    const missing = params.some(p => p.required && !(f.params[p.name] || "").trim());
+    return html`<div class="setup-entry">
+      ${!f.old && (s.templates || []).length > 1 ? html`<label class="setup-field"><span>${T.job_template}</span>
+        <select @change=${e => set({ template: e.target.value, params: {} })}>${s.templates.map(x =>
+          html`<option value=${x.key} .selected=${x.key === f.template}>${x.description || x.key}</option>`)}</select></label>` : nothing}
+      <label class="setup-field"><span>${T.job_name}</span><input type="text" .value=${f.name} ?disabled=${!!f.old}
+        placeholder=${T.job_name_hint} @input=${e => set({ name: e.target.value.trim().toLowerCase() })}></label>
+      ${params.map(p => html`<label class="setup-field"><span>${p.name}${p.required ? " *" : ""}</span>
+        <input type="text" .value=${f.params[p.name] || ""} placeholder=${p.description || ""}
+          @input=${e => set({ params: { ...f.params, [p.name]: e.target.value } })}></label>`)}
+      ${f.cron ? html`<p class="hint">${T.job_cron_only(f.cron)}</p>` : html`<div class="schedule-time">
+        <input type="time" .value=${f.time} @input=${e => set({ time: e.target.value })}>${[1, 2, 3, 4, 5, 6, 0].map(dayBox)}</div>`}
+      <label class="setup-field"><input type="checkbox" .checked=${f.enabled} @change=${e => set({ enabled: e.target.checked })}>${T.ed_enabled}</label>
+      <div class="actions left">
+        <button class="primary" ?disabled=${!f.name || !f.template || missing || !!f.cron || !f.time || !f.days.length}
+          @click=${e => { e.preventDefault(); this.saveJob(s, f); }}>${buttonIcon("save")}${T.ed_save}</button>
+        <button class="secondary" @click=${e => { e.preventDefault(); this.jobForm = { ...this.jobForm, [s.name]: null }; }}>${T.ed_cancel}</button></div></div>`;
+  }
+  async saveJob(s, f) {
+    try {
+      await api("PUT", "/v1/ui/skills/" + encodeURIComponent(s.name) + "/jobs/" + encodeURIComponent(f.name),
+        { template: f.template, time: f.time, days: f.days, enabled: f.enabled, params: f.params });
+      this.jobForm = { ...this.jobForm, [s.name]: null };
+      edited();
+    } catch (err) { this.jobError = { ...this.jobError, [s.name]: err.message }; }
+  }
+  async deleteJob(s, j) {
+    if (!await ask({ text: T.job_delete_confirm(j.name), ok: T.job_delete, danger: true })) return;
+    try {
+      await api("DELETE", "/v1/ui/skills/" + encodeURIComponent(s.name) + "/jobs/" + encodeURIComponent(j.name));
+      edited();
+    } catch (err) { this.jobError = { ...this.jobError, [s.name]: err.message }; }
+  }
+  async runJob(s, j) {
+    try {
+      await api("POST", "/v1/ui/schedules/" + encodeURIComponent(s.name) + "/" + encodeURIComponent(j.name) + "/run");
+      this.jobError = { ...this.jobError, [s.name]: null };
+      catalog(true);
+    } catch (err) { this.jobError = { ...this.jobError, [s.name]: err.message }; }
+  }
   // "Ausprobieren" (docs/spec/api-tools.md, decision 11): a form per
   // Starlark tool from its schema; it shows the answer or the error with its
   // backtrace, and every request and print in order. Admins only.
@@ -555,6 +633,7 @@ class MiraSkills extends EditPage {
         ${(s.agents || []).length ? row(T.cat_agents, html`${s.agents.map((a, i) => html`${i ? ", " : ""}<a href="#agents" @click=${e => { e.preventDefault(); go("agents"); }}><code>${a}</code></a>`)}`) : nothing}
       </table>
       ${(s.setup || []).length && s.state === "active" ? this.setup(s) : nothing}
+      ${((s.jobs || []).length || (s.templates || []).length) && s.state === "active" ? this.jobs(s) : nothing}
       ${(s.tools || []).length && s.state === "active" ? this.tryTools(s) : nothing}
       ${s.guide ? html`<details class="profile"><summary>${T.cat_guide}</summary><pre>${s.guide}</pre></details>` : nothing}`);
   }

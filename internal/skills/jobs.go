@@ -199,10 +199,10 @@ func templates(jobs map[string]JobTemplate, scheds []Schedule) ([]JobTemplate, *
 	return out, nil
 }
 
-// firstJobs are the jobs the skill brings, while mira.yaml has none under
+// FirstJobs are the jobs the skill brings, while mira.yaml has none under
 // it; a first job without a value for a required parameter is not made
 // (decision 9).
-func firstJobs(tpls []JobTemplate) []JobEntry {
+func FirstJobs(tpls []JobTemplate) []JobEntry {
 	var out []JobEntry
 	for _, t := range tpls {
 	first:
@@ -236,7 +236,7 @@ func jobSchedules(tpls []JobTemplate, values map[string]any, changes map[string]
 			return nil, problem("jobsentry", err)
 		}
 	} else {
-		entries = firstJobs(tpls)
+		entries = FirstJobs(tpls)
 	}
 	// The first job's time of the same name: a time equal to it is the
 	// skill's own (a schedule of before).
@@ -320,4 +320,28 @@ func checkParams(e JobEntry, t JobTemplate) *Problem {
 		}
 	}
 	return nil
+}
+
+// Templates are the job templates the file declares: its jobs, or one per
+// schedule of before (docs/spec/scheduled-jobs.md); what is wrong in them is
+// the error.
+func (f File) Templates() ([]JobTemplate, error) {
+	mira := config.MapGet(config.MapGet(f.Front, "metadata"), "mira")
+	var jobs map[string]JobTemplate
+	var scheds []Schedule
+	if n := config.MapGet(mira, config.SkillJobs); n != nil {
+		if err := n.Decode(&jobs); err != nil {
+			return nil, err
+		}
+	}
+	if n := config.MapGet(mira, config.SkillSchedules); n != nil {
+		if err := n.Decode(&scheds); err != nil {
+			return nil, err
+		}
+	}
+	tpls, p := templates(jobs, scheds)
+	if p != nil {
+		return nil, p
+	}
+	return tpls, nil
 }
