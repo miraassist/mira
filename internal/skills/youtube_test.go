@@ -193,23 +193,43 @@ func TestYT05_TheQuotaUsedUpIsASentence(t *testing.T) {
 
 // YT-06 The daily list goes to the person named
 func TestYT06_TheDailyListGoesToThePersonNamed(t *testing.T) {
-	// Given the skill youtube with themen and empfaenger
-	s := youtubeSkill(t, map[string]any{"themen": "Home Assistant Voice, lokale KI", "empfaenger": "Stefan"})
+	// Given the skill youtube with a job made from its template liste, with themen and empfaenger
+	s := youtubeSkill(t, map[string]any{"jobs": map[string]any{
+		"morgens": map[string]any{"template": "liste", "cron": "0 7 * * *", "themen": "Home Assistant Voice, lokale KI", "empfaenger": "Stefan"}}})
 	// When its schedule is loaded
 	if len(s.Schedules) != 1 {
 		t.Fatalf("schedules %+v", s.Schedules)
 	}
 	sc := s.Schedules[0]
-	// Then it runs daily at 7:00 and its message goes to the person, and its task names the topics
-	if sc.Name != "liste" || sc.Default != "0 7 * * *" || sc.To != "Stefan" || !strings.Contains(sc.Task, "Die Themen: Home Assistant Voice, lokale KI") {
+	// Then it runs at its time and its message goes to the person, and its task names the topics
+	if sc.Name != "morgens" || sc.Cron != "0 7 * * *" || sc.To != "Stefan" || !strings.Contains(sc.Task, "Die Themen: Home Assistant Voice, lokale KI") {
 		t.Errorf("schedule %+v", sc)
 	}
-	// And without themen the task says "-" and the instructions say to report nothing then
-	s = youtubeSkill(t, nil)
-	if sc := s.Schedules[0]; !strings.HasSuffix(sc.Task, "Die Themen: -") || sc.To != "" {
-		t.Errorf("without themen: %+v", sc)
+	// And without themen the skill's first job is not made (docs/spec/scheduled-jobs.md, decision 9)
+	if s := youtubeSkill(t, nil); len(s.Schedules) != 0 {
+		t.Errorf("without themen: %+v", s.Schedules)
 	}
-	if !strings.Contains(s.Body, "„-“ oder keine Themen: importance 0, spoken leer,\nkein Werkzeug.") {
-		t.Errorf("instructions:\n%s", s.Body)
+}
+
+// SJ-21 youtube's list searches since the job's last run
+func TestSJ21_YoutubesListSearchesSinceTheJobsLastRun(t *testing.T) {
+	// Given the job template liste of youtube
+	s := youtubeSkill(t, nil)
+	tpl, ok := s.Template("liste")
+	// When its task is read
+	// Then it tells to search since {{since}}, and youtube__suche takes seit
+	if !ok || !strings.Contains(tpl.Task, "seit {{since}}") || !strings.Contains(s.Body, "`seit` genau so, wie es in der Aufgabe\nsteht") {
+		t.Errorf("template %+v", tpl)
+	}
+	fake := &youtubeFake{answers: map[string]string{"search": `{"items":[]}`}}
+	if _, err := runYouTube(t, fake, "suche", `{"thema":"x","seit":"2026-11-19 07:00"}`); err != nil {
+		t.Fatal(err)
+	}
+	// 9:00 UTC is the fake's now; seit is in Mira's zone, here UTC.
+	if q := fake.queries[0].Query(); q.Get("publishedAfter") != "2026-11-19T07:00:00Z" {
+		t.Errorf("publishedAfter %s", q.Get("publishedAfter"))
+	}
+	if _, err := runYouTube(t, fake, "suche", `{"thema":"x","seit":"gestern"}`); err == nil {
+		t.Error("a seit that is no time is taken")
 	}
 }

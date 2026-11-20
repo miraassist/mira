@@ -9,10 +9,9 @@ metadata:
         description: 'Die Kalender fürs Haus-Briefing, Namen mit Komma, z. B. "Familie". Leer heißt alle freigegebenen Kalender, auch persönliche; dann hört das ganze Haus deren Termine.' 
       themen:
         description: 'Nachrichten-Themen fürs Morgen-Briefing, mit Komma, z. B. "Deutschland, Fußball". Leer heißt keine Nachrichten.' 
-    schedules:
-      - name: morgen
+    jobs:
+      morgen:
         description: Morgen-Briefing fürs Haus
-        cron: "30 5 * * *"
         task: >-
           Stell das Morgen-Briefing für heute zusammen, fürs ganze Haus (es wird
           angesagt, wenn jemand den Raum betritt, oder nebenbei erwähnt). Nur mit
@@ -33,9 +32,10 @@ metadata:
           gesprochenen Text, als ein Satz am Ende. importance 1, spoken höchstens vier
           kurze Sätze zum Vorlesen, details die Termine mit Uhrzeit und die
           Schlagzeilen, expires_in_hours 6.
-      - name: persoenlich
+        first:
+          - { name: morgen, cron: "30 5 * * *" }
+      persoenlich:
         description: Persönliches Morgen-Briefing
-        cron: "35 5 * * *"
         per_person: true
         task: >-
           Persönliches Morgen-Briefing für {{person}}. Vier mögliche Teile, alle nur,
@@ -59,9 +59,10 @@ metadata:
           „Die Rechnung der Stadtwerke ist seit Donnerstag überfällig.“), details die
           Termine mit Uhrzeit, die Pakete, die fälligen To-dos und die Schlagzeilen,
           expires_in_hours 8.
-      - name: abend
+        first:
+          - { name: persoenlich, cron: "35 5 * * *" }
+      abend:
         description: Abend-Briefing für morgen
-        cron: "0 18 * * *"
         task: >-
           Stell das Abend-Briefing für morgen zusammen, fürs ganze Haus. Nur mit dem,
           was die Werkzeuge liefern: die Termine von morgen aus diesen Kalendern:
@@ -70,6 +71,8 @@ metadata:
           zur selben Zeit. Keine Nachrichten. Gibt es morgen nichts davon: importance 0
           und spoken leer. Sonst importance 1, spoken höchstens drei kurze Sätze,
           details die Termine mit Uhrzeit, expires_in_hours 5.
+        first:
+          - { name: abend, cron: "0 18 * * *" }
 ---
 # Briefing
 

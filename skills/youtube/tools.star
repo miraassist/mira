@@ -28,8 +28,8 @@ def charts(land = "DE", anzahl = 5):
     })
     return {"videos": [_video(v) for v in j.get("items", [])]}
 
-def suche(thema, tage = 7, anzahl = 5, sortierung = "relevanz"):
-    """Sucht Videos zu einem Thema, die in den letzten Tagen erschienen sind, mit Aufrufen und Länge.
+def suche(thema, tage = 7, anzahl = 5, sortierung = "relevanz", seit = ""):
+    """Sucht Videos zu einem Thema, die in den letzten Tagen (oder seit einem Zeitpunkt) erschienen sind, mit Aufrufen und Länge.
 
     Kostet 101 Einheiten des Tageskontingents (die Suche 100, die Einzelheiten 1): pro Frage höchstens eine Suche
     je Thema.
@@ -39,19 +39,23 @@ def suche(thema, tage = 7, anzahl = 5, sortierung = "relevanz"):
       tage (int): Nur Videos der letzten so vielen Tage, 1 bis 30.
       anzahl (int): Wie viele Videos, 1 bis 10.
       sortierung (str): "relevanz", "aufrufe" (die meistgesehenen zuerst) oder "neu".
+      seit (str): Statt tage: nur Videos seit diesem Zeitpunkt, so wie die Aufgabe ihn nennt (2026-11-20 07:00).
     """
     _bereich("tage", tage, 1, 30)
+    ab = time.now() - tage * 24 * time.hour
+    if seit:
+        ab = _lokal(seit)
     _bereich("anzahl", anzahl, 1, 10)
     if sortierung not in _SORTIERUNG:
         fail("sortierung ist relevanz, aufrufe oder neu, nicht %r" % sortierung)
     j = _get("search", {
         "part": "snippet", "type": "video", "q": thema, "order": _SORTIERUNG[sortierung],
-        "publishedAfter": time.now() - tage * 24 * time.hour, "maxResults": anzahl,
+        "publishedAfter": ab, "maxResults": anzahl,
         "fields": "items(id/videoId)",
     })
     ids = [i["id"]["videoId"] for i in j.get("items", []) if i.get("id", {}).get("videoId")]
     if not ids:
-        return {"thema": thema, "videos": [], "hinweis": "Keine Videos zu diesem Thema in den letzten %d Tagen." % tage}
+        return {"thema": thema, "videos": [], "hinweis": "Keine neuen Videos zu diesem Thema seit %s." % ab.format("02.01. 15:04")}
     return {"thema": thema, "videos": _details(ids)}
 
 def kanal(handle, anzahl = 5):
@@ -156,3 +160,13 @@ def _text(t):
     for a, b in (("&amp;", "&"), ("&quot;", "\""), ("&#39;", "'"), ("&lt;", "<"), ("&gt;", ">")):
         t = t.replace(a, b)
     return t
+
+def _lokal(s):
+    """Ein Zeitpunkt 2026-11-20 07:00 in Miras Zeitzone, als Zeit."""
+    t = s.strip().replace(" ", "T")
+    if len(t) == 16:
+        t += ":00"
+    if len(t) != 19 or t[10] != "T":
+        fail("seit ist ein Zeitpunkt wie 2026-11-20 07:00, nicht %r" % s)
+    off = time.now().format("-07:00")
+    return time.parse_time(t + off)

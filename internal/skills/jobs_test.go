@@ -253,3 +253,48 @@ func TestSJ08_SchedulesInMiraYamlChangeTheJobOfThatName(t *testing.T) {
 		t.Errorf("unknown: %v", problems)
 	}
 }
+
+// SJ-20 The shipped skills bring job templates
+func TestSJ20_TheShippedSkillsBringJobTemplates(t *testing.T) {
+	want := map[string][]string{"abfall": {"abfuhr"}, "briefing": {"abend", "morgen", "persoenlich"}, "warnungen": {"pruefen"}}
+	values := map[string]map[string]any{"abfall": {"calendar": "calendar.abfall"}, "briefing": {"kalender": "Familie", "themen": "Fußball"},
+		"warnungen": {}, "youtube": {"client_id": "id", "client_secret": "s"}}
+	loaded, problems := Load([]string{"../../skills"}, values)
+	if len(problems) > 0 {
+		t.Fatal(problems)
+	}
+	for _, sk := range loaded {
+		for _, tpl := range sk.Templates {
+			if tpl.Legacy {
+				t.Errorf("%s still has schedules", sk.Name)
+			}
+		}
+		if exp, ok := want[sk.Name]; ok {
+			got := names(sk.Schedules)
+			if strings.Join(got, ",") != strings.Join(exp, ",") {
+				t.Errorf("%s: jobs %v, want %v", sk.Name, got, exp)
+			}
+		}
+		switch sk.Name {
+		case "briefing":
+			if _, ok := sk.Settings["themen"]; !ok || !strings.Contains(sk.Schedules[1].Task, "Fußball") {
+				t.Errorf("briefing's settings: %+v", sk.Settings)
+			}
+		case "abfall":
+			if sk.Schedules[0].Cron != "0 18 * * *" {
+				t.Errorf("abfall at %s", sk.Schedules[0].Cron)
+			}
+		case "warnungen":
+			if !sk.Schedules[0].Urgent || sk.Schedules[0].Cron != "0 * * * *" {
+				t.Errorf("warnungen %+v", sk.Schedules[0])
+			}
+		}
+	}
+	raw, err := os.ReadFile("../../skills/briefing/SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "    schedules:") {
+		t.Error("briefing still has schedules")
+	}
+}

@@ -1,6 +1,6 @@
 # Scheduled jobs – spec
 
-Status 2026-11-20: decisions 1 to 12 made; being built. Scenarios: [scheduled-jobs.feature](scheduled-jobs.feature).
+Status 2026-11-20: steps 1 to 3 built (not released). Scenarios: [scheduled-jobs.feature](scheduled-jobs.feature).
 
 ## Goal
 

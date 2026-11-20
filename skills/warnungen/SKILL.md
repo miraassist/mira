@@ -4,10 +4,9 @@ description: "Amtliche Warnungen für den eigenen Landkreis aus der Warn-App NIN
 license: MIT
 metadata:
   mira:
-    schedules:
-      - name: pruefen
+    jobs:
+      pruefen:
         description: Amtliche Wetterwarnungen prüfen
-        cron: "0 * * * *"
         urgent: true
         task: >-
           Prüf die amtlichen Warnungen für den Landkreis des Hauses. Den
@@ -23,6 +22,8 @@ metadata:
           Severe: importance 2. spoken nennt kurz die schweren oder extremen
           Warnungen („Amtliche Unwetterwarnung für den Landkreis: schwere Sturmböen bis
           morgen früh.“), details alle Überschriften, expires_in_hours 3.
+        first:
+          - { name: pruefen, cron: "0 * * * *" }
 ---
 # Warnungen
 

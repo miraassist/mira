@@ -509,7 +509,8 @@ Some skills speak up by themselves at fixed times: the morning briefing at 5:30,
 
 - **Each schedule is a card**, by skill, Mira's own last. Closed, it shows what it does, when ("Mon–Fri 06:45", "hourly"), how the last run went (✓ or ✗ with its time) and the switch for on and off.
 - **Opened** it has the **last run** (done with what Mira will say, "nothing to report" or the error; for the personal briefing per person), the **next run**, the **time with the weekdays** to change, and **Run now** to try it at once. A second run on the same day replaces the first one's message instead of sending another. The skill's name leads to its card under **Skills**.
-- **A change holds at once**, without a restart. It is in `mira.yaml` with the skill under `schedules`, such as `briefing: { schedules: { morgen: { cron: "45 6 * * 1-5" } } }`; a schedule switched off has `enabled: false` there and keeps its time. Without an entry the skill's time holds, so an update of the skill brings its new time.
+- **A change holds at once**, without a restart. It is in `mira.yaml` with the skill's scheduled job under `jobs`, such as `briefing: { jobs: { morgen: { template: morgen, cron: "45 6 * * 1-5" } } }`; a job switched off has `enabled: false` there and keeps its time. While a skill has no jobs in `mira.yaml`, the ones it brings hold. Entries under `schedules` from older versions keep working and move to `jobs` the next time the page saves.
+- **You manage scheduled jobs on the skill**: under **Skills**, in the skill's section **Scheduled jobs**. There **New job** makes one (template, name, its values, time of day and weekdays); you change, switch off, delete or run one at once. A skill such as `youtube` can have several lists this way, in the morning on other topics than in the evening. New, changed and deleted jobs hold after Mira's restart; a time changed here under Schedules holds at once. When a skill is switched on, Mira writes its first jobs into `mira.yaml`; one that lacks a required value (the topics, say) is not made.
 - **Mira's own schedules** can be moved, not switched off.
 - A time such as "every hour" cannot be set here as a time of day; it is shown in words and changed in `mira.yaml` only. Switching it off works all the same.
 - A skill under **Skills** has **Change** at each of its schedules; it leads here.
@@ -526,7 +527,7 @@ A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, opti
 - `description`: one sentence on when the skill is needed. That is all Mira sees until she opens the skill; a good sentence makes her open it at the right time.
 - Optionally under `metadata:` → `mira:`:
   - `settings`: values every household fills in itself, each with a `description` (it also appears in error messages) and `required: true` if the skill cannot work without it.
-  - `schedules`: jobs on a schedule. `name` is a short fixed name (`morgen`) and `description` a few words for the page; with a `name` the schedule can be changed and switched off under **Schedules**. `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10), `task` is what Mira should do then. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house. With `per_person: true` the job runs once for each person Mira can reach personally (a channel of their own, or "alone at home is me"). Filled in are `{{person}}` (the name), `{{person_login}}` (the Home Assistant login, "-" without one) `{{person_calendar}}` (the calendar named like the login or the person; "-" without one) and `{{person_list}}` (the to-do list, the same way; "-" without one). Mira adds what she knows about the person, and the message goes to that person instead of the house. With `to` the message goes to exactly one person, usually from a setting (`to: "{{empfaenger}}"`, the person's name, key or login): the job runs once, and the message comes at once and only over that person's channels (such as Telegram), so it is never read aloud; in quiet hours it waits until the morning. Good for a list with links. `to` and `per_person` exclude each other. A message from a schedule is at most "important" (2) and waits at night until the morning. With `urgent: true` the schedule may report "urgent" (3): that goes to everyone at once, in quiet hours too. Use it only where it really matters, as for official severe weather warnings.
+  - `jobs`: job templates: what the skill can do at fixed times. Each template has a fixed name (`liste`), a `description` for the page, `parameters` (values each job gets for itself, built like settings), the `task` with `{{parameter}}` and the skill's settings, and under `first` the jobs the skill brings (`- { name: morning, cron: "0 7 * * *", parameters: { … } }`). `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10). `{{since}}` in the `task` is when this job last ran, at its first run the template's `window` (default `24h`) before now: so a job that runs twice a day brings nothing twice. Which jobs run, the user decides on the skill (see "Schedules"). The older form `schedules` (a list with `name`, `cron`, `task`) keeps working: each entry is a template and a job of the same name. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house. With `per_person: true` the job runs once for each person Mira can reach personally (a channel of their own, or "alone at home is me"). Filled in are `{{person}}` (the name), `{{person_login}}` (the Home Assistant login, "-" without one) `{{person_calendar}}` (the calendar named like the login or the person; "-" without one) and `{{person_list}}` (the to-do list, the same way; "-" without one). Mira adds what she knows about the person, and the message goes to that person instead of the house. With `to` the message goes to exactly one person, usually from a setting (`to: "{{empfaenger}}"`, the person's name, key or login): the job runs once, and the message comes at once and only over that person's channels (such as Telegram), so it is never read aloud; in quiet hours it waits until the morning. Good for a list with links. `to` and `per_person` exclude each other. A message from a schedule is at most "important" (2) and waits at night until the morning. With `urgent: true` the schedule may report "urgent" (3): that goes to everyone at once, in quiet hours too. Use it only where it really matters, as for official severe weather warnings.
   - `target`: turns the skill into a thread over several conversations, with questions back or as a run step by step (see below).
   - `takes`: the kind of message the skill takes up as a thread: `appointment`, `todo` (a to-do with a deadline), `voicemail` (a message on the answering machine), `device` (a newly found device). Mira's inbox looks in documents and mails only for kinds a switched-on skill takes. Each kind is taken by at most one switched-on skill; if two take the same, Mira's page shows a problem at both and neither takes it until you switch one off. Such a skill needs a section `## Ansage`: how Mira announces the message and leads over to the thread (examples: `termin`, `todo`).
   - `random`: axes Mira draws from at random, so that a quiz or a story does not come out the same every time: per axis a list of values (`schwierigkeit: [leicht, mittel, schwer]`), optionally with a list below each value (`thema: { Tiere: [Vögel, Insekten] }`). What the user fixes themselves ("questions about animals") stays fixed; Mira draws the rest. The skill's text says when Mira draws (the tool `random_pick`). Examples: `quiz`, `vokabeln`, `musikquiz`, `geschichte`.
@@ -560,12 +561,15 @@ metadata:
       plants:
         description: The plants with their rhythm, for example "fern every Sunday, cactus on the first Sunday of the month".
         required: true
-    schedules:
-      - cron: "0 10 * * 0"
+    jobs:
+      watering:
+        description: Reminds of watering on Sundays
         task: >-
           Today is Sunday. Which of these plants need watering today: {{plants}}?
           If none: importance 0 and spoken empty. Otherwise: importance 1, and spoken
           says briefly what needs watering.
+        first:
+          - { name: sundays, cron: "0 10 * * 0" }
 ---
 # Watering plants
 
@@ -583,7 +587,7 @@ skills:
     plants: "fern every Sunday, cactus on the first Sunday of the month"
 ```
 
-Then restart Mira. She answers "When does the cactus need water?" from the list, and on Sundays at 10 she speaks up by herself. You can try the schedule right away with **Run now** under **Schedules**, or with `mira skill plants`.
+Then restart Mira. She answers "When does the cactus need water?" from the list, and on Sundays at 10 she speaks up by herself. You can try the job right away with **Run now** under **Schedules** or in the skill's **Scheduled jobs**, or with `mira skill plants`.
 
 **When something is wrong:** Mira starts anyway; only the affected skill does not run. The log has `skill not started` with a sentence saying what is wrong, for example "The setting "plants" is missing in mira.yaml under skills.plants". Home Assistant shows the same message under Settings → System → **Repairs**. After fixing it, restart Mira; the message disappears once the skill runs.
 
@@ -1065,7 +1069,7 @@ A new Strava app can read only your own account. The kilometres per bike count o
 
 "What's trending on YouTube?", "What's new about Home Assistant on YouTube?", "What did @heise upload?" Mira looks on YouTube and tells two or three videos in a sentence each: by whom, what it is about going by the title, how long ago. What is said in a video she does not know; YouTube does not give it out. Since 2025 YouTube has no general trends any more, only charts for music, films and gaming.
 
-**A list every morning:** if you enter something under `themen` for the skill, say "Home Assistant Voice, local AI", Mira puts together the new videos of the last day on these topics at 7 a.m. and leaves out what does not fit. Under `empfaenger` you enter who gets the list; it then comes with the links to their phone (Telegram, say). Left empty, a short sentence goes to the house. You change the time under Capabilities → **Schedule**.
+**A list on your topics:** in the skill's **Scheduled jobs**, **New job** makes a list: a name (such as "morning"), your topics under `themen`, say "Home Assistant Voice, local AI", who gets the list under `empfaenger`, and the time. Mira then puts together the new videos since the last run on these topics and leaves out what does not fit. The list comes with the links to the recipient's phone (Telegram, say); without a recipient a short sentence goes to the house. For other topics in the evening, make a second job.
 
 **What it costs:** nothing. YouTube allows a Google project about a hundred searches a day; charts and channels cost almost nothing. When the quota is used up, Mira says so.
 

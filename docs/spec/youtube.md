@@ -48,14 +48,9 @@ Why not something else:
 ## In the skill
 
 ```yaml
-# skills/youtube/SKILL.md
+# skills/youtube/SKILL.md (since 2026-11-20 a job template, docs/spec/scheduled-jobs.md)
 metadata:
   mira:
-    settings:
-      themen:
-        description: 'Themen für die tägliche Liste, mit Komma, z. B. "Home Assistant, lokale KI". Leer heißt keine Liste.'
-      empfaenger:
-        description: Wer die tägliche Liste bekommt (Name der Person in Home Assistant). Leer heißt das ganze Haus.
     oauth:
       name: YouTube
       authorize_url: https://accounts.google.com/o/oauth2/v2/auth
@@ -66,21 +61,24 @@ metadata:
       api:
         - url: https://www.googleapis.com/youtube/v3/
           methods: [GET]
-    schedules:
-      - name: liste
-        description: Neues auf YouTube zu den Themen
-        cron: "0 7 * * *"
+    jobs:
+      liste:
+        description: Neue Videos auf YouTube zu Themen
+        parameters:
+          themen:     { description: …, required: true }
+          empfaenger: { description: … Leer heißt das ganze Haus. }
         to: "{{empfaenger}}"
+        window: 24h
         task: >-
-          …
+          Stell die Liste neuer YouTube-Videos seit {{since}} zusammen, … Die Themen: {{themen}}
+        first:
+          - { name: morgens, cron: "0 7 * * *" }      # not made without themen (scheduled-jobs.md, decision 9)
 ```
 
 - **Only reading**: the scope `youtube.readonly` and only `GET`; there is no `youtube__api_write`.
-- **`themen` empty**: the schedule's job reports nothing (`importance` 0), the questions work as before.
-- **The user decides** who gets the list and when, with what Mira has for every skill's schedule: `empfaenger`
-  names a person, empty is the house ([A schedule for one person](schedule-receiver.md)); the time (7:00 is the
-  skill's default) is changed, or the schedule switched off, on the page "Zeitplan". The skill adds nothing of its
-  own for it.
+- **Topics and recipient** are the parameters of each scheduled job ([Scheduled jobs](scheduled-jobs.md), decision 3): a list in the morning and one in the evening may have other topics. Without topics no job is made. The search of a job takes `seit` (`{{since}}`, the job's last run), so a second run a day brings nothing twice.
+- **The user decides** who gets a list, about what and when: each list is a scheduled job made on the skill, with
+  its own topics, recipient (empty is the house) and time ([Scheduled jobs](scheduled-jobs.md)).
 
 ## What the model does, step by step
 

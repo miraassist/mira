@@ -40,10 +40,10 @@ Feature: YT YouTube research
 
   @step2
   Scenario: YT-06 The daily list goes to the person named
-    Given the skill youtube with themen and empfaenger
+    Given the skill youtube with a scheduled job from its template liste, with themen and empfaenger
     When its schedule is loaded
-    Then it runs daily at 7:00 and its message goes to the person, and its task names the topics
-    And without themen the task says "-" and the instructions say to report nothing then
+    Then it runs at its time and its message goes to the person, and its task names the topics
+    And without themen the skill's first job is not made
 
   @step3
   Scenario: YT-07 Trends are YouTube's charts

@@ -1,15 +1,10 @@
 ---
 name: youtube
-description: "Auf YouTube nachsehen: die Charts, neue Videos zu einem Thema, die neuesten Videos eines Kanals, die Einzelheiten eines Videos („Was ist gerade angesagt auf YouTube?“, „Was gibt's Neues zu Home Assistant auf YouTube?“, „Was hat @heise hochgeladen?“). Dazu jeden Morgen eine Liste neuer Videos zu den eigenen Themen. Nur lesen. Braucht eine Verbindung mit YouTube über einen eigenen Google-Zugang."
+description: "Auf YouTube nachsehen: die Charts, neue Videos zu einem Thema, die neuesten Videos eines Kanals, die Einzelheiten eines Videos („Was ist gerade angesagt auf YouTube?“, „Was gibt's Neues zu Home Assistant auf YouTube?“, „Was hat @heise hochgeladen?“). Dazu als geplanter Auftrag eine Liste neuer Videos zu eigenen Themen. Nur lesen. Braucht eine Verbindung mit YouTube über einen eigenen Google-Zugang."
 license: MIT
 metadata:
   mira:
     chapter: "## Was auf YouTube läuft"
-    settings:
-      themen:
-        description: 'Themen für die tägliche Liste, mit Komma, z. B. "Home Assistant Voice, lokale KI". Leer heißt keine Liste.'
-      empfaenger:
-        description: Wer die tägliche Liste bekommt (Name der Person in Home Assistant). Leer heißt das ganze Haus.
     oauth:
       name: YouTube
       authorize_url: https://accounts.google.com/o/oauth2/v2/auth
@@ -21,14 +16,22 @@ metadata:
       api:
         - url: https://www.googleapis.com/youtube/v3/
           methods: [GET]
-    schedules:
-      - name: liste
-        description: Neue Videos auf YouTube zu den Themen
-        cron: "0 7 * * *"
+    jobs:
+      liste:
+        description: Neue Videos auf YouTube zu Themen
+        parameters:
+          themen:
+            description: 'Themen, mit Komma, z. B. "Home Assistant Voice, lokale KI"'
+            required: true
+          empfaenger:
+            description: Wer die Liste bekommt (Name der Person in Home Assistant). Leer heißt das ganze Haus.
         to: "{{empfaenger}}"
+        window: 24h
         task: >-
-          Stell die tägliche Liste neuer YouTube-Videos zusammen, wie es die Anleitung unter „Tägliche Liste“ sagt.
-          Die Themen: {{themen}}
+          Stell die Liste neuer YouTube-Videos seit {{since}} zusammen, wie es die Anleitung unter
+          „Tägliche Liste“ sagt. Die Themen: {{themen}}
+        first:
+          - { name: morgens, cron: "0 7 * * *" }
 ---
 # YouTube
 
@@ -67,12 +70,11 @@ Verbindungen verbindet.
 
 ## Tägliche Liste
 
-Die Aufgabe nennt die Themen. „-“ oder keine Themen: importance 0, spoken leer,
-kein Werkzeug.
-
-Sonst je Thema genau eine `youtube__suche`, höchstens fünf Themen: `tage` 1,
-`anzahl` 10, `sortierung` `relevanz`, die Suchwörter in der Sprache, in der die
-Videos wohl sind (Technik meist Englisch), so gewählt, dass sie das Thema treffen.
+Die Aufgabe nennt die Themen und seit wann. Je Thema genau eine
+`youtube__suche`, höchstens fünf Themen: `seit` genau so, wie es in der Aufgabe
+steht, `anzahl` 10, `sortierung` `relevanz`, die Suchwörter in der Sprache, in
+der die Videos wohl sind (Technik meist Englisch), so gewählt, dass sie das
+Thema treffen.
 
 Nimm nur Videos, die wirklich vom Thema handeln: Anleitungen, Projekte, Tests,
 Neuigkeiten, Erfahrungen. Lass weg: Werbung, Gewinnspiele, Krypto, Videos, die das
