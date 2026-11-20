@@ -131,11 +131,23 @@ type Options struct {
 	Players func() []Player
 	// Area resolves what the model says ("Küche") to an area id; "" if unknown.
 	Area func(name string) string
-	// States reads the states of these players (one filtered read).
-	States func(ctx context.Context, entities []string) (map[string]string, error)
+	// States reads the states of these players (one filtered read): the
+	// state and the group each is in.
+	States func(ctx context.Context, entities []string) (map[string]State, error)
 	// Transfer is music_assistant.transfer_queue from source to target.
 	Transfer func(ctx context.Context, target, source string) error
-	Logger   *slog.Logger
+	// Join is media_player.join on the leader with these members; Unjoin
+	// media_player.unjoin on a player (music_group).
+	Join   func(ctx context.Context, leader string, members []string) error
+	Unjoin func(ctx context.Context, player string) error
+	Logger *slog.Logger
+}
+
+// State is a player's state and the players of its group (group_members,
+// the player itself among them; empty when it is in none).
+type State struct {
+	State   string
+	Members []string
 }
 
 // Tool is music_move, offered while there is a Music Assistant player.
@@ -259,10 +271,24 @@ func playing(ctx context.Context, o Options, t texts, candidates []Player, turnA
 	if err != nil {
 		return Player{}, "", err
 	}
+	p, several := source(states, candidates, turnArea)
+	switch {
+	case p.Entity != "":
+		return p, "", nil
+	case len(several) == 0:
+		return Player{}, t.nonePlays, nil
+	}
+	return Player{}, fmt.Sprintf(t.severalFrom, list(several)), nil
+}
+
+// source picks the player that plays among candidates from their states.
+// Without one, several are the players that play (or are paused) when there
+// are more than one and none is in the turn's area; empty when none plays.
+func source(states map[string]State, candidates []Player, turnArea string) (Player, []Player) {
 	pick := func(state string) []Player {
 		var out []Player
 		for _, p := range candidates {
-			if states[p.Entity] == state {
+			if states[p.Entity].State == state {
 				out = append(out, p)
 			}
 		}
@@ -274,9 +300,9 @@ func playing(ctx context.Context, o Options, t texts, candidates []Player, turnA
 	}
 	switch len(found) {
 	case 0:
-		return Player{}, t.nonePlays, nil
+		return Player{}, nil
 	case 1:
-		return found[0], "", nil
+		return found[0], nil
 	}
 	var here []Player
 	for _, p := range found {
@@ -285,7 +311,7 @@ func playing(ctx context.Context, o Options, t texts, candidates []Player, turnA
 		}
 	}
 	if len(here) == 1 {
-		return here[0], "", nil
+		return here[0], nil
 	}
-	return Player{}, fmt.Sprintf(t.severalFrom, list(found)), nil
+	return Player{}, found
 }

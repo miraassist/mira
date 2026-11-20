@@ -34,23 +34,25 @@ var areas = map[string]string{"wohnzimmer": "wohnzimmer", "küche": "kueche", "k
 
 type fakeHA struct {
 	states    map[string]string
+	groups    map[string][]string // group_members per player
 	moves     []string
+	joins     []string // "leader <- a,b"
+	unjoins   []string
 	refuse    error
 	readError error
 }
 
-func tool(t *testing.T, ha *fakeHA, players []music.Player, logs *bytes.Buffer) tools.InternalTool {
-	t.Helper()
-	return music.Tool(music.Options{Lang: i18n.DE, Logger: slog.New(slog.NewTextHandler(logs, nil)),
+func options(ha *fakeHA, players []music.Player, logs *bytes.Buffer) music.Options {
+	return music.Options{Lang: i18n.DE, Logger: slog.New(slog.NewTextHandler(logs, nil)),
 		Players: func() []music.Player { return players },
 		Area:    func(name string) string { return areas[name] },
-		States: func(_ context.Context, ids []string) (map[string]string, error) {
+		States: func(_ context.Context, ids []string) (map[string]music.State, error) {
 			if ha.readError != nil {
 				return nil, ha.readError
 			}
-			out := map[string]string{}
+			out := map[string]music.State{}
 			for _, id := range ids {
-				out[id] = ha.states[id]
+				out[id] = music.State{State: ha.states[id], Members: ha.groups[id]}
 			}
 			return out, nil
 		},
@@ -61,7 +63,26 @@ func tool(t *testing.T, ha *fakeHA, players []music.Player, logs *bytes.Buffer) 
 			ha.moves = append(ha.moves, source+" -> "+target)
 			return nil
 		},
-	})
+		Join: func(_ context.Context, leader string, members []string) error {
+			if ha.refuse != nil {
+				return ha.refuse
+			}
+			ha.joins = append(ha.joins, leader+" <- "+strings.Join(members, ","))
+			return nil
+		},
+		Unjoin: func(_ context.Context, player string) error {
+			if ha.refuse != nil {
+				return ha.refuse
+			}
+			ha.unjoins = append(ha.unjoins, player)
+			return nil
+		},
+	}
+}
+
+func tool(t *testing.T, ha *fakeHA, players []music.Player, logs *bytes.Buffer) tools.InternalTool {
+	t.Helper()
+	return music.Tool(options(ha, players, logs))
 }
 
 func call(t *testing.T, tl tools.InternalTool, area, to, from string) (string, error) {

@@ -1,6 +1,6 @@
 # Music with Music Assistant – spec
 
-Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; part 3 decided, not built. Scenarios: [music-players.feature](music-players.feature).
+Status 2026-11-20: steps 1 and 2 built (on live, not released); step 3, the run on live, is open; step 4 (part 3) built, not on live. Scenarios: [music-players.feature](music-players.feature).
 
 ## Goal
 
@@ -183,4 +183,5 @@ prefix.
 2. **`music_move`** (`internal/music`). Scenarios MU-05 to MU-09.
 3. **On live**: "Spiel … in der Küche" goes to the Music Assistant player at once; "Nimm die Musik mit ins Bad"
    moves it. Left for the maintainer (it plays music in the house).
-4. **`music_group`** (part 3). Scenarios to be written with it.
+4. **`music_group`** (part 3; `internal/music`, `cmd/mira`). Scenarios MU-10 to MU-17. Built 2026-11-20; the run on live
+   (adding, taking out, row G2) is left for the maintainer.

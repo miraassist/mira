@@ -631,18 +631,18 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}))
 	// Music with Music Assistant: take what plays along to another room
 	// (docs/spec/music-players.md, part 2).
-	internal = append(internal, music.Tool(music.Options{
+	musicOptions := music.Options{
 		Lang: a.lang, Logger: a.log,
 		Players: func() []music.Player { return musicPlayers(snapshot()) },
 		Area:    func(name string) string { return snapshot().AreaKeys[name] },
-		States: func(ctx context.Context, entities []string) (map[string]string, error) {
+		States: func(ctx context.Context, entities []string) (map[string]music.State, error) {
 			states, err := a.ha.GetStates(ctx, haws.StateFilter{EntityIDs: entities})
 			if err != nil {
 				return nil, err
 			}
-			out := map[string]string{}
+			out := map[string]music.State{}
 			for _, s := range states {
-				out[s.EntityID] = s.State
+				out[s.EntityID] = music.State{State: s.State, Members: groupMembers(s.Attributes)}
 			}
 			return out, nil
 		},
@@ -650,7 +650,15 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return a.ha.CallService(ctx, "music_assistant", "transfer_queue", map[string]any{"source_player": source},
 				&haws.Target{EntityID: []string{target}})
 		},
-	}))
+		Join: func(ctx context.Context, leader string, members []string) error {
+			return a.ha.CallService(ctx, "media_player", "join", map[string]any{"group_members": members},
+				&haws.Target{EntityID: []string{leader}})
+		},
+		Unjoin: func(ctx context.Context, player string) error {
+			return a.ha.CallService(ctx, "media_player", "unjoin", nil, &haws.Target{EntityID: []string{player}})
+		},
+	}
+	internal = append(internal, music.Tool(musicOptions), music.GroupTool(musicOptions))
 	// Phone calls from the satellite of the turn (docs/spec/phone.md).
 	a.phonebook = &phone.Book{On: a.phoneBookOn, Read: a.readPhonebook}
 	internal = append(internal, phone.Tool(phone.Options{Lang: a.lang, Book: a.phonebook,
