@@ -32,12 +32,13 @@ the admin's decision and is not checked again; what is new or changed is.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.components import websocket_api
+from homeassistant.components import blueprint, websocket_api
 from homeassistant.components.automation.config import async_validate_config_item
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.config import AUTOMATION_CONFIG_PATH
@@ -53,6 +54,8 @@ from homeassistant.util.yaml import load_yaml
 
 from .const import DOMAIN
 from .labels import LABEL_CONFIRM, LABEL_ONCE, LABEL_TASKS, ensure_label
+
+_LOGGER = logging.getLogger(__name__)
 
 # Domains a task never calls: they run arbitrary code or change Home
 # Assistant itself.
@@ -331,13 +334,25 @@ async def validate(
     before: dict[str, Any] | None = None,
 ) -> None:
     """Home Assistant's own validation, then the rule what a task may call;
-    before is the task as it was, whose unchanged steps pass."""
+    before is the task as it was, whose unchanged steps pass. A blueprint's
+    automation is checked as Home Assistant fills it in (docs/spec/tasks.md,
+    Integration): its actions come from the blueprint and its inputs."""
     try:
-        await async_validate_config_item(hass, "mira_check", config)
+        config = await _filled_in(hass, config)
     except (vol.Invalid, HomeAssistantError) as err:
         raise HomeAssistantError(str(err)) from err
     except Exception as err:  # probatio.Invalid in newer cores
         raise HomeAssistantError(str(err)) from err
+    if before and blueprint.is_blueprint_instance_config(before):
+        try:
+            before = await _filled_in(hass, before)
+        except Exception as err:  # noqa: BLE001 - any error: the task as it was does not count
+            _LOGGER.warning(
+                "the task as it was could not be filled in from its blueprint %s (%s); every step of the change is checked",
+                before.get("use_blueprint", {}).get("path"),
+                err,
+            )
+            before = None
     forbidden = forbidden or {}
     # Entities labelled "Mira: nachfragen" need a yes each time, too.
     labelled = {e.entity_id for e in er.async_entries_for_label(er.async_get(hass), LABEL_CONFIRM)}
@@ -348,6 +363,20 @@ async def validate(
         set(forbidden.get("entities") or []) | labelled,
         _actions(before) if before else None,
     )
+
+
+async def _filled_in(hass: HomeAssistant, config: dict[str, Any]) -> dict[str, Any]:
+    """Home Assistant validates the automation; a blueprint's comes back as
+    Home Assistant filled it in, as written (templates as text), the way the
+    rule reads a task. Any other comes back as it was given."""
+    result = await async_validate_config_item(hass, "mira_check", config)
+    if not blueprint.is_blueprint_instance_config(config):
+        return config
+    filled = getattr(result, "raw_config", None)
+    if not isinstance(filled, dict) or blueprint.is_blueprint_instance_config(filled):
+        path = config.get("use_blueprint", {}).get("path")
+        raise HomeAssistantError(f"the blueprint {path} could not be filled in, so its actions cannot be checked")
+    return filled
 
 
 def _actions(config: dict[str, Any]) -> Any:

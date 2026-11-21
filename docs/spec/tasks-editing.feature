@@ -33,6 +33,14 @@ Feature: AE Changing tasks in the conversation
     Then both come, the household's with editable true
     And without all only Mira's comes
 
+  @step1
+  Scenario: AE-06 A blueprint's actions are checked as Home Assistant fills them in
+    Given a blueprint that takes the actions as an input
+    When a task from it with "lock.unlock" in the input is checked
+    Then it is refused, as the same action in a task of its own
+    And a change that only adds "lock.unlock" to the input is refused
+    And an unlock the task had before passes, as in any task
+
   # --- Finding --------------------------------------------------------------------------------------------
 
   @step2

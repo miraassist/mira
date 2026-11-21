@@ -1,7 +1,7 @@
 # Changing tasks in the conversation – Spec
 
-Status 2026-10-30: steps 1–4 built (the integration's scenarios AE-01 to AE-04 are tested in pytest, the others in
-Go). Scenarios: [tasks-editing.feature](tasks-editing.feature). Builds on
+Status 2026-11-21: steps 1–4 built (the integration's scenarios AE-01 to AE-06 are tested in pytest, the others in
+Go; AE-06, a blueprint's actions checked as Home Assistant fills them in, added 2026-11-21). Scenarios: [tasks-editing.feature](tasks-editing.feature). Builds on
 [Tasks](tasks.md) and [Threads](threads.md); protection by [Hooks](hooks.md).
 
 ## Goal

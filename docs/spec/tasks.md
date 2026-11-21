@@ -145,6 +145,16 @@ Further tools:
     - HA resolves areas, devices, floors, labels and groups to entities. In an area or on a device only the entities of the action's own domain count, as HA switches them.
     - Scenes and groups are followed into their members (the state attribute `entity_id`), so a scene that sets a lock is blocked like the lock.
     - A device action must name its entity; an integration's own device action without one is refused.
+  - **A task from a blueprint is checked as Home Assistant fills it in** (2026-11-21, by the maintainer, after a
+    review): a draft `{use_blueprint: {path, input}}` has no actions of its own; what it does comes from the blueprint
+    and its inputs (a community blueprint may take any action as an input). The integration's `validate` takes the
+    automation Home Assistant's own validation fills in (`async_validate_config_item`, its `raw_config`: the
+    blueprint with the inputs put in, templates still as text) and checks its actions by the rules above, for any
+    blueprint, Mira's own watches too. For a change, the task as it was is filled in the same way, so its unchanged
+    steps pass as in any task. It costs nothing more: Home Assistant fills the blueprint in for its validation anyway.
+    **Fails:** a blueprint that is missing or cannot be filled in refuses the draft with Home Assistant's error (the
+    caller's error, as any invalid draft); a task as it was that can no longer be filled in leaves a warning in Home
+    Assistant's log and every step of the change is checked.
   - An action whose HA description names no entities as its target (`mqtt.publish`, `rest_command.*`, `scene.apply`, `zwave_js.set_value`, `conversation.process`) could switch anything and is refused. Exceptions: `mira.*`, `notify.*`, `persistent_notification.*`.
   - Such actions go into a task only inside a script exposed to Assist. A script is allowed if it is exposed to Assist and not protected (label "Mira: nachfragen"); what it does inside is the admin's decision.
   - Also blocked is everything that runs arbitrary code or changes HA itself: shell commands, Python scripts, restarts, updates.

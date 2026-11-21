@@ -420,3 +420,60 @@ async def test_AE05_checking_a_change_knows_the_task_before(hass, tmp_path, aioc
     # Without the task it is checked as new, and the unlock is refused.
     await client.send_json_auto_id({"type": "mira/automation/validate", "config": changed, "forbidden": FORBIDDEN})
     assert (await client.receive_json())["result"]["valid"] is False
+
+
+# A blueprint as the community writes them: what it does is an input.
+ANY_ACTION = """blueprint:
+  name: Beliebige Aktion
+  domain: automation
+  input:
+    when:
+      selector:
+        time: {}
+    what:
+      selector:
+        action: {}
+triggers:
+  - trigger: time
+    at: !input when
+actions: !input what
+"""
+
+
+async def test_AE06_a_blueprints_actions_are_checked_as_home_assistant_fills_them_in(hass, tmp_path, monkeypatch):
+    """A task from a blueprint has no actions of its own: the rule checks the
+    ones Home Assistant fills in from the blueprint and its inputs, for a new
+    task and for a change."""
+    await house(hass)
+    folder = tmp_path / "blueprints" / "automation" / "community"
+    folder.mkdir(parents=True)
+    (folder / "any_action.yaml").write_text(ANY_ACTION)
+    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
+    assert await async_setup_component(hass, "automation", {})
+    await hass.async_block_till_done()
+
+    def task(*actions):
+        return {
+            "alias": "Morgens",
+            "use_blueprint": {
+                "path": "community/any_action.yaml",
+                "input": {"when": "07:00:00", "what": list(actions)},
+            },
+        }
+
+    light = {"action": "light.turn_on", "target": {"entity_id": "light.bad"}}
+    unlock = {"action": "lock.unlock", "target": {"entity_id": "lock.haustuer"}}
+    await validate(hass, task(light), FORBIDDEN)
+    with pytest.raises(NotAllowed, match="lock.unlock"):
+        await validate(hass, task(unlock), FORBIDDEN)
+    # A template is refused as in any task.
+    with pytest.raises(NotAllowed):
+        await validate(hass, task({"action": "{{ 'lock.unlock' }}"}), FORBIDDEN)
+    # A change that only turns the input into an unlock is refused; an unlock
+    # the task had before stays, as in a task without a blueprint.
+    with pytest.raises(NotAllowed, match="lock.unlock"):
+        await validate(hass, task(light, unlock), FORBIDDEN, task(light))
+    await validate(hass, task(light, unlock), FORBIDDEN, task(unlock))
+    # A blueprint that is not there cannot be checked.
+    with pytest.raises(HomeAssistantError):
+        await validate(hass, task(light) | {"use_blueprint": {"path": "community/none.yaml", "input": {}}}, FORBIDDEN)

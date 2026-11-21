@@ -3,6 +3,7 @@
   "name": "Mira",
   "after_dependencies": [
     "assist_pipeline",
+    "blueprint",
     "hassio"
   ],
   "codeowners": [
