@@ -7,6 +7,7 @@
 #
 #   scripts/check.sh              # everything
 #   scripts/check.sh --no-docker  # without hassfest
+#   scripts/check.sh --release    # before a release: Go tests again, none from the cache
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -16,7 +17,19 @@ docker=1
 staticcheck_version=v0.8.2
 # ruff with its default rules; the same version as in .github/workflows/ci.yml.
 ruff_version=0.17.3
-[[ "${1:-}" == "--no-docker" ]] && docker=0
+# Go keeps the result of a package that did not change; before a release
+# every test runs again, so a test that fails only now and then shows.
+count=()
+for arg in "$@"; do
+	case "$arg" in
+	--no-docker) docker=0 ;;
+	--release) count=(-count=1) ;;
+	*)
+		echo "unknown option: $arg"
+		exit 1
+		;;
+	esac
+done
 
 step() { printf '\n== %s\n' "$*"; }
 
@@ -36,7 +49,14 @@ go run "honnef.co/go/tools/cmd/staticcheck@$staticcheck_version" ./...
 step "go test -race"
 # A small deadline: a hanging test must not cost Go's default of 10 minutes
 # per package; the panic names the test that stands (CLAUDE.md, Releasing).
-go test -race -timeout 120s ./... | grep -v '^?'
+# On two cores like GitHub's runners: a test that waits for a signal too
+# briefly, or a race between goroutines, shows here and not only in CI.
+if command -v taskset >/dev/null; then
+	taskset -c 0,1 go test -race ${count[@]+"${count[@]}"} -timeout 120s ./... | grep -v '^?'
+else
+	echo "taskset not found: the tests run on all cores, not on two like CI"
+	go test -race ${count[@]+"${count[@]}"} -timeout 120s ./... | grep -v '^?'
+fi
 
 step ruff
 uvx "ruff@$ruff_version" check custom_components tests
