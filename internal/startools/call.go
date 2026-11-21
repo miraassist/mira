@@ -331,7 +331,7 @@ func (f *File) predeclared() starlark.StringDict {
 	}
 	return starlark.StringDict{
 		"api":      &starlarkstruct.Module{Name: "api", Members: methods},
-		"json":     starjson.Module,
+		"json":     jsonModule,
 		"math":     starmath.Module,
 		"time":     starlarktime.Module,
 		"settings": f.settings,
@@ -394,16 +394,25 @@ func request(method string) func(*starlark.Thread, *starlark.Builtin, starlark.T
 		c.events = append(c.events, ev)
 		c.f.log.Info("starlark tool request", "skill", c.skill, "tool", c.tool, "method", method, "url", u,
 			"status", status, "ms", ev.MS, "bytes", len(data))
-		return response(thread, status, data), nil
+		resp, deep := response(thread, status, data)
+		if deep {
+			c.f.log.Warn("starlark tool: the answer nests too deep to decode; its json is None, its text stays",
+				"skill", c.skill, "tool", c.tool, "method", method, "url", u, "limit", maxJSONDepth)
+		}
+		return resp, nil
 	}
 }
 
 // response is the answer as the function sees it: status, ok, text, json.
-func response(thread *starlark.Thread, status int, data []byte) starlark.Value {
+// deep says that the answer nested deeper than maxJSONDepth and was not
+// decoded (its json is None).
+func response(thread *starlark.Thread, status int, data []byte) (resp starlark.Value, deep bool) {
 	var decoded starlark.Value = starlark.None
 	if s := strings.TrimSpace(string(data)); strings.HasPrefix(s, "{") || strings.HasPrefix(s, "[") {
-		if v, err := starlark.Call(thread, starjson.Module.Members["decode"], starlark.Tuple{starlark.String(s)}, nil); err == nil {
-			decoded = v
+		if deep = jsonDepth(s, maxJSONDepth) > maxJSONDepth; !deep {
+			if v, err := starlark.Call(thread, starjson.Module.Members["decode"], starlark.Tuple{starlark.String(s)}, nil); err == nil {
+				decoded = v
+			}
 		}
 	}
 	return starlarkstruct.FromStringDict(starlark.String("response"), starlark.StringDict{
@@ -411,7 +420,7 @@ func response(thread *starlark.Thread, status int, data []byte) starlark.Value {
 		"ok":     starlark.Bool(status >= 200 && status < 300),
 		"text":   starlark.String(data),
 		"json":   decoded,
-	})
+	}), deep
 }
 
 // withQuery is the address with the query from params: every value encoded,

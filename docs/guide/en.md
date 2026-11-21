@@ -694,7 +694,7 @@ metadata:
         description: Follows a flight, tells its state or stops following it.
 ```
 
-- **Blueprints** are saved under `mira_skills/<skill>/` in Home Assistant. Their description holds `mira-version: N`; raise the number and Mira replaces the old blueprint at her next start. That works only while its inputs stay the same (none removed, none renamed, new ones with a default); otherwise the old one stays, and Repairs says which input does not fit. A real change of the inputs is a new file.
+- **Blueprints** are saved under `mira_skills/<skill>/` in Home Assistant. Their description holds `mira-version: N`; raise the number and Mira replaces the old blueprint at her next start. That works only while its inputs stay the same (none removed, none renamed, new ones with a default); otherwise the old one stays, and Repairs says which input does not fit. A real change of the inputs is a new file. Of Home Assistant's YAML tags only `!input` is allowed in a skill blueprint; one with `!include`, `!secret` or `!env_var` Mira does not save, and Repairs says which tag in which line is in the way.
 - **Automations** are named `mira_skill_<skill>_<id>` and carry the label "Mira". When the settings change, Mira makes them anew with the new values.
 - **Scripts** Mira makes the same way, but does not expose them to Assist. Each becomes a tool of the skill, `<skill>__<id>` (here `flug__abfrage`), with the `description` and the blueprint's fields; it is in the conversation only once the skill is opened. When the model uses it, you write in the text of `SKILL.md`.
 - **Nothing is deleted**: switch the skill off, and its blueprints, automations and scripts stay in Home Assistant until you remove them yourself.

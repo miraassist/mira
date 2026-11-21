@@ -1,6 +1,6 @@
 # Skill files – Spec
 
-Status 2026-11-18: specified; steps 1 to 3 built 2026-11-16, step 4 (the guide) written 2026-11-18; step 5 (skill scripts) built
+Status 2026-11-21: specified; steps 1 to 3 built 2026-11-16, step 4 (the guide) written 2026-11-18; step 5 (skill scripts) built
 2026-11-18, released. Decisions 1 to 4 by the
 maintainer; 5 to 16 taken while writing and confirmed by him the same day. The testable rules are numbered scenarios in
 [skill-files.feature](skill-files.feature); each Go test for one carries the number in its name (`TestSB03_…`).
@@ -110,6 +110,12 @@ By the maintainer (2026-11-18, replacing decision 19's exposure):
 | # | Topic | Decision |
 |---|---|---|
 | 27 | How a skill script reaches the model | One general piece of Mira's code makes every script a skill declares into a **tool of that skill**: name `<skill>__<id>` (`flug__abfrage`), the declaration's `description`, parameters from Home Assistant's field list of the script (its action `script.<id>` in `get_services`; the fields come from the blueprint); calling it runs `script.<id>` with `return_response` and returns the script's response. It is offered as a skill's MCP tools are ([MCP servers in skills](skill-mcp.md), When the tools are there): not in the shared prefix, with `skill_open` for the rest of the conversation, to the skill's schedules and agents. No code per skill, no filter of Home Assistant's tool list. A user may still expose the script to Assist himself; it is then a tool of Home Assistant's in every turn as well |
+
+By the maintainer (2026-11-21, after a review):
+
+| # | Topic | Decision | Why |
+|---|---|---|---|
+| 28 | YAML tags in a skill blueprint | Only `!input`. A blueprint with any other tag of Home Assistant's (`!include`, `!include_dir_*`, `!secret`, `!env_var`) cannot be used: it is not saved, and a problem of the skill names the file, the tag and its line | Home Assistant resolves these tags while it saves a blueprint and writes what they read into the file. A skill (from a skill source, written by someone else and saved by Mira without anyone reading it) could so read `secrets.yaml`, `.storage` (the users' refresh tokens) or an environment variable such as the Supervisor's token, which no automation's template reaches. No blueprint needs them |
 
 ## The path, end to end
 
@@ -272,7 +278,7 @@ call is retried as Mira's blueprints are (below). Reading the skill files costs 
 | Fails | What happens | Who learns of it |
 |---|---|---|
 | `metadata.mira.automations` cannot be read, an `id` is wrong or twice, a `blueprint` the skill does not have | The skill does not load (as any error of `SKILL.md`) | a problem of the skill naming the automation and the file; the log |
-| A skill blueprint cannot be read: not YAML, neither `domain: automation` nor `domain: script`, no `mira-version:` | Not saved; the skill's automations from it are not made or changed | a problem of the skill naming the file and the reason; the log (`skill blueprint not usable`, skill, file, error) |
+| A skill blueprint cannot be read: not YAML, neither `domain: automation` nor `domain: script`, no `mira-version:`, a YAML tag other than `!input` (decision 28) | Not saved; the skill's automations from it are not made or changed | a problem of the skill naming the file and the reason; the log (`skill blueprint not usable`, skill, file, error) |
 | `blueprint/list` fails: a lost connection or a timeout | Retried as Mira's blueprints (Device watch, decisions 17 and 27): three tries, waiting 1 s, then 2 s; then nothing is saved this start | the log per try (what, attempt, wait, error); after the last, an error line and a problem of each skill with blueprints ("Home Assistant could not be asked; at the next start again"); its answer cannot be read: the log with the answer's start |
 | `blueprint/save` refused, or fails after its retries | That blueprint is not saved: a new one is missing, a changed one stays in its old version; its automations are not made or changed | the log with the path and Home Assistant's answer; a problem of the skill naming the blueprint |
 | An incompatible update | Not saved; the old version stays and works; its automations are not changed | a problem of the skill naming the blueprint and each input; the log (`skill blueprint refused`, skill, blueprint, inputs) |
@@ -323,7 +329,7 @@ skill's repair until a start where it is gone.
 1. **Skill files** (decisions 3 to 5): `skills.Load` over file systems, a skill's files with it, the same from a
    folder and from a source. Needs [Skill source](skill-source.md), step 1. SB-01, SB-02.
 2. **Skill blueprints into Home Assistant** (decisions 6 to 11): listing, saving, the version, the interface check,
-   the problems. SB-03 to SB-11.
+   the problems. SB-03 to SB-11. The YAML tags (decision 28): SB-35, built 2026-11-21.
 3. **Skill automations** (decisions 12 to 15): the declaration, making and updating at the start, the problems.
    SB-12 to SB-21.
 4. **The guide** (German and English), chapter on writing a skill: the skill's files, blueprints and automations, the

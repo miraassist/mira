@@ -225,3 +225,11 @@ Feature: Skill files (docs/spec/skill-files.md)
     When Mira loads the skill
     Then the skill does not load
     And its problem names the script
+
+  @step2
+  Scenario: SB-35 A blueprint with a tag other than !input is not saved
+    Given a skill blueprint with "!include /config/secrets.yaml", "!secret", or "!env_var SUPERVISOR_TOKEN" in it
+    When Mira starts
+    Then it is not saved
+    And a problem of the skill names the file, the tag and its line
+    And a blueprint with !input only is saved as before

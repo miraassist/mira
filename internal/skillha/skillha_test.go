@@ -720,3 +720,32 @@ func TestSB33_ADeclaredScriptHomeAssistantDoesNotOfferHasNoTool(t *testing.T) {
 	}
 	wantProblem(t, s, "flug", "connection lost")
 }
+
+// SB-35 A blueprint with a tag other than !input is not saved
+func TestSB35_ABlueprintWithATagOtherThanInputIsNotSaved(t *testing.T) {
+	for name, c := range map[string]struct{ from, to, tag string }{
+		"include":      {"      default: 30\n", "      default: !include /config/secrets.yaml\n", "!include"},
+		"secret":       {"      default: 30\n", "      default: !secret api_key\n", "!secret"},
+		"env_var":      {"      default: binary_sensor.flur\n", "      default: !env_var SUPERVISOR_TOKEN\n", "!env_var"},
+		"in an action": {"  - event: zu_ruhig\n", "  - event: !include_dir_named /config/.storage\n", "!include_dir_named"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			yaml := strings.Replace(blueprintV("1", inputsV1), c.from, c.to, 1)
+			if !strings.Contains(yaml, c.tag) {
+				t.Fatalf("the test's blueprint has no %s:\n%s", c.tag, yaml)
+			}
+			ha := newFakeHA()
+			s, _ := run(t, ha, skill(yaml, map[string]any{"window_end": "07:00"}))
+			if len(ha.saves) != 0 {
+				t.Errorf("saved %v", ha.saves)
+			}
+			wantProblem(t, s, "blueprints/zu_ruhig.yaml", c.tag, "line", "only !input")
+		})
+	}
+	// A blueprint with !input only is saved as before
+	ha := newFakeHA()
+	run(t, ha, skill(blueprintV("1", inputsV1), map[string]any{"window_end": "07:00"}))
+	if len(ha.saves) != 1 {
+		t.Errorf("saved %v", ha.saves)
+	}
+}

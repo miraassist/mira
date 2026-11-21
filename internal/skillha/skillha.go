@@ -475,6 +475,9 @@ func readBlueprint(sk skills.Skill, file string) (blueprint, error) {
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return blueprint{}, fmt.Errorf("not YAML: %w", err)
 	}
+	if err := onlyInputTags(raw); err != nil {
+		return blueprint{}, err
+	}
 	if doc.Blueprint.Domain != domainAutomation && doc.Blueprint.Domain != domainScript {
 		return blueprint{}, fmt.Errorf("domain %q, neither automation nor script", doc.Blueprint.Domain)
 	}
@@ -491,6 +494,32 @@ func readBlueprint(sk skills.Skill, file string) (blueprint, error) {
 	}
 	b.inputs = inputsOf(inputs)
 	return b, nil
+}
+
+// onlyInputTags refuses a blueprint with a YAML tag of Home Assistant's
+// other than !input (docs/spec/skill-files.md, decision 28): Home Assistant
+// resolves !include, !include_dir_*, !secret and !env_var while it saves a
+// blueprint and writes what they read into the file, so a skill could read
+// secrets.yaml, .storage or an environment variable such as the
+// Supervisor's token, which no automation's template reaches.
+func onlyInputTags(raw []byte) error {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return fmt.Errorf("not YAML: %w", err)
+	}
+	var walk func(n *yaml.Node) error
+	walk = func(n *yaml.Node) error {
+		if strings.HasPrefix(n.Tag, "!") && !strings.HasPrefix(n.Tag, "!!") && n.Tag != "!input" {
+			return fmt.Errorf("the YAML tag %s (line %d) is not allowed in a skill blueprint, only !input", n.Tag, n.Line)
+		}
+		for _, c := range n.Content {
+			if err := walk(c); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(&doc)
 }
 
 // input is what the interface keeps of an input (docs/spec/skill-files.md,

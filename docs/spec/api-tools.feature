@@ -127,3 +127,12 @@ Feature: SL API tools in Starlark
     When it loads
     Then it has the tools letzte_tour, zeitraum, serie, ausruestung and bestleistungen and no strava__api_get
     And none of them writes
+
+  @step2
+  Scenario: SL-20 JSON that nests too deep is not decoded
+    Given a service that answers with two megabytes of "["
+    When a tool gets the answer
+    Then its json is None, its text stays, and the log says that it nests too deep
+    And json.decode of such a text is the tool's error
+    And a tools.star that decodes it while it loads is a problem of the skill, not a crash of Mira
+    And a nesting of 1000 levels is decoded

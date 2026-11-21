@@ -404,3 +404,49 @@ def viel():
 		t.Errorf("%v %d", res.Err, len(res.Text))
 	}
 }
+
+// SL-20 JSON that nests too deep is not decoded
+func TestSL20_JSONThatNestsTooDeepIsNotDecoded(t *testing.T) {
+	// Given a service that answers with two megabytes of "[", which would
+	// overflow the stack of Starlark's decoder and end the whole process
+	deep := strings.Repeat("[", 2<<20)
+	f, logs := load(t, `
+def hole():
+    """Holt etwas."""
+    r = api.get("https://api.example/tief")
+    return {"json": r.json, "len": len(r.text)}
+
+def selbst(text):
+    """Dekodiert selbst.
+
+    Args:
+      text (str): Der Text.
+    """
+    return json.decode(text)
+`)
+	// When a tool gets it
+	res := f.Call(context.Background(), "hole", nil, startools.Env{Requester: &fakeRequester{status: 200, body: deep}})
+	// Then its json is None, its text stays, and the log says why
+	if res.Err != nil || !strings.Contains(res.Text, `"json":null`) || !strings.Contains(res.Text, `"len":2097152`) {
+		t.Fatalf("%v %.200s", res.Err, res.Text)
+	}
+	if !strings.Contains(logs.String(), "nests too deep") {
+		t.Errorf("log:\n%s", logs)
+	}
+	// And json.decode refuses it as the tool's error
+	arg, _ := json.Marshal(map[string]string{"text": deep})
+	res = f.Call(context.Background(), "selbst", arg, startools.Env{})
+	if res.Err == nil || !strings.Contains(res.Err.Error(), "deeper than 1000 levels") {
+		t.Fatalf("decode: %v", res.Err)
+	}
+	// And a nesting within the bound, with brackets in strings, is decoded
+	ok := strings.Repeat("[", 1000) + `"[[{{"` + strings.Repeat("]", 1000)
+	arg, _ = json.Marshal(map[string]string{"text": ok})
+	if res = f.Call(context.Background(), "selbst", arg, startools.Env{}); res.Err != nil {
+		t.Fatalf("within the bound: %v", res.Err)
+	}
+	// And a tools.star that decodes it while it loads is a problem, not a crash
+	if err := loadErr("x = json.decode(\"" + strings.Repeat("[", 2<<20) + "\")\n"); !strings.Contains(err, "deeper than 1000 levels") {
+		t.Errorf("loading: %s", err)
+	}
+}

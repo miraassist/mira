@@ -1,6 +1,6 @@
 # API tools in Starlark – spec
 
-Status 2026-11-20: decisions 1 to 15 made (the maintainer); steps 1 to 4 built, step 5 with [YouTube research](youtube.md). Nothing built.
+Status 2026-11-21: decisions 1 to 15 made (the maintainer); steps 1 to 4 built, step 5 built with [YouTube research](youtube.md). The bound on JSON's depth (SL-20) added 2026-11-21.
 Scenarios: [api-tools.feature](api-tools.feature).
 
 ## Goal
@@ -119,6 +119,13 @@ helper and no tool.
   brake, not a hard limit (what the rest of Mira allocates meanwhile counts too, and one allocation is not stopped
   before it happens). A tool's answer of more than 1 MB is refused. Both
   are the tool's error and a log line (`memory limit reached`, `answer too large`).
+- **JSON that nests too deep** (2026-11-21, the maintainer, after a review): Starlark's decoder recurses once per
+  level without a bound; two megabytes of `[` overflow the stack, which ends the whole Mira service, not only the call
+  (one step for the step counter, no memory for the brake). So a text that nests arrays and objects deeper than
+  1,000 levels (brackets in strings not counted) is not decoded: an answer's `json` is `None` and its `text` stays,
+  with the log line `the answer nests too deep to decode`; `json.decode` fails with `the JSON nests deeper than 1000
+  levels`, the tool's error, or a problem of the skill when it runs while `tools.star` loads. Costs: one pass over
+  the text before it is decoded.
 - **Addresses that climb** (`..`, `.`, encoded `%2e`, a hidden slash `%2f`, `%5c`) are refused before anything is
   sent, for every use of the connection's token ([Connections](oauth.md), Renewing and using the token).
 - **The tool's answer** is the function's return value, encoded as JSON (a string as it is). It counts as
@@ -187,7 +194,7 @@ happened; an error shows with its backtrace. It runs as the admin's own call: a 
 2. **Calling**: the schema check, the `api` module with the rules of the connections (`oauth.Manager.Request`), the
    limits, the log lines; the tools offered with their skill (`skills.StarlarkTools`). `api_get` and `api_write` are
    gone; the scenarios CO-15 to CO-19 of [Connections](oauth.md) are tested through the `api` module. Scenarios SL-07
-   to SL-15. Built.
+   to SL-15; the bound on JSON's depth, SL-20 (2026-11-21). Built.
 3. **"Ausprobieren"** on the page: the skill's entry lists its Starlark tools with a form each
    (`POST /v1/ui/skills/{skill}/tools/{tool}/try`); a writing tool is asked for in the page's dialog first. Scenarios
    SL-16 and SL-17 (the dialog and the form itself by hand). Built; the endpoint run on the test HA with the four
