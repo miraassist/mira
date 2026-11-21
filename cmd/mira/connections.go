@@ -48,6 +48,9 @@ func (c connections) SaveClient(ctx context.Context, skill, id, secret string) e
 	if e == nil {
 		return errors.New("Die mira.yaml lässt sich hier nicht ändern.")
 	}
+	if err := literal(c.a.lang, map[string]string{skills.SettingClientID: id}); err != nil {
+		return err
+	}
 	ref := config.SecretName("SKILL", skill, skills.SettingClientSecret)
 	secrets := map[string]string{}
 	if secret != "" {
@@ -108,6 +111,9 @@ func (c connections) SaveRemoteAddress(ctx context.Context, address string) erro
 		return errors.New(i18n.Pick(remoteAddressTexts, c.a.lang).noFile)
 	}
 	address = strings.TrimRight(address, "/")
+	if err := literal(c.a.lang, map[string]string{"url": address}); err != nil {
+		return err
+	}
 	if address != "" {
 		u, err := url.Parse(address)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {

@@ -211,7 +211,7 @@ func TestHE07_WithoutAToken(t *testing.T) {
 	}
 }
 
-func TestHE08_APartnersCallIsShown(t *testing.T) {
+func TestHE08_APartnersCallIsRefusedAndShown(t *testing.T) {
 	ha := fakeha.New()
 	t.Cleanup(ha.Close)
 	client := haClient(t, ha.URL, ha.Token)
@@ -243,7 +243,8 @@ func TestHE08_APartnersCallIsShown(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK || len(ha.ServiceCalls()) != 1 {
+	// A partner token reads only who it is and the state (access-tokens.md, decision 23).
+	if resp.StatusCode != http.StatusForbidden || len(ha.ServiceCalls()) != 0 {
 		t.Fatalf("status %d, calls %d", resp.StatusCode, len(ha.ServiceCalls()))
 	}
 	calls, err := keeper.Activity(ctx, info.ID, 50, 0)
@@ -251,7 +252,7 @@ func TestHE08_APartnersCallIsShown(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(calls) != 1 || calls[0].TokenName != "Elektro Meier" || calls[0].PartnerUser != "anna@partner" ||
-		calls[0].Path != "/v1/ha/services/input_select/select_option" || calls[0].Status != http.StatusOK {
+		calls[0].Path != "/v1/ha/services/input_select/select_option" || calls[0].Status != http.StatusForbidden {
 		t.Fatalf("partner activity: %+v", calls)
 	}
 }

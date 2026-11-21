@@ -1713,10 +1713,10 @@ Mira's data goes into Home Assistant's backups (Settings → System → Backups)
 
 ### More access tokens
 
-With a token of its own, another program can use Mira the way Mira's page does, one a company uses to look after Mira for you, say.
+With a token of its own, another program sees how Mira is doing, one a company uses to look after Mira for you, say.
 
 - **Create:** Mira → Setup → **Connections** → **Access tokens**: enter a name and **Create a new token**. Mira shows the token only once, in a window; **Copy and close**. Only admins can create and delete one.
-- **What it can do:** everything Mira's page can, as an admin, with the house's memory, not each person's. Through Mira's interface it can also read any state in Home Assistant and call any action, with Mira's administrator rights and without asking; "Expose to Assist" and "Mira: confirm first" do not apply there. Setting Mira up anew, separating her from Home Assistant, fetching or restoring a backup and managing tokens it cannot.
+- **What it can do:** only read Mira's state (is she running, which problems does she report, which version) and the token's name. Mira refuses everything else. If the company is to change settings, give it a user of its own in Home Assistant: there you decide what it may do, and Home Assistant records what it does.
 - **What was done with it:** open the token. Every call is listed there with its time, user and what, except the regular status query. Mira keeps this for 90 days.
 - **Take it back:** **Delete** at the token. From then on nobody reaches Mira with it.
 
@@ -1725,8 +1725,8 @@ With a token of its own, another program can use Mira the way Mira's page does, 
 - **Two keys:**
   - Home Assistant reaches Mira with an **access token**. The integration fetches it when adding Mira; you never see it. Other programs get one of their own (see "More access tokens").
   - Mira reaches Home Assistant with **the token you gave her when setting up**, so with the rights of the administrator it belongs to. The integration never makes a token itself. You can revoke it at any time under Security in the profile you created it in; Mira then asks for a new one under Repairs. If you remove the integration, the token stays until you delete it there.
-  - Whoever knows an access token can do all that Mira can, including calling any action in Home Assistant through her interface. Treat it like a password.
-- **What Mira does in HA:** only what her tools offer: switch devices and save your tasks and timers as automations, the way the automation editor does; she deletes only her own. She manages no users, integrations or settings. Skills may bring blueprints; from them Mira makes automations and scripts in Home Assistant. If Mira runs with a token from her `mira.yaml` (`ha.token`), it must be an admin's for tasks and timers. What she sees in a conversation, you decide with "Expose to Assist". Locks, the alarm panel and everything labelled "Mira: confirm first" she switches in a conversation only after your yes. A program with an access token goes past this (see above).
+  - Whoever knows the integration's token can do all that Mira can, including calling any action in Home Assistant through her interface. A further access token only reads Mira's state. Treat both like a password.
+- **What Mira does in HA:** only what her tools offer: switch devices and save your tasks and timers as automations, the way the automation editor does; she deletes only her own. She manages no users, integrations or settings. Skills may bring blueprints; from them Mira makes automations and scripts in Home Assistant. If Mira runs with a token from her `mira.yaml` (`ha.token`), it must be an admin's for tasks and timers. What she sees in a conversation, you decide with "Expose to Assist". Locks, the alarm panel and everything labelled "Mira: confirm first" she switches in a conversation only after your yes. Whoever has the integration's token goes past this (see above).
 - **If Mira runs on the same machine as Home Assistant** (the usual case), everything stays on that machine.
 - **If Mira runs on another machine** in your network, the connection goes through your home network unencrypted: the access token, what you say and what Mira answers. That is common in your own home network, as with many other devices in Home Assistant. A guest network, a shared network or the way over the internet without HTTPS is not the place for it.
 - **If Mira gets a new address**, the integration follows her by itself, but only once Mira shows there that she knows the access token. Another device posing as Mira does not get it. So keep Mira and the integration at the same version.

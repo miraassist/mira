@@ -84,14 +84,23 @@ Feature: Access tokens
     Then the page lists it newest first with time, partner user and what was done
 
   @step3
-  Scenario: AT-14 A partner sees only the house's memory
-    Given a fact of the house and a fact of Anna
-    When a partner token reads the memory on Mira's page
-    Then it sees the house's fact and not Anna's
-    And it can forget the house's fact but not Anna's
+  Scenario: AT-14 A partner sees no memory
+    Given a fact of the house
+    When a partner token reads or forgets the memory on Mira's page
+    Then the answer is 403 and the fact stays (since decision 23)
 
   @step1
   Scenario: AT-15 A partner token cannot manage access
     Given a partner token
     When it lists, makes or deletes tokens or reads their activity
     Then the answer is 403 and nothing changes
+
+  @step5
+  Scenario: AT-16 A partner token reads only who it is and the state
+    Given a partner token
+    When it calls GET /v1/whoami or GET /v1/status
+    Then the answer is 200
+    When it calls anything else, such as an action through /v1/ha, a conversation, a connection or a page's setting
+    Then the answer is 403 and no handler is called
+    And the partner activity keeps the refused call
+    And the integration's token still gets through there

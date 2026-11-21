@@ -226,6 +226,10 @@ func (e *editor) SaveModel(ctx context.Context, name string, m ui.ModelEdit) err
 	case !modelNamePattern.MatchString(newName):
 		return fmt.Errorf("Der Name „%s“ geht nicht: kleine Buchstaben und Ziffern, verbunden mit - oder _.", newName)
 	}
+	if err := literal(e.a.lang, map[string]string{"endpoint": m.Endpoint, "model": m.Model, "privacy": m.Privacy,
+		"fallback": m.Fallback, "reasoning_effort": m.ReasoningEffort, "timeout": m.Timeout}); err != nil {
+		return err
+	}
 	// A new server, model or key is tried first: what does not answer is
 	// not saved (docs/spec/editing.md).
 	if old, ok := e.State(ctx).Models[name]; !ok || old.Endpoint != m.Endpoint || old.Model != m.Model || m.Token != "" {
@@ -386,6 +390,10 @@ func (e *editor) SaveAgent(ctx context.Context, name string, a ui.AgentEdit) err
 	if name == "max_depth" {
 		return errors.New("max_depth ist kein Agent.")
 	}
+	if err := literal(e.a.lang, map[string]string{"model": a.Model, "privacy": a.Privacy,
+		"description": a.Description, "context": a.Context}); err != nil {
+		return err
+	}
 	return e.change(nil, func(top *yaml.Node) error {
 		agents := config.MapChild(top, "agents")
 		n := config.MapGet(agents, name)
@@ -533,10 +541,18 @@ func (e *editor) SaveSkill(ctx context.Context, name string, s ui.SkillEdit) err
 	}
 	decls := f.SettingDecls()
 	secrets := map[string]string{}
+	plain := map[string]string{}
 	for _, d := range decls {
-		if v := strings.TrimSpace(s.Settings[d.Name]); d.Secret && v != "" {
+		v := strings.TrimSpace(s.Settings[d.Name])
+		switch {
+		case d.Secret && v != "":
 			secrets[config.SecretName("SKILL", name, d.Name)] = v
+		case !d.Secret:
+			plain[d.Name] = v
 		}
+	}
+	if err := literal(e.a.lang, plain); err != nil {
+		return err
 	}
 	// The SKILL.md's new parts, checked before anything is written.
 	writeSkill := false

@@ -169,8 +169,10 @@ More, each explained in the guide ([de](docs/guide/de.md), [en](docs/guide/en.md
   danach …"), more of the same ("Spiel mehr davon") and jumping within the
   song ("Spring 30 Sekunden vor") work by voice. While a satellite listens,
   the players playing in its room go down to a third.
-- **Access tokens**: other programs (a partner who looks after Mira for you)
-  get a named token of their own; what each did is listed on Mira's page.
+- **Access tokens**: a partner who looks after Mira for you gets a named
+  token of their own, which reads only Mira's state; what was done with it is
+  listed on Mira's page. Everything else the partner does in Home Assistant,
+  signed in as a user you give rights to.
 - **Mira's interface**: described at `/v1/openapi.yaml`; with a token it also
   reads Home Assistant's states and calls its actions (`/v1/ha/…`,
   docs/spec/ha-api.md).

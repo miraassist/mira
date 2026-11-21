@@ -74,6 +74,9 @@ func (j jobs) SaveJob(ctx context.Context, skill, name string, e ui.JobEdit) err
 			params[k] = v
 		}
 	}
+	if err := literal(a.lang, params); err != nil {
+		return err
+	}
 	for _, k := range tpl.ParamNames() {
 		if d := tpl.Parameters[k]; d.Required && params[k] == "" {
 			return fmt.Errorf("„%s“ fehlt: %s", k, d.Description)

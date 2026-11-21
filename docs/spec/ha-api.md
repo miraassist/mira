@@ -1,7 +1,8 @@
 # Home Assistant through Mira's interface – Spec
 
-Status 2026-11-16: steps 1 and 2 built (released). Decisions 1 to 3, 10 and 11 by the maintainer, the others taken
-while writing, to be confirmed. Scenarios: [ha-api.feature](ha-api.feature) (`HE-…`).
+Status 2026-11-21: steps 1 and 2 built (released). Decisions 1 to 3, 10 and 11 by the maintainer, the others taken
+while writing, to be confirmed. Since 2026-11-21 a partner token is refused here ([Access tokens](access-tokens.md),
+decision 23): the routes are the integration's token's. Scenarios: [ha-api.feature](ha-api.feature) (`HE-…`).
 
 ## Goal
 
@@ -19,7 +20,7 @@ By the maintainer (2026-11-16):
 | # | Topic | Decision |
 |---|---|---|
 | 1 | What it reaches | Every entity of Home Assistant, not only a skill's helpers: a general route |
-| 2 | Who may | Whoever holds a token of Mira's interface (the integration's or an access token); a partner's calls show on Mira's page as every partner call does ([Access tokens](access-tokens.md), decision 7) |
+| 2 | Who may | ~~Whoever holds a token of Mira's interface (the integration's or an access token)~~ Since 2026-11-21 the integration's token only: a partner token is refused with 403 ([Access tokens](access-tokens.md), decision 23), because Mira calls Home Assistant with the owner's token and these routes run without hooks (decision 8). A partner's refused call shows on Mira's page as every partner call does (decision 7 there) |
 | 3 | Described | In Mira's OpenAPI file ([OpenAPI](openapi.md)) |
 | 10 | A refused token (the open question of step 1: decided B) | Home Assistant refusing Mira's token on these routes raises a repair, not only a log line: the existing one, "Mira has no access any more" / „Mira hat keinen Zugang mehr“ ([HACS default](hacs-default.md), 4). It goes again with the next call Home Assistant accepts |
 | 11 | Only for a token from the setup (2026-11-16, by the maintainer, 1B) | The repair is raised only when Mira's Home Assistant token came from the integration's setup (pairing). A token from `mira.yaml` is not the integration's to replace (its fix sends a new token through the setup): a refusal then answers `502` and writes the log line, but `/v1/status` does not report it |

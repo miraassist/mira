@@ -165,3 +165,11 @@ Feature: BE Editing models, agents and skills on Mira's page
     Given the integration set up with its Mira
     When mira_started comes with another id
     Then it sends nothing
+
+  @step4
+  Scenario: BE-26 A value with a reference is refused
+    Given mira.yaml and the page
+    When a model's address, an agent's description, Mira's address, a skill's setting that is not secret or a settings section is saved with "${MIRA_SECRET_KEY}" in it
+    Then the page says that the field may not contain "${", naming the field
+    And mira.yaml is not written
+    And a secret setting with "${" in it goes into the secrets file as it is

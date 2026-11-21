@@ -1488,6 +1488,9 @@ func (u uiConfig) SetSections(ctx context.Context, sections map[string]json.RawM
 	yamls := make(map[string][]byte, len(sections))
 	inFile := make(map[string][]byte, len(sections))
 	for name, raw := range sections {
+		if err := literalJSON(u.a.lang, name, raw); err != nil {
+			return err
+		}
 		y, err := config.SectionYAML(name, raw)
 		if err != nil {
 			return err

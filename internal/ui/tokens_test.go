@@ -163,31 +163,23 @@ func TestAT12_ThePageShowsWhatThePartnerDid(t *testing.T) {
 }
 
 func TestAT14_APartnerSeesOnlyTheHousesMemory(t *testing.T) {
+	// Since decision 23 a partner token reaches no route of the page: the
+	// memory is refused before the page's own check.
 	srv, k, st, _ := tokenServer(t)
 	ctx := context.Background()
-	house, err := st.SaveFact(ctx, store.Fact{ID: "f1", Owner: store.OwnerHouse, Text: "Der Müll kommt dienstags"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	anna, err := st.SaveFact(ctx, store.Fact{ID: "f2", Owner: "anna", Text: "Anna mag keinen Koriander"})
-	if err != nil {
+	if _, err := st.SaveFact(ctx, store.Fact{ID: "f1", Owner: store.OwnerHouse, Text: "Der Müll kommt dienstags"}); err != nil {
 		t.Fatal(err)
 	}
 	token, _, _ := k.Make(ctx, "Elektro Meier")
-	code, body := call(t, srv, "GET", "/v1/ui/memory", token, "")
-	if code != http.StatusOK || !strings.Contains(body, "dienstags") || strings.Contains(body, "Koriander") ||
-		strings.Contains(body, "unknown_person") {
+	if code, body := call(t, srv, "GET", "/v1/ui/memory", token, ""); code != http.StatusForbidden ||
+		strings.Contains(body, "dienstags") {
 		t.Fatalf("memory: %d %s", code, body)
 	}
-	// A person's fact cannot be changed or forgotten either; the house's can.
-	if code, _ := call(t, srv, "DELETE", "/v1/ui/memory/"+anna.ID, token, ""); code != http.StatusNotFound {
-		t.Fatalf("forgetting Anna's fact: %d", code)
-	}
-	if code, _ := call(t, srv, "DELETE", "/v1/ui/memory/"+house.ID, token, ""); code != http.StatusOK {
+	if code, _ := call(t, srv, "DELETE", "/v1/ui/memory/f1", token, ""); code != http.StatusForbidden {
 		t.Fatalf("forgetting the house's fact: %d", code)
 	}
-	// The service's own token still sees everyone's.
-	if _, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); !strings.Contains(body, "Koriander") {
+	// The service's own token still sees it.
+	if _, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); !strings.Contains(body, "dienstags") {
 		t.Fatalf("the integration's token: %s", body)
 	}
 }

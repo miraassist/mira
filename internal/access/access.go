@@ -190,21 +190,17 @@ func (k *Keeper) isIntegration(bearer string) bool {
 	return k.integration != "" && subtle.ConstantTimeCompare([]byte(bearer), []byte(k.integration)) == 1
 }
 
-// partnerRefused are the routes a partner token may not use: the setup's
-// (decision 9), backup and restore (decision 16) and the access tokens
-// themselves (decision 18).
-func partnerRefused(path string) bool {
-	switch path {
-	case "/v1/pair", "/v1/unpair", "/v1/prove", "/v1/backup", "/v1/restore":
-		return true
-	}
-	for _, p := range []string{"/v1/setup", "/v1/ui/tokens"} {
-		if path == p || strings.HasPrefix(path, p+"/") {
-			return true
-		}
-	}
-	return false
+// partnerAllowed is all a partner token may call: who it is (answered by
+// the check itself) and the state the Partner service asks at an interval
+// (decision 23). Since Mira works with the owner's Home Assistant token, the
+// rest of the interface would be an administrator's access without a sign-in;
+// the partner works in Home Assistant itself instead.
+func partnerAllowed(r *http.Request) bool {
+	return r.Method == http.MethodGet && (r.URL.Path == "/v1/whoami" || r.URL.Path == "/v1/status")
 }
+
+// refusedText is the 403's error for a partner token's call elsewhere.
+const refusedText = "a partner token may only ask who it is and the state"
 
 // Check wraps the HTTP interface: it answers GET /v1/whoami, passes a
 // partner token's call on with the integration's token, and keeps it in
@@ -236,12 +232,12 @@ func (k *Keeper) Check(next http.Handler) http.Handler {
 			k.whoami(rec, false, c)
 			return
 		}
-		if partnerRefused(r.URL.Path) {
-			writeJSON(rec, http.StatusForbidden, map[string]string{"error": "not with a partner token"})
+		if !partnerAllowed(r) {
+			writeJSON(rec, http.StatusForbidden, map[string]string{"error": refusedText})
 			return
 		}
 		r = r.Clone(context.WithValue(r.Context(), ctxKey{}, c))
-		// As an admin without a Home Assistant user (decision 10).
+		// Without a Home Assistant user (decision 10).
 		r.Header.Del(headerHAUser)
 		r.Header.Del(headerHAAdmin)
 		if k.integration != "" {

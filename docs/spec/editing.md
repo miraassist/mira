@@ -1,7 +1,8 @@
 # Editing models, agents and skills on Mira's page
 
-Status 2026-10-30: step 1 built, released in 0.7.0; provider list and model check in 0.8.0. Step 2 (the settings
-sections in the file, nothing in the database) built 2026-10-30. Scenarios: [editing.feature](editing.feature).
+Status 2026-11-21: step 1 built, released in 0.7.0; provider list and model check in 0.8.0. Step 2 (the settings
+sections in the file, nothing in the database) built 2026-10-30. Step 4 (no `${` in a value typed on the page,
+decision 11) built 2026-11-21. Scenarios: [editing.feature](editing.feature).
 
 ## Goal
 
@@ -37,6 +38,16 @@ now change what is there and add new ones, without opening a file on the server.
   data folder alone then gives nothing away. Without it the file is plain text, mode 0600, and the page says so.
   A file encrypted with a key that is missing or wrong at start: Mira says so and starts without its secrets.
 - **Never back:** the page shows only whether a secret is set; it never gets its value.
+- **No `${` in a value typed on the page** (decision 11): Mira reads mira.yaml with every `${NAME}` replaced from
+  the secrets file and the environment. A value the page writes as it is typed (a model's address or name, an agent's
+  description, a skill's setting that is not secret, a connection's client id, Mira's address, a job's value, a
+  settings section) that holds `${` is refused before anything is written, with the field named: „„endpoint“ darf
+  kein „${“ enthalten: Mira läse es beim Start als Verweis auf ein Geheimnis oder eine Umgebungsvariable.“ Otherwise
+  such a value would bring a secret of the secrets file or the environment (the Supervisor's token too) onto the
+  page, or send it to an address of the writer's choice. Not checked: a secret setting (its value goes into the
+  secrets file, never read for references), the references the page makes itself, and the YAML text an admin writes
+  (agents, thread, MCP), where a reference written by hand is meant, as in the file. **Fails:** the page shows the
+  sentence under the form; nothing is written, no log line (the caller sees the error).
 
 ## Models
 
@@ -175,6 +186,10 @@ nothing of this.
 10. **Mira says she started** (2026-11-11, TODO C23): after her start she fires `mira_started` and the integration
     sends its settings at once instead of at its next poll (up to a minute); the poll stays as the safety net. An event
     and not a copy in the database: Home Assistant stays the one truth of these settings (decision 9).
+11. **No `${` in a value typed on the page** (2026-11-21, by the maintainer, after a review): a value the page writes
+    into mira.yaml as it is typed is refused when it holds `${`, so it cannot become a reference to a secret or an
+    environment variable. Replacing `${NAME}` in the file stays: the secrets file and hand-written references (the
+    guide's `${PAPERLESS_TOKEN}`) rest on it. Escaping (`$${`) was rejected: no setting needs a literal `${`.
 
 ## Steps
 
@@ -183,6 +198,7 @@ nothing of this.
    2026-10-30).
 3. `mira_started` (decision 10): Mira fires it, the integration sends at once. BE-22 to BE-25 (built 2026-11-11; BE-24
    and BE-25 in pytest).
+4. No `${` in a value typed on the page (decision 11). BE-26 (built 2026-11-21).
 
 ## Open
 

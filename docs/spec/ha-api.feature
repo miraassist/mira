@@ -41,9 +41,10 @@ Feature: Home Assistant through Mira's interface (docs/spec/ha-api.md)
     Then the answer is 401
 
   @step1
-  Scenario: HE-08 A partner's call is shown
+  Scenario: HE-08 A partner's call is refused and shown
     When the Partner service sets a helper with its partner token and a partner user
-    Then the call shows on Mira's page with the token's name and the partner user
+    Then the answer is 403 and Home Assistant is not called
+    And the call shows on Mira's page with the token's name and the partner user
 
   @step2
   Scenario: HE-09 A refused token raises the repair

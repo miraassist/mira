@@ -164,12 +164,12 @@ func TestAT05_XPartnerUserCountsOnlyWithAPartnerToken(t *testing.T) {
 		t.Fatalf("the handler saw the partner user %q", s.partnerUser)
 	}
 	token, _, _ := k.Make(context.Background(), "Elektro Meier")
-	_, s = serve(k, http.MethodGet, "/v1/ui/tasks", token, map[string]string{HeaderPartnerUser: "anna",
+	_, s = serve(k, http.MethodGet, "/v1/status", token, map[string]string{HeaderPartnerUser: "anna",
 		headerHAUser: "someone", headerHAAdmin: "0"})
 	if s.caller.PartnerUser != "anna" {
 		t.Fatalf("caller %+v", s.caller)
 	}
-	// As an admin without a Home Assistant user (decision 10).
+	// Without a Home Assistant user (decision 10).
 	if s.haUser != "" || s.haAdmin != "" {
 		t.Fatalf("Home Assistant's headers passed on: %q %q", s.haUser, s.haAdmin)
 	}
@@ -212,7 +212,7 @@ func TestAT06_ASecondTokenWithTheSameNameIsRefused(t *testing.T) {
 func TestAT07_APartnerCallIsRecordedWithItsPartnerUser(t *testing.T) {
 	k, st, logs := newKeeper(t)
 	token, made, _ := k.Make(context.Background(), "Elektro Meier")
-	serve(k, http.MethodGet, "/v1/ui/tasks", token, map[string]string{HeaderPartnerUser: "anna"})
+	serve(k, http.MethodGet, "/v1/whoami", token, map[string]string{HeaderPartnerUser: "anna"})
 	serve(k, http.MethodPost, "/v1/backup", token, map[string]string{HeaderPartnerUser: "anna"})
 	serve(k, http.MethodGet, "/v1/status", integrationToken, nil)
 	// The state the Partner service asks all the time is not kept (decision 22).
@@ -225,14 +225,14 @@ func TestAT07_APartnerCallIsRecordedWithItsPartnerUser(t *testing.T) {
 	for _, c := range calls {
 		got[c.Path] = c
 	}
-	if c := got["/v1/ui/tasks"]; c.TokenName != "Elektro Meier" || c.PartnerUser != "anna" || c.Method != "GET" ||
+	if c := got["/v1/whoami"]; c.TokenName != "Elektro Meier" || c.PartnerUser != "anna" || c.Method != "GET" ||
 		c.Status != http.StatusOK {
 		t.Fatalf("recorded %+v", c)
 	}
 	if c := got["/v1/backup"]; c.Status != http.StatusForbidden {
 		t.Fatalf("a refused call recorded as %+v", c)
 	}
-	if !strings.Contains(logs.String(), `msg="partner call" token="Elektro Meier" partner_user=anna method=GET path=/v1/ui/tasks status=200`) {
+	if !strings.Contains(logs.String(), `msg="partner call" token="Elektro Meier" partner_user=anna method=GET path=/v1/whoami status=200`) {
 		t.Fatalf("log:\n%s", logs)
 	}
 	if strings.Contains(logs.String(), "path=/v1/status") {
@@ -246,12 +246,56 @@ func TestAT08_TheCallRunsAlthoughItsRecordFails(t *testing.T) {
 	if _, err := st.DB().Exec(`DROP TABLE access_log`); err != nil {
 		t.Fatal(err)
 	}
-	rec, s := serve(k, http.MethodGet, "/v1/ui/tasks", token, map[string]string{HeaderPartnerUser: "anna"})
-	if rec.Code != http.StatusOK || !s.called {
-		t.Fatalf("status %d, called %v", rec.Code, s.called)
+	rec, _ := serve(k, http.MethodGet, "/v1/whoami", token, map[string]string{HeaderPartnerUser: "anna"})
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Elektro Meier") {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body)
 	}
 	if !strings.Contains(logs.String(), "could not record a partner call") ||
-		!strings.Contains(logs.String(), "path=/v1/ui/tasks") {
+		!strings.Contains(logs.String(), "path=/v1/whoami") {
 		t.Fatalf("log:\n%s", logs)
+	}
+}
+
+func TestAT16_APartnerTokenReadsOnlyWhoItIsAndTheState(t *testing.T) {
+	k, st, _ := newKeeper(t)
+	token, made, _ := k.Make(context.Background(), "Elektro Meier")
+	if rec, _ := serve(k, http.MethodGet, "/v1/whoami", token, nil); rec.Code != http.StatusOK {
+		t.Fatalf("whoami: %d", rec.Code)
+	}
+	if rec, s := serve(k, http.MethodGet, "/v1/status", token, nil); rec.Code != http.StatusOK || !s.called {
+		t.Fatalf("status: %d, called %v", rec.Code, s.called)
+	}
+	refused := []struct{ method, path string }{
+		{http.MethodPost, "/v1/ha/services/lock/unlock"},
+		{http.MethodGet, "/v1/ha/states/lock.front_door"},
+		{http.MethodPost, "/v1/conversation"},
+		{http.MethodGet, "/v1/oauth/strava"},
+		{http.MethodPut, "/v1/oauth/strava/token"},
+		{http.MethodGet, "/v1/ui/config"},
+		{http.MethodPut, "/v1/ui/connections/strava"},
+		{http.MethodPut, "/v1/ui/edit/skills/own"},
+		{http.MethodGet, "/v1/ui/memory"},
+		{http.MethodPost, "/v1/status"},
+		{http.MethodGet, "/v1/status/"},
+		{http.MethodGet, "/v1/openapi.json"},
+	}
+	for _, c := range refused {
+		rec, s := serve(k, c.method, c.path, token, nil)
+		if rec.Code != http.StatusForbidden || s.called || !strings.Contains(rec.Body.String(), refusedText) {
+			t.Fatalf("%s %s: %d, called %v, %s", c.method, c.path, rec.Code, s.called, rec.Body)
+		}
+		// The integration's token still gets through there.
+		if rec, s := serve(k, c.method, c.path, integrationToken, nil); rec.Code != http.StatusOK || !s.called {
+			t.Fatalf("%s %s with the integration's token: %d", c.method, c.path, rec.Code)
+		}
+	}
+	calls, err := st.AccessCalls(context.Background(), made.ID, 50, 0)
+	if err != nil || len(calls) != 1+len(refused) {
+		t.Fatalf("partner activity: %d rows, %v", len(calls), err)
+	}
+	for _, c := range calls {
+		if c.Path != "/v1/whoami" && c.Status != http.StatusForbidden {
+			t.Fatalf("a refused call recorded as %+v", c)
+		}
 	}
 }
