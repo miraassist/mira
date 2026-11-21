@@ -214,6 +214,11 @@ type app struct {
 	proactiveMu     sync.Mutex
 	proactiveCancel context.CancelFunc
 	proactiveWG     sync.WaitGroup
+	// restartMu holds a whole start or restart of the notifier (stop, wait,
+	// start), so two never interleave; proactiveOn says the first start ran
+	// (never in an eval), guarded by it.
+	restartMu   sync.Mutex
+	proactiveOn bool
 
 	// background holds goroutines started by build, stopped through ctx.
 	background sync.WaitGroup
@@ -1171,7 +1176,10 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	// The eval runner's service announces nothing: the test Mira next to it
 	// does that, and an eval must not speak on a real device.
 	if !cfg.Server.Eval {
+		a.restartMu.Lock()
 		a.startProactive(ctx)
+		a.proactiveOn = true
+		a.restartMu.Unlock()
 	}
 	// Asynchronous runs that were running when the service stopped go on;
 	// threads that were working start their work anew.
@@ -1414,8 +1422,18 @@ func (a *app) goProactive(ctx context.Context, name string, fn func(context.Cont
 }
 
 // restartProactive stops the notifier, waits for it and
-// starts them again with the live config.
+// starts them again with the live config. The whole of it runs under
+// restartMu: two restarts at once (the page's settings and a change of the
+// persons) would otherwise both cancel the old notifier, one would start a
+// new one, and the other would wait for that one for ever or start a second.
+// Before the first start (or in an eval) it does nothing: the first start
+// reads the live config itself.
 func (a *app) restartProactive(parent context.Context) {
+	a.restartMu.Lock()
+	defer a.restartMu.Unlock()
+	if !a.proactiveOn {
+		return
+	}
 	a.proactiveMu.Lock()
 	cancel := a.proactiveCancel
 	a.proactiveMu.Unlock()

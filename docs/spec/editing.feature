@@ -173,3 +173,11 @@ Feature: BE Editing models, agents and skills on Mira's page
     Then the page says that the field may not contain "${", naming the field
     And mira.yaml is not written
     And a secret setting with "${" in it goes into the secrets file as it is
+
+  @step2
+  Scenario: BE-27 Restarts at once leave one notifier
+    Given the notifier runs
+    When settings are saved and the persons change at the same moment, several times
+    Then every restart comes back
+    And afterwards exactly one notifier runs
+    And a restart before the first start starts nothing

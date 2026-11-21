@@ -108,7 +108,10 @@ change in her database and laid it over the file ("changed in the UI", "Back to 
   `30m0s`), down into the parts of a section (the quiet hours, the escalation). A section left at its defaults has no
   entry. So the file stays short and a later default still reaches it.
 - **It holds at once**, as before: Mira applies it to the running configuration and restarts the notifier; no restart
-  of Mira.
+  of Mira. Restarts of the notifier run one after the other (2026-11-21, after a review): a save and a change of the
+  persons at the same moment each stop, wait for and start it as a whole, so exactly one notifier runs afterwards. A
+  restart before Mira's first start of the notifier (or in an eval, where it never runs) starts nothing: the first
+  start reads the live configuration itself. BE-27.
 - **The page shows no source any more:** no "changed in the UI", no "Back to mira.yaml". What is in the file is what
   holds. "Managed in Home Assistant" stays for what the integration sends.
 - **Without a writable mira.yaml** saving is refused with the reason, as for models and skills.
