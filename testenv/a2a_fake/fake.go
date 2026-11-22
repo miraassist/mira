@@ -124,7 +124,8 @@ type Received struct {
 	Card string `json:"card"`
 	// Kind is "card" (the card was read), a JSON-RPC method (SendMessage,
 	// SendStreamingMessage, GetTask, CancelTask, …), "cancel" (the task was
-	// cancelled) or "push" (a push the fake sent).
+	// cancelled), "push" (a push the fake sent) or "completed" (a SkillSlow
+	// task completed, its events handed on).
 	Kind string `json:"kind"`
 	// Auth is the credential that came: the Authorization header, or the
 	// API key for CardAPIKey.
@@ -157,6 +158,13 @@ type Fake struct {
 	received []Received
 	skillOf  map[a2a.TaskID]string
 	gate     chan struct{}
+	// waiters wait for a record (Await).
+	waiters []waiter
+}
+
+type waiter struct {
+	match func(Received) bool
+	done  chan struct{}
 }
 
 // New makes the fake.
@@ -334,6 +342,31 @@ func (f *Fake) record(r Received) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.received = append(f.received, r)
+	kept := f.waiters[:0]
+	for _, w := range f.waiters {
+		if w.match(r) {
+			close(w.done)
+			continue
+		}
+		kept = append(kept, w)
+	}
+	f.waiters = kept
+}
+
+// Await is closed once the fake has recorded something match takes, at
+// once when it has already: the signal a test waits for instead of a time.
+func (f *Fake) Await(match func(Received) bool) <-chan struct{} {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	done := make(chan struct{})
+	for _, r := range f.received {
+		if match(r) {
+			close(done)
+			return done
+		}
+	}
+	f.waiters = append(f.waiters, waiter{match: match, done: done})
+	return done
 }
 
 // Received is everything the fake received and sent, in order.
@@ -431,6 +464,7 @@ func (f *Fake) Execute(ctx context.Context, ec *a2asrv.ExecutorContext) iter.Seq
 			case <-timeout:
 			}
 			complete(Result)
+			f.record(Received{Kind: "completed", TaskID: string(ec.TaskID)})
 		case SkillAsk, SkillAskTwice:
 			yield(a2a.NewStatusUpdateEvent(ec, a2a.TaskStateInputRequired, say(Question)), nil)
 		case SkillLogin:

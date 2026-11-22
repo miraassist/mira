@@ -37,6 +37,78 @@ type remoteEnv struct {
 	told []store.Message
 	// host is the service's remote agents, for the push route.
 	host *a2a.Host
+	// runs is the store as the remote agents use it, telling the test each
+	// state of a call it writes; finished tells each finished thread.
+	runs     *signalRuns
+	finished *signals
+}
+
+// signals are what happened, for a test to wait on instead of a time
+// (docs: no timing in tests): await is closed once something matching was
+// added, at once when it already was.
+type signals struct {
+	mu      sync.Mutex
+	seen    []string
+	waiters []sigWaiter
+}
+
+type sigWaiter struct {
+	match func(string) bool
+	done  chan struct{}
+}
+
+func (s *signals) add(v string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.seen = append(s.seen, v)
+	kept := s.waiters[:0]
+	for _, w := range s.waiters {
+		if w.match(v) {
+			close(w.done)
+			continue
+		}
+		kept = append(kept, w)
+	}
+	s.waiters = kept
+}
+
+func (s *signals) await(match func(string) bool) <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	done := make(chan struct{})
+	for _, v := range s.seen {
+		if match(v) {
+			close(done)
+			return done
+		}
+	}
+	s.waiters = append(s.waiters, sigWaiter{match: match, done: done})
+	return done
+}
+
+// signalRuns is the store for the remote agents, adding each state of a
+// call it writes to its signals.
+type signalRuns struct {
+	a2a.Runs
+	saved signals
+}
+
+func (r *signalRuns) SetAgentRunRemote(ctx context.Context, callID string, remote json.RawMessage) error {
+	err := r.Runs.SetAgentRunRemote(ctx, callID, remote)
+	r.saved.add(string(remote))
+	return err
+}
+
+// signalFinisher tells when a thread's finish has worked.
+type signalFinisher struct {
+	threads.Finisher
+	done *signals
+}
+
+func (f signalFinisher) Work(ctx context.Context, th store.Thread) (threads.Result, error) {
+	res, err := f.Finisher.Work(ctx, th)
+	f.done.add(th.ID)
+	return res, err
 }
 
 func (e *remoteEnv) setHost(h *a2a.Host) {
@@ -84,7 +156,7 @@ func newRemoteEnvBefore(t *testing.T, card, skill string, withURL bool, before f
 func newRemoteEnvWait(t *testing.T, card, skill string, withURL bool, before func(http.Handler) http.Handler, wait time.Duration) *remoteEnv {
 	t.Helper()
 	a, _, _ := deliveryApp(t)
-	env := &remoteEnv{a: a, log: &lockedBuffer{}}
+	env := &remoteEnv{a: a, log: &lockedBuffer{}, runs: &signalRuns{Runs: a.store}, finished: &signals{}}
 	env.fake = a2afake.New(a2afake.Options{})
 	var agent http.Handler = env.fake
 	if before != nil {
@@ -113,13 +185,13 @@ func newRemoteEnvWait(t *testing.T, card, skill string, withURL bool, before fun
 		serverURL = env.mira.URL
 	}
 	logger := slog.New(slog.NewTextHandler(env.log, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	a.remote = a2a.New(a2a.Options{Skills: []skills.Skill{sk}, ServerURL: serverURL, Runs: a.store,
+	a.remote = a2a.New(a2a.Options{Skills: []skills.Skill{sk}, ServerURL: serverURL, Runs: env.runs,
 		Deliver: a.remoteDelivered, Ask: a.remoteAsked, CallRetry: 10 * time.Millisecond, Logger: logger})
 	a.remote.Start(context.Background())
 	t.Cleanup(a.remote.Close)
 	env.setHost(a.remote)
 	a.threads = threads.New(threads.Options{Lang: i18n.DE, Store: a.store, Targets: []skills.Skill{sk},
-		Finishers: map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, i18n.DE)},
+		Finishers: map[string]threads.Finisher{"memory.save": signalFinisher{threads.MemorySave(a.store, i18n.DE), env.finished}},
 		Dispatch:  a.dispatchForThread, RemoteFailure: a2a.Failure, AgentWait: wait,
 		Asking: a.remote.Asking, Answer: a.remote.Answer,
 		Cancel: func(id string) bool { return a.agents.Cancel(id) || a.remote.Cancel(id) },
@@ -528,7 +600,7 @@ func (e *remoteEnv) restart(t *testing.T, while func()) {
 	old.Close()
 	while()
 	logger := slog.New(slog.NewTextHandler(e.log, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	e.a.remote = a2a.New(a2a.Options{Skills: old.Skills(), ServerURL: old.ServerURL(), Runs: e.a.store,
+	e.a.remote = a2a.New(a2a.Options{Skills: old.Skills(), ServerURL: old.ServerURL(), Runs: e.runs,
 		Deliver: e.a.remoteDelivered, Ask: e.a.remoteAsked, CallRetry: 10 * time.Millisecond, Logger: logger})
 	e.a.remote.Start(context.Background())
 	t.Cleanup(e.a.remote.Close)
@@ -543,31 +615,20 @@ func TestRM14_ARestartDuringTheWork(t *testing.T) {
 	for _, card := range []string{a2afake.CardStreamOnly, a2afake.CardPushOnly} {
 		t.Run(card, func(t *testing.T) {
 			env := newRemoteEnv(t, card, a2afake.SkillSlow, true)
-			ctx := context.Background()
 			env.start(t, "Welche Wärmepumpe passt?")
-			waitFor(t, "the task id", func() bool {
-				runs, _ := env.a.store.RunningAgentRuns(ctx)
-				return len(runs) == 1 && strings.Contains(string(runs[0].Remote), "TASK_STATE_WORKING")
-			})
+			// Signals, no times: the call's state "working" written,
+			// the fake's task completed while the service is down, the
+			// thread finished after the restart.
+			<-env.runs.saved.await(func(v string) bool { return strings.Contains(v, "TASK_STATE_WORKING") })
 			env.restart(t, func() {
 				env.fake.Release()
+				<-env.fake.Await(func(r a2afake.Received) bool { return r.Kind == "completed" })
 				if card == a2afake.CardPushOnly {
-					// Its pushes reach no service.
-					waitFor(t, "the task completed", func() bool {
-						for _, r := range env.fake.Received() {
-							if r.Kind == "push" && r.State == "TASK_STATE_COMPLETED" {
-								return true
-							}
-						}
-						return false
-					})
-					return
+					// Its push of the end goes out while no service is there.
+					<-env.fake.Await(func(r a2afake.Received) bool { return r.Kind == "push" && r.State == "TASK_STATE_COMPLETED" })
 				}
-				// The streamed task leaves no trace at the fake when it
-				// completes: a moment for it.
-				time.Sleep(200 * time.Millisecond)
 			})
-			waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+			<-env.finished.await(func(string) bool { return true })
 			if got := env.fact(t); got != a2afake.Result {
 				t.Errorf("field %q", got)
 			}

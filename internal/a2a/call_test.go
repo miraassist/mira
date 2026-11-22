@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	sdk "github.com/a2aproject/a2a-go/v2/a2a"
+
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 	a2afake "github.com/miraassist/mira/testenv/a2a_fake"
@@ -129,5 +131,25 @@ func TestRemoteSendWhileTheCardCannotBeRead(t *testing.T) {
 	err := h.Send(context.Background(), Request{CallID: "c1", Agent: "recherche", Input: json.RawMessage(`{"input":"x"}`)})
 	if err == nil || !strings.Contains(err.Error(), "its card cannot be read") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// The send's answer ("submitted") is taken beside the pushes: when the push
+// "working" came first, the stored state stays working.
+func TestATaskDoesNotGoBackFromWorkingToSubmitted(t *testing.T) {
+	h, _, _ := callHost(t, "http://127.0.0.1:1", "slow")
+	ctx := context.Background()
+	if err := h.runs.PutAgentRun(ctx, store.AgentRun{CallID: "c1", Agent: "recherche", Status: statusRunning}); err != nil {
+		t.Fatal(err)
+	}
+	c := &call{id: "c1", agent: h.agents[0], ctx: ctx}
+	status := func(state sdk.TaskState) *sdk.TaskStatusUpdateEvent {
+		return &sdk.TaskStatusUpdateEvent{TaskID: "t1", ContextID: "x1", Status: sdk.TaskStatus{State: state}}
+	}
+	h.take(c, status(sdk.TaskStateWorking))
+	h.take(c, &sdk.Task{ID: "t1", ContextID: "x1", Status: sdk.TaskStatus{State: sdk.TaskStateSubmitted}})
+	rec, err := h.runs.GetAgentRun(ctx, "c1")
+	if err != nil || !strings.Contains(string(rec.Remote), `"state":"TASK_STATE_WORKING"`) {
+		t.Errorf("stored %s: %v", rec.Remote, err)
 	}
 }

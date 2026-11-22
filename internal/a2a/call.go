@@ -591,6 +591,15 @@ func (h *Host) take(c *call, ev sdk.Event) {
 		h.asked(c, text)
 		return
 	case sdk.TaskStateSubmitted, sdk.TaskStateWorking:
+		if stateNow == sdk.TaskStateSubmitted && c.st.State == string(sdk.TaskStateWorking) {
+			// A task does not go back from working to submitted: the send's
+			// answer is taken beside the pushes, and a push "working" may
+			// come first (TestRM14 on GitHub's runner, 2026-11-22).
+			c.mu.Unlock()
+			h.log.Debug("remote agent's task reported submitted after working; kept working", "agent", c.agent.Name,
+				"call_id", c.id, "task_id", c.st.TaskID)
+			return
+		}
 		if c.st.State != string(stateNow) {
 			c.st.State, c.st.Asked, save = string(stateNow), "", true
 		}
