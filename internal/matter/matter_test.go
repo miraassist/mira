@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/devices"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
@@ -43,6 +44,30 @@ type fakeHA struct {
 	calls    []string
 	attempts int
 	handler  haws.EventHandler
+	// changed is closed and made anew with every call, for awaitCalled.
+	changed chan struct{}
+}
+
+// awaitCalled waits until kind was called n times.
+func (f *fakeHA) awaitCalled(kind string, n int) {
+	for {
+		f.mu.Lock()
+		if f.changed == nil {
+			f.changed = make(chan struct{})
+		}
+		changed := f.changed
+		got := 0
+		for _, c := range f.calls {
+			if c == kind {
+				got++
+			}
+		}
+		f.mu.Unlock()
+		if got >= n {
+			return
+		}
+		<-changed
+	}
 }
 
 func (f *fakeHA) Call(ctx context.Context, cmd map[string]any) (json.RawMessage, error) {
@@ -56,6 +81,10 @@ func (f *fakeHA) CallFor(_ context.Context, cmd map[string]any, _ time.Duration)
 		kind = fmt.Sprint(cmd["domain"]) + "." + fmt.Sprint(cmd["service"])
 	}
 	f.calls = append(f.calls, kind)
+	if f.changed != nil {
+		close(f.changed)
+		f.changed = nil
+	}
 	f.mu.Unlock()
 	switch {
 	case kind == "config_entries/get":
@@ -148,12 +177,13 @@ type harness struct {
 	said    chan string
 	devices map[string]haws.Device
 	waits   chan string
+	clk     *clock.Fake
 }
 
 func newHarness(t *testing.T, ha *fakeHA, node string) *harness {
 	t.Helper()
 	h := &harness{ha: ha, said: make(chan string, 8), devices: map[string]haws.Device{"sat": {ID: "sat", Name: "Show"}},
-		waits: make(chan string, 8)}
+		waits: make(chan string, 8), clk: clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))}
 	core := devices.NewCore(devices.CoreOptions{Lang: i18n.DE, HA: nopHA{}})
 	h.m = New(Options{
 		Lang: i18n.DE, HA: ha, Core: core, Waiting: h,
@@ -177,6 +207,7 @@ func newHarness(t *testing.T, ha *fakeHA, node string) *harness {
 		},
 		Question: func(_ context.Context, facts string) (string, error) { return "Ich hab's: " + facts + " Raum?", nil },
 		Scan:     time.Second, Attempt: 200 * time.Millisecond, Window: 600 * time.Millisecond, Pause: 50 * time.Millisecond,
+		Clock: h.clk,
 	})
 	return h
 }
@@ -217,13 +248,7 @@ func (h *harness) code(t *testing.T, code string) string {
 
 func (h *harness) waitSaid(t *testing.T) string {
 	t.Helper()
-	select {
-	case s := <-h.said:
-		return s
-	case <-time.After(3 * time.Second):
-		t.Fatal("Mira said nothing at the satellite")
-		return ""
-	}
+	return <-h.said
 }
 
 // A code that checks out: the manual pairing code of a Tapo plug's shape
@@ -311,10 +336,10 @@ func TestDV25_AnAttemptWithoutADeviceIsRepeatedWhileTheWindowLasts(t *testing.T)
 	ha := &fakeHA{loaded: true, commissions: []error{noDeviceError}}
 	h := newHarness(t, ha, "")
 	h.code(t, goodCode)
-	time.Sleep(400 * time.Millisecond)
-	if n := ha.called("matter/commission"); n < 2 {
-		t.Errorf("%d attempts in 400 ms, want more than one", n)
-	}
+	ha.awaitCalled("matter/commission", 1)
+	<-h.clk.AwaitWaiters(1) // the pause after an attempt without a device
+	h.clk.Advance(50 * time.Millisecond)
+	ha.awaitCalled("matter/commission", 2)
 	select {
 	case s := <-h.said:
 		t.Errorf("Mira said something while trying: %q", s)
@@ -351,19 +376,12 @@ func TestDV27_NothingWithinTheWindowIsSaidWithTheOfferToTryAgain(t *testing.T) {
 	ha := &fakeHA{loaded: true, commissions: []error{noDeviceError}}
 	h := newHarness(t, ha, "")
 	h.code(t, goodCode)
-	if said := h.waitSaid(t); !strings.Contains(said, "nicht gefunden") || !strings.Contains(said, "zurück") {
+	var said string
+	h.clk.Drive(func() { said = h.waitSaid(t) }) // the attempts and their pauses fill the window
+	if !strings.Contains(said, "nicht gefunden") || !strings.Contains(said, "zurück") {
 		t.Errorf("said: %q", said)
 	}
-	stopped := false
-	for range 2 {
-		select {
-		case got := <-h.waits:
-			stopped = stopped || got == "stop"
-		case <-time.After(time.Second):
-		}
-	}
-	if !stopped {
-		t.Error("the wait was not stopped")
+	for got := <-h.waits; got != "stop"; got = <-h.waits {
 	}
 }
 
@@ -383,7 +401,6 @@ func TestDV29_TheFoundDevicesLeaveTheDeviceAlone(t *testing.T) {
 	ha := &fakeHA{loaded: true, commissions: []error{noDeviceError}}
 	h := newHarness(t, ha, "")
 	h.code(t, goodCode)
-	time.Sleep(50 * time.Millisecond)
 	if !h.m.Claims("new-one") {
 		t.Error("a device created while commissioning runs is not claimed")
 	}
@@ -503,7 +520,10 @@ func TestDV32_MiraGivesEveryNetworkSheHasOnceBeforeTheFirstAttempt(t *testing.T)
 	if !strings.Contains(out, "das WLAN und das Thread-Netz home-thread") {
 		t.Errorf("answer: %q", out)
 	}
-	time.Sleep(300 * time.Millisecond)
+	ha.awaitCalled("matter/commission", 1)
+	<-h.clk.AwaitWaiters(1) // the pause after an attempt without a device
+	h.clk.Advance(50 * time.Millisecond)
+	ha.awaitCalled("matter/commission", 2)
 	h.m.End(context.Background(), "th1")
 	ha.mu.Lock()
 	defer ha.mu.Unlock()
@@ -600,7 +620,9 @@ func TestDV36_ACommissioningWithoutOneOfTheNetworksNamesItWhenItEndsWithoutADevi
 	ha := &fakeHA{loaded: true, commissions: []error{noDeviceError}}
 	h := newHarness(t, ha, "")
 	h.code(t, goodCode)
-	if said := h.waitSaid(t); !strings.Contains(said, "nicht gefunden") || !strings.Contains(said, "Thread-Netz in Home Assistant") {
+	var said string
+	h.clk.Drive(func() { said = h.waitSaid(t) }) // the window ends without a device
+	if !strings.Contains(said, "nicht gefunden") || !strings.Contains(said, "Thread-Netz in Home Assistant") {
 		t.Errorf("window over: %q", said)
 	}
 	// Only the Thread network: another error ends it at once.
@@ -618,7 +640,8 @@ func TestDV36_ACommissioningWithoutOneOfTheNetworksNamesItWhenItEndsWithoutADevi
 	ha = &fakeHA{loaded: true, datasets: oneOnly, commissions: []error{noDeviceError}}
 	h = newHarness(t, ha, "")
 	h.code(t, goodCode)
-	if said := h.waitSaid(t); strings.Contains(said, "Ich hatte kein") {
+	h.clk.Drive(func() { said = h.waitSaid(t) })
+	if strings.Contains(said, "Ich hatte kein") {
 		t.Errorf("both networks: %q", said)
 	}
 }

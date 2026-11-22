@@ -107,8 +107,11 @@ func NewFake(now time.Time) *Fake // a test's clock
      hands the pieces after the first out only once the first was handed on; a turn that
      waits for the turn before it in its session says so in a debug line, the signal of the test that turns of a
      session run one after the other; an agent called as a tool runs on the test's clock in its runtime.
+   - **matter** (2026-11-23): `Options.Clock` carries the window, the pause between attempts and the wait for a
+     commissioned device's registry event; Scan and Attempt bound calls to Home Assistant and stay real time; the fake
+     Home Assistant reports each call; a test lets the window run out with `Drive`.
 
-   Open: matter, programs, setup, zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch), waiting, clip,
+   Open: programs, setup, zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch), waiting, clip,
    voicemail, heard, cmd/mira (a ready signal of `runAgent`, `fakeha.Await`), and the other packages whose tests
    still sleep or poll.
 

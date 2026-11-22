@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/devices"
 	"github.com/miraassist/mira/internal/excerpt"
 	haws "github.com/miraassist/mira/internal/ha/ws"
@@ -102,6 +103,10 @@ type Options struct {
 	Scan    time.Duration
 	Attempt time.Duration
 	Window  time.Duration
+	// Clock is what the window, the pause and the wait for a commissioned
+	// device's registry event wait on; nil is the real one. Scan and
+	// Attempt bound calls to Home Assistant and stay real time.
+	Clock clock.Clock
 }
 
 // Waiter shows a wait at a thread's satellite and stops it.
@@ -338,11 +343,12 @@ func (m *Onboarding) watch(ctx context.Context, r *run, code string) {
 	// What is said at the end outlives the run: ending it cancels ctx, and
 	// a cancelled one neither stops the wait nor speaks.
 	tell := context.WithoutCancel(ctx)
-	deadline := time.Now().Add(m.o.Window)
+	clk := clock.Or(m.o.Clock)
+	deadline := clk.Now().Add(m.o.Window)
 	answers := make(chan error, 1)
 	attempt := 0
 	for {
-		if time.Now().After(deadline) {
+		if clk.Now().After(deadline) {
 			m.log.Warn("matter commissioning gave up", "thread", r.thread, "attempts", attempt)
 			m.endRun(tell, r.thread)
 			m.sayTo(tell, r.thread, m.t.nothingFound+r.missing)
@@ -374,7 +380,7 @@ func (m *Onboarding) watch(ctx context.Context, r *run, code string) {
 							m.found(ctx, r, id)
 							return
 						}
-					case <-time.After(5 * time.Second):
+					case <-clk.After(5 * time.Second):
 					case <-ctx.Done():
 						return
 					}
@@ -393,7 +399,7 @@ func (m *Onboarding) watch(ctx context.Context, r *run, code string) {
 				// A pause, so an attempt that fails at once (no Bluetooth,
 				// say) is no hot loop; a real one takes about 30 s anyway.
 				select {
-				case <-time.After(m.o.Pause):
+				case <-clk.After(m.o.Pause):
 				case <-ctx.Done():
 					return
 				case id := <-r.created:
