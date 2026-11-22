@@ -6,7 +6,8 @@ a household's Zigbee2MQTT (a new sensor added, the same sensor paired again). St
 Assistant's source; its real run is open. Step 7, Matter over Wi-Fi, is built (2026-11-11, DV-20 to DV-29): its
 state table checked at the test HA with a Tapo plug, and run through Mira end to end at the real Show (the QR code
 scanned) and at an Echo (the digits read out). Step 8, Matter over Thread, is built (2026-11-16) on the hypothesis that
-two rows of its state table name; the end-to-end run is open. Scenarios:
+two rows of its state table name; the end-to-end run is open. Step 9, one commissioning at a time (decisions 29 to
+32, 2026-11-23), is decided and not built. Scenarios:
 [device-onboarding.feature](device-onboarding.feature).
 
 ## Goal
@@ -105,7 +106,7 @@ At a satellite without a camera (an Echo) step 1 is: "Lies mir die elf Ziffern n
 | 19 | The Wi-Fi | The home Wi-Fi Mira already keeps, the skill's settings `wlan_ssid` and `wlan_password` ([Wi-Fi onboarding](wifi-onboarding.md), the home Wi-Fi). Without them the dialog does not start, and Mira says what is missing |
 | 20 | A failed scan | Mira asks once to hold the code steadier and scans again; after that she offers the eleven digits (decision 3A of 2026-11-11) |
 | 21 | The found devices do not get in the way | The device the commissioning brings is the thread's, as for a Zigbee pairing: the noticing of [Found devices](found-devices.md) leaves out a device a running dialog waits for |
-| 22 | The wait and the repeat | While the commissioning runs, the wait is shown at the satellite ([Showing that Mira waits](waiting-indicator.md)), as for a Zigbee pairing. One attempt gives up after about 30 seconds when no device answers (state table M8), so Mira starts it again, as long as the window lasts: **three minutes**, as pairing lasts for Zigbee, with two seconds between two attempts (an attempt that fails at once, with no Bluetooth say, must not become a hot loop). Then the wait stops and Mira asks at the satellite whether to try again, as she does when nothing joins a Zigbee pairing |
+| 22 | The wait and the repeat | While the commissioning runs, the wait is shown at the satellite ([Showing that Mira waits](waiting-indicator.md)), as for a Zigbee pairing. When an attempt answers without a device (state table M8), Mira starts the next one, as long as the window lasts: **three minutes**, as pairing lasts for Zigbee, with two seconds between two attempts (an attempt that fails at once, with no Bluetooth say, must not become a hot loop). Then the wait stops and Mira asks at the satellite whether to try again, as she does when nothing joins a Zigbee pairing. An attempt ends only with its answer, never after a time of Mira's own: decisions 29 to 32 (2026-11-23) replace "one attempt gives up after about 30 seconds" |
 
 How it works:
 
@@ -124,9 +125,9 @@ How it works:
    and `network_only: false`, so the server also looks over Bluetooth: a factory-new Wi-Fi device has no network yet
    and can only be reached that way. The call runs as long as the commissioning takes, so it is **not** the turn's:
    Mira answers "Steck das Gerät jetzt ein" at once, shows the wait at the satellite
-   ([Showing that Mira waits](waiting-indicator.md)) and holds the call in the thread. An attempt without a device
-   in reach ends by itself after about 30 seconds; Mira starts the next one, until the device is there or the three
-   minutes are over (decision 22).
+   ([Showing that Mira waits](waiting-indicator.md)) and holds the call in the thread. An attempt is over only when
+   the call answers; after an answer without a device Mira starts the next one, never while one is open, until the
+   device is there or the three minutes are over and the last attempt has answered (decisions 22 and 29 to 32).
 3. **The device.** When the commissioning succeeds, the Matter server adds the node, Home Assistant creates the
    device and its entities and fires `device_registry_updated` `create`. Mira reads the device from Home Assistant's
    **registry** (`config/device_registry/list`), not from the structure she keeps: that one is rebuilt 30 s after a
@@ -147,15 +148,18 @@ Fails:
 | The satellite has no camera and the user reads nothing | The thread waits for the next turn and ends at its timeout, as every thread |
 | The digits do not check out | Mira says the code does not fit and asks for it again, at most twice; then she offers to scan or to end. Log `matter code refused` with the number of digits (never the code itself: it is the device's key) |
 | `set_wifi_credentials` fails | The tool returns the error; Mira says it. Log `could not give the matter server the wi-fi` |
-| An attempt finds no device (the usual case while nobody has plugged it in) | Mira starts the next attempt and says nothing: the wait at the satellite shows that she is waiting. Log `matter commissioning found no device, trying again` with the attempt, at debug level after the first |
+| An attempt finds no device (the usual case while nobody has plugged it in) | After the attempt's answer Mira starts the next one and says nothing: the wait at the satellite shows that she is waiting. Log `matter commissioning found no device, trying again` with the attempt and how long it ran, at debug level after the first |
 | The commissioning fails for another reason (a wrong code, the device already in another fabric) | Mira stops the wait, says at the satellite what the server reported and asks whether to try again with a new code. Log `matter commissioning failed` with the error |
-| No device within the three minutes | Mira stops the wait and says she did not find the device **and what helps**: reset it once more, hold the button until it blinks, then say so (2026-11-11: a device that had been commissioned before advertised nothing until it was reset again, and no attempt could find it). The thread waits for the answer and ends at its timeout. Log `matter commissioning gave up` with the number of attempts |
-| "Abbrechen" while the commissioning runs | The thread is cancelled and the wait stops; the call to Home Assistant is let go. A device that is commissioned all the same turns up as a found device ([Found devices](found-devices.md)). Log `matter commissioning cancelled` |
+| No device within the three minutes (the window over and the last attempt answered without a device, decision 31) | Mira stops the wait and says she did not find the device **and what helps**: reset it once more, hold the button until it blinks, then say so (2026-11-11: a device that had been commissioned before advertised nothing until it was reset again, and no attempt could find it). The thread waits for the answer and ends at its timeout. Log `matter commissioning gave up` with the number of attempts |
+| "Abbrechen" while the commissioning runs | The thread is cancelled and the wait stops; the thread no longer waits for the call, but the call stays Mira's open commissioning until it answers (there is no command to cancel it; decision 32). A device that is commissioned all the same turns up as a found device ([Found devices](found-devices.md)). Log `matter commissioning cancelled` |
+| A new start while a commissioning of an earlier thread is still open | Decision 32: `matter_pairing_start` starts nothing and returns that Mira is still waiting for the earlier commissioning; Mira says so and that it is over within minutes. Log `matter commissioning still open, not starting another` with the earlier thread |
+| The answer never comes (the Matter server hangs while the connection to Home Assistant stays up) | The thread ends at its own timeout, as every thread, and its wait stops with it; the open commissioning is let go then, so a new start is possible. Log `matter commissioning still open at the thread's end` with the attempt and how long it ran |
+| The connection to Home Assistant is lost while an attempt runs | Mira's Home Assistant client fails every open call when the connection closes (row M11): the attempt has ended with an error, and the commissioning fails as for another reason (row above). Log `matter commissioning failed` with the error |
 | Home Assistant refuses the command (the token is no administrator's) | The tool returns Home Assistant's error; Mira says so |
 
 Cost: one `config_entries/get` per start; at a Show one action call for the scan (the turn waits for it, with its
 `seconds` as the bound); one `set_wifi_credentials` and one `commission` per attempt, the latter held open while the
-commissioning runs; the device registry subscription Mira's structure has anyway, and one read of the device
+commissioning runs, and never more than one open at a time; the device registry subscription Mira's structure has anyway, and one read of the device
 registry for the device found; then what every device costs (one
 area update, one `search/related`, one entity read, one expose call, one model round for the question).
 
@@ -173,7 +177,7 @@ the host's Bluetooth) and a Tapo Matter plug; built only when every row is check
 | M5 | The device is plugged in and found | the device advertises over Bluetooth | the Matter server commissions it and interviews it; its log: `Commissioned Node ID: 2`, `Matter commissioning of Node ID 2 successful`, `Interviewing node`, `Subscription succeeded`, `Commissioning of Node ID 2 completed` (0.5 s from the first line to the last) | — (the server's business) | 2026-11-11 (a Tapo plug, factory new, over the host's Bluetooth) |
 | M6 | Home Assistant has the device | the node added | `device_registry_updated` `create` with the device id, 0.3 s after the server finished | the subscription Mira's structure has | 2026-11-11 (15:21:53.187 the server, 15:21:53.48 the event) |
 | M7 | A commissionable device on the network | the device advertises `_matterc._udp` | Home Assistant would open a discovery flow of the domain `matter` | `config_entries/flow/subscribe` ([Found devices](found-devices.md)) | 2026-11-11: **not seen**. A factory-new Wi-Fi device has no network and is found over Bluetooth only; the subscription showed no `matter` flow during the whole run. The signal is no part of the flow (decision 18) |
-| M8 | Commissioning fails | no device in reach (the plug was not plugged in yet) | the command answers `success: false`, `error.code "1"`, `message "Commission with code failed for node <n>"`, after about 30 s (the server: `Commissionable node discovery over BLE failed … Timeout`, `Discovery timed out`, `Secure Pairing Failed`) | the call's error | 2026-11-11 (the first attempt, 15:19:24 to 15:19:54) |
+| M8 | Commissioning fails | no device in reach (the plug was not plugged in yet) | the command answers `success: false`, `error.code "1"`, `message "Commission with code failed for node <n>"`, after about 30 s (the server: `Commissionable node discovery over BLE failed … Timeout`, `Discovery timed out`, `Secure Pairing Failed`). How long is the Matter server's own choice, not a fixed time: rows M9 and M10 | the call's error | 2026-11-11 (the first attempt, 15:19:24 to 15:19:54) |
 
 What the found devices did with it (2026-11-11, the same run): Mira noticed the new device without a room and ran
 the dialog of [Found devices](found-devices.md) through to the end — `device added … name="Steckdose Wohnzimmer
@@ -287,6 +291,44 @@ commissioning works (T6), and T8 and T9 behave as their rows assume; the end-to-
 
 Testing it again: as with the plug, a commissioned MYGGSPRAY gives no code away; before a new run it is reset to the
 factory and its node removed in Home Assistant.
+
+### One commissioning at a time (decided 2026-11-23)
+
+Until now an attempt had a bound of Mira's own: `CallFor` with 60 s. When it ran out, Mira took it as "no device"
+and started the next attempt, although the first one still ran at the Matter server. That is timing where a signal
+exists, and it broke on 2026-11-22 in a household's Home Assistant:
+
+- **Home Assistant has no bound of its own.** Its `matter/commission` waits for the Matter server's answer and only
+  then sends the result (`components/matter/api.py`, `websocket_commission`: `await
+  matter_client.commission_with_code(...)`, then `send_result`); the Matter client sets no timeout either. **The
+  command's answer is the signal that the attempt is over.** How long one attempt looks for the device is the Matter
+  server's choice: python-matter-server 8.1 about 30 to 45 s (M8), matterjs-server 1.6 three minutes (M9). The client
+  could pass `discovery_timeout_s`, but Home Assistant's command takes only `code` and `network_only`.
+- **There is no command to cancel a commissioning.** A call Mira stops waiting for runs on at the server.
+- **With matterjs-server the attempts overlapped:** Mira started an attempt every 62 s (60 s bound, 2 s pause), each
+  ran three minutes, so three ran at once; the server refused the third as `already in progress` (M10), and its
+  answers came up to two minutes after Mira had said she found nothing. A new start by the user then met the old
+  attempts.
+- **The bound was tight with python-matter-server too:** a successful Thread commissioning took 41 s and 47 s (T4,
+  T6). A slower device, or a bulb that hangs for a while after joining the Thread network, passes 60 s; Mira would
+  then start a second commissioning of a device that is in the middle of its first.
+
+| # | Question | Decision |
+|---|---|---|
+| 29 | When an attempt is over | **Only when its call answers**: `matter/commission`'s result (`success: true`, or its error), or the connection to Home Assistant lost, which fails every open call (M11). No bound of Mira's own ends an attempt (CLAUDE.md, "Signals, not timing"). This replaces the 60 s bound and the "about 30 seconds" of decision 22 |
+| 30 | The next attempt | Starts only after the previous one **answered** without a device (M8), and only while the window lasts. Never two `matter/commission` at once. The window decides whether another attempt starts; it never ends one that runs |
+| 31 | The end of the window | When the three minutes are over and an attempt still runs, Mira waits for its answer. A device then is taken as any device (it may come in the last second); an answer without a device ends the dialog with decision 22's sentence. Mira never says she found nothing while an attempt is open |
+| 32 | One open commissioning across threads | Mira keeps at most **one open `matter/commission`**, not one per thread: a cancelled or ended thread lets go of the wait, not of the open call. A new `matter_pairing_start` while it is open starts nothing and says that Mira still waits for the earlier device (its answer comes within minutes). The open call's answer, success or error, frees it; so does the end of its thread at the thread's timeout (the safety net for a server that never answers) |
+
+| # | Transition | Trigger | Signal | How Mira learns of it | Checked |
+|---|---|---|---|---|---|
+| M9 | An attempt without a device, with matterjs-server | `matter/commission` with the code, `network_only: false`, the device not in reach | the error `Commission failed: discovery of node with discriminator <n> failed: No device could be commissioned …` after **three minutes**, not 30 s | the call's error | 2026-11-22, a household's Home Assistant with matterjs-server 1.6.0 (sent 22:26:09, answered 22:29:09; the next ones likewise three minutes) |
+| M10 | A second commissioning while one runs | `matter/commission` while an earlier one is open | matterjs-server: the error `… [fabric-operation-in-progress] Cannot commission … because a commission attempt is already in progress` | the call's error | 2026-11-22 with matterjs-server 1.6.0 (22:31:13). python-matter-server: **to be checked** at the test HA |
+| M11 | The connection to Home Assistant lost while an attempt runs | the connection closes | Mira's Home Assistant client fails every open call when the connection closes (`internal/ha/ws/client.go`, the pending calls on close) | the call's error | read in the code 2026-11-23; **to be checked** at the test HA (the test HA restarted while an attempt runs) |
+
+Who learns of what is in the failure table above (Matter over Wi-Fi): the new start while a commissioning is open,
+the answer that never comes, the connection lost. Nothing else changes: the wait, the Thread network, the device
+from the registry, room and name.
 
 ## Building blocks
 
@@ -463,3 +505,9 @@ during the announcement is an ordinary interruption of an announcement.
    Thread network, every error path, the skill's text and the tool's answer for the model, `testha compat` for the
    three commands, the guide (what must be in Home Assistant, with links). Open: the run end to end at the Show
    with the MYGGSPRAY, which checks rows T8 and T9. Scenarios DV-30 to DV-36.
+9. **One commissioning at a time** (decisions 29 to 32, decided 2026-11-23, not built): first rows M10 (with
+   python-matter-server) and M11 checked at the test HA; then the attempt without a bound of its own, the next
+   attempt only after an answer, the end of the window waiting for the open attempt, the one open commissioning across
+   threads, and the failure rows they add; the log of each attempt with how long it ran. The scenarios (DV-25 and
+   DV-27 change, new ones from DV-37) and their tests are written when the step is built, after the rework of the
+   tests that runs now.
