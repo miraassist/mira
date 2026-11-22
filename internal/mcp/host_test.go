@@ -24,9 +24,7 @@ func start(t *testing.T, opts mcp.Options) *mcp.Host {
 	t.Helper()
 	opts.Logger = quietLogger()
 	h := mcp.New(opts)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := h.Start(ctx); err != nil {
+	if err := h.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	t.Cleanup(h.Close)
@@ -152,15 +150,10 @@ func TestToolListChangeFiresOnChange(t *testing.T) {
 	_ = h
 
 	ha.RemoveTool("HassTurnOff")
-	select {
-	case tools := <-latest:
-		for _, tool := range tools {
-			if tool.Name == "HassTurnOff" {
-				t.Fatal("removed tool still listed")
-			}
+	for _, tool := range <-latest {
+		if tool.Name == "HassTurnOff" {
+			t.Fatal("removed tool still listed")
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("tool list change was not picked up")
 	}
 }
 

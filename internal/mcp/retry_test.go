@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/testsupport/fakemcp"
 )
@@ -63,9 +64,13 @@ func newSwitchable(t *testing.T, status int) *switchable {
 	return sw
 }
 
-func runHost(t *testing.T, endpoint string, logs *logBuf) (*Host, context.CancelFunc) {
+// retryEvery is the hosts' retry interval in these tests.
+const retryEvery = 20 * time.Millisecond
+
+func runHost(t *testing.T, endpoint string, logs *logBuf) (*Host, *clock.Fake) {
+	clk := clock.NewFake(time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC))
 	h := New(Options{Logger: slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
-		RetryInterval: 20 * time.Millisecond, CallTimeout: time.Second,
+		RetryInterval: retryEvery, CallTimeout: time.Second, Clock: clk,
 		Servers: []config.MCPServer{{Name: "x", Transport: config.TransportHTTP, URL: endpoint, Token: "wrong"}}})
 	ctx, cancel := context.WithCancel(context.Background())
 	_ = h.Start(ctx)
@@ -75,16 +80,33 @@ func runHost(t *testing.T, endpoint string, logs *logBuf) (*Host, context.Cancel
 	// connect once more after the sessions were closed, and the server
 	// waits for that connection for ever.
 	t.Cleanup(func() { cancel(); <-done; h.Close() })
-	return h, cancel
+	return h, clk
+}
+
+// rounds lets n retry rounds of Run pass. Run waits on two timers while
+// idle (the retry and the refresh); during a round only on the refresh.
+func rounds(clk *clock.Fake, n int) {
+	for range n {
+		<-clk.AwaitWaiters(2)
+		clk.Advance(retryEvery)
+		<-clk.AwaitWaiters(2) // the round is done: its retry is set anew
+	}
+}
+
+// failures is how often the server's connect failed in a row.
+func failures(s *server) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.failed
 }
 
 func TestRY40_AnMCPServerThatRefusesTheTokenIsNotTriedAgain(t *testing.T) {
 	sw := newSwitchable(t, http.StatusUnauthorized)
 	logs := &logBuf{}
-	h, _ := runHost(t, sw.srv.URL, logs)
+	h, clk := runHost(t, sw.srv.URL, logs)
 	first := sw.refused.Load() // one connect (the SDK asks twice)
-	time.Sleep(200 * time.Millisecond)
-	if n := sw.refused.Load(); n != first || h.byName["x"].failed != 1 {
+	rounds(clk, 10)
+	if n := sw.refused.Load(); n != first || failures(h.byName["x"]) != 1 {
 		t.Errorf("refused %d requests after %d at the start: tried again", n, first)
 	}
 	if out := logs.String(); strings.Count(out, "level=ERROR") != 1 || !strings.Contains(out, "refused the token (401") {
@@ -101,16 +123,12 @@ func TestRY40_AnMCPServerThatRefusesTheTokenIsNotTriedAgain(t *testing.T) {
 func TestRY41_AnUnreachableMCPServerIsTriedWithGrowingWaits(t *testing.T) {
 	sw := newSwitchable(t, http.StatusServiceUnavailable)
 	logs := &logBuf{}
-	h, _ := runHost(t, sw.srv.URL, logs)
-	time.Sleep(330 * time.Millisecond)
-	// Fixed 20 ms would be about 16 connects; doubling from 20 ms (20, 40,
-	// 80, 160) gives 4 or 5.
-	s := h.byName["x"]
-	s.mu.Lock()
-	n := s.failed
-	s.mu.Unlock()
-	if n < 3 || n > 6 {
-		t.Errorf("%d connects in 330 ms", n)
+	h, clk := runHost(t, sw.srv.URL, logs)
+	rounds(clk, 16)
+	// In 320 ms a fixed 20 ms would be 17 connects; doubling from 20 ms
+	// connects at 0, 20, 60, 140 and 300 ms.
+	if n := failures(h.byName["x"]); n != 5 {
+		t.Errorf("%d connects in 320 ms, want 5", n)
 	}
 	if out := logs.String(); strings.Count(out, "level=WARN") != 1 {
 		t.Errorf("want one warning for the same error, log = %s", out)
@@ -120,20 +138,14 @@ func TestRY41_AnUnreachableMCPServerIsTriedWithGrowingWaits(t *testing.T) {
 func TestRY42_AReconnectedMCPServerStartsTheWaitsAnew(t *testing.T) {
 	sw := newSwitchable(t, http.StatusServiceUnavailable)
 	logs := &logBuf{}
-	h, _ := runHost(t, sw.srv.URL, logs)
-	time.Sleep(100 * time.Millisecond)
+	h, clk := runHost(t, sw.srv.URL, logs)
+	rounds(clk, 1) // at 20 ms: the second failure
 	s := h.byName["x"]
-	s.mu.Lock()
-	failed := s.failed
-	s.mu.Unlock()
-	if failed < 2 {
+	if failed := failures(s); failed != 2 {
 		t.Fatalf("failed = %d", failed)
 	}
 	sw.status.Store(0)
-	deadline := time.Now().Add(2 * time.Second)
-	for !s.connected() && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
+	rounds(clk, 2) // at 60 ms: due, and it connects
 	s.mu.Lock()
 	failed, next := s.failed, s.next
 	s.mu.Unlock()

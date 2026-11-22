@@ -27,6 +27,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/retry"
@@ -101,6 +102,10 @@ type Options struct {
 	// answer of it where nothing succeeded but an area is an error
 	// (docs/spec/intent-results.md). "" for none.
 	IntentServer string
+	// Clock is what the waits between connects and the refresh wait on;
+	// nil is the real one. A call's CallTimeout is a context deadline of
+	// the connection and stays real time.
+	Clock clock.Clock
 }
 
 // Connections are the skills' logins at services, as the MCP host needs
@@ -198,6 +203,7 @@ type Host struct {
 	version      string
 	devices      func() []string
 	refreshEvery time.Duration
+	clock        clock.Clock
 	conns        Connections
 
 	// mu guards the aggregated view.
@@ -239,6 +245,7 @@ func New(opts Options) *Host {
 		version:      opts.Version,
 		devices:      opts.Devices,
 		refreshEvery: opts.RefreshInterval,
+		clock:        clock.Or(opts.Clock),
 		toolIndex:    map[string]Tool{},
 		conns:        opts.Connections,
 	}
@@ -297,20 +304,22 @@ func (h *Host) Start(ctx context.Context) error {
 // whose skill is not connected, waits for its connection to change
 // (Reconnect, a new config). docs/spec/retry.md, row 6.
 func (h *Host) Run(ctx context.Context) error {
-	t := time.NewTicker(h.retry)
+	// The retry is a timer set anew once a round is done: a slow connect
+	// does not pile up rounds.
+	t := h.clock.NewTimer(h.retry)
 	defer t.Stop()
-	refresh := time.NewTicker(h.refreshEvery)
+	refresh := h.clock.NewTicker(h.refreshEvery)
 	defer refresh.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			h.closeAll()
 			return ctx.Err()
-		case <-refresh.C:
+		case <-refresh.C():
 			h.Refresh(ctx)
-		case <-t.C:
+		case <-t.C():
 			changed := false
-			now := time.Now()
+			now := h.clock.Now()
 			for _, s := range h.servers {
 				if s.connected() {
 					continue
@@ -331,6 +340,7 @@ func (h *Host) Run(ctx context.Context) error {
 			if changed {
 				h.rebuild()
 			}
+			t.Reset(h.retry)
 		}
 	}
 }
@@ -350,7 +360,7 @@ func (h *Host) failedConnect(s *server, err error) {
 	s.lastErr = err
 	s.failed++
 	wait := h.policy().Wait(s.failed)
-	s.next = time.Now().Add(wait)
+	s.next = h.clock.Now().Add(wait)
 	failed := s.failed
 	s.mu.Unlock()
 	switch {

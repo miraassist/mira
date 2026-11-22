@@ -1,6 +1,6 @@
 # Tests without time – spec
 
-Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads, the notifier, ha/ws and ha/structure built. Scenarios:
+Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads, the notifier, ha/ws, ha/structure and mcp built. Scenarios:
 [tests.feature](tests.feature). The inventory behind it (private): `docs/test-review.local.md`.
 
 ## Goal
@@ -81,7 +81,10 @@ func NewFake(now time.Time) *Fake // a test's clock
    lost and every command; the deadlines of the socket itself, dialling, authenticating and `CallTimeout`, stay
    context deadlines in real time: they bound a network that hangs, and no test waits for them to run out),
    ha/structure (debounce; built 2026-11-22: `Options.Clock`; the debounce is a timer of the clock armed by the first
-   change of a burst; the fake subscriber reports when every registry event is subscribed), mcp (retry ticker),
+   change of a burst; the fake subscriber reports when every registry event is subscribed), mcp (retry ticker;
+   built 2026-11-22: `Options.Clock`; the retry is a timer set anew after each round instead of a ticker, so the
+   clock's waiters tell the test when a round is done; a call's `CallTimeout` and the wait for a stdio server's
+   process to end stay real time, as bounds of a connection and a process),
    devices (Gather, EntryWait), agent (attempt timeout, run time), a2a (card retry), conversation (fakellm: gate instead
    of `Delay`/`PieceDelay`), matter, programs, setup, zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch),
    waiting, clip, voicemail, heard, cmd/mira (a ready signal of `runAgent`, `fakeha.Await`).

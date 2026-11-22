@@ -53,9 +53,7 @@ func intentHost(t *testing.T, answers map[string]string, haError bool) (*mcp.Hos
 	logs := &logBuf{}
 	h := mcp.New(mcp.Options{Servers: servers, IntentServer: "ha", CallTimeout: 5 * time.Second,
 		Logger: slog.New(slog.NewTextHandler(logs, nil))})
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := h.Start(ctx); err != nil {
+	if err := h.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(h.Close)
