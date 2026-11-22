@@ -348,6 +348,21 @@ func TestSA05_SoundFilesWithoutToken(t *testing.T) {
 	}
 }
 
+// The wake sound goes to satellites without a token, as Mira's other sounds.
+func TestWK01_TheWakeSoundIsServedLikeMirasOtherSounds(t *testing.T) {
+	srv, _, _ := setup(t)
+	for _, path := range []string{"/ui/sounds/wake_rise.mp3", "/ui/sounds/wake_loop.mp3"} {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "audio/mpeg" {
+			t.Errorf("%s: %d %q", path, resp.StatusCode, resp.Header.Get("Content-Type"))
+		}
+	}
+}
+
 // fakeTasks plays the task manager: one automation.
 type fakeTasks struct {
 	items   []tasks.Item

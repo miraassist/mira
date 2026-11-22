@@ -1,7 +1,6 @@
 # Alarm – spec
 
-Status 2026-11-22: decided, nothing built. The signal that ends the ringing is checked on the Show; the other rows
-of the state table are tried in step 1. Scenarios: [alarm.feature](alarm.feature).
+Status 2026-11-22: step 1 (the trial on the test HA) done, step 2 (the wake sound) built; steps 3 to 5 open. Scenarios: [alarm.feature](alarm.feature).
 
 ## Goal
 

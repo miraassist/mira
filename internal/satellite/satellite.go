@@ -52,17 +52,31 @@ var Sounds = []Sound{
 	{Name: "too_bad", Length: 1760 * time.Millisecond},
 }
 
+// WakeSounds are the alarm's wake sound (docs/spec/alarm.md, decision 4):
+// served like the others, for Home Assistant's automations, but not offered to
+// sound_play. sounds/render_wake.py makes them.
+var WakeSounds = []Sound{
+	{Name: "wake_rise", Length: 24030 * time.Millisecond},
+	{Name: "wake_loop", Length: 10450 * time.Millisecond},
+}
+
 // File is a sound's MP3; false for a name that is no sound of Mira's.
 func File(name string) ([]byte, bool) {
-	if _, ok := find(name); !ok {
+	_, ok := find(name)
+	if !ok {
+		_, ok = findIn(WakeSounds, name)
+	}
+	if !ok {
 		return nil, false
 	}
 	data, err := files.ReadFile("sounds/" + name + ".mp3")
 	return data, err == nil
 }
 
-func find(name string) (Sound, bool) {
-	for _, s := range Sounds {
+func find(name string) (Sound, bool) { return findIn(Sounds, name) }
+
+func findIn(sounds []Sound, name string) (Sound, bool) {
+	for _, s := range sounds {
 		if s.Name == name {
 			return s, true
 		}

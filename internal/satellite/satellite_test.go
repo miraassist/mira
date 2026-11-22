@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -22,10 +23,10 @@ func TestTextsComplete(t *testing.T) {
 // Every sound listed has its file, every file is listed.
 func TestSoundsMatchFiles(t *testing.T) {
 	names, _ := fs.Glob(files, "sounds/*.mp3")
-	if len(names) != len(Sounds) {
-		t.Errorf("%d files, %d sounds", len(names), len(Sounds))
+	if len(names) != len(Sounds)+len(WakeSounds) {
+		t.Errorf("%d files, %d sounds", len(names), len(Sounds)+len(WakeSounds))
 	}
-	for _, s := range Sounds {
+	for _, s := range append(slices.Clone(Sounds), WakeSounds...) {
 		if data, ok := File(s.Name); !ok || len(data) == 0 {
 			t.Errorf("no file for %s", s.Name)
 		}
@@ -117,6 +118,16 @@ func TestSA04_UnknownSound(t *testing.T) {
 	tl, f := env()
 	out := call(t, tl[ToolSound], "show", `{"name":"trommel"}`)
 	if len(f.played) != 0 || !strings.Contains(out, "fanfare_big") {
+		t.Errorf("played %v: %q", f.played, out)
+	}
+}
+
+// The wake sound is the alarm's (docs/spec/alarm.md), not one for sound_play.
+func TestWakeSoundIsNoSoundOfSoundPlay(t *testing.T) {
+	tl, f := env()
+	out := call(t, tl[ToolSound], "show", `{"name":"wake_loop"}`)
+	_, offered, _ := strings.Cut(out, "Klänge:")
+	if len(f.played) != 0 || offered == "" || strings.Contains(offered, "wake_") {
 		t.Errorf("played %v: %q", f.played, out)
 	}
 }
