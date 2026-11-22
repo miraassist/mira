@@ -37,7 +37,7 @@ func itemsEnv(t *testing.T) (*env, *itemActions) {
 		t.Fatalf("skills: %+v", problems)
 	}
 	acts := &itemActions{}
-	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: loaded, Actions: acts, Clock: func() time.Time { return e.now }})
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: loaded, Actions: acts, Clock: e.clk})
 	return e, acts
 }
 
@@ -77,7 +77,7 @@ func (e *env) entriesOpen(t *testing.T, threadID string) int {
 
 func TestIN46_AnAppointmentStartsAThreadOfTerminWaitingForAYes(t *testing.T) {
 	e, acts := itemsEnv(t)
-	start := e.now.Add(48 * time.Hour)
+	start := e.clk.Now().Add(48 * time.Hour)
 	th := e.item(t, "termin", store.KindAppointment, "Elternbrief: Elternabend",
 		map[string]string{"title": "Elternabend", "proposals": "2026-10-17 19:30–20:30 · Aula", "description": "aus Paperless 5444"}, start)
 	if th.Target != "termin" || th.State != store.ThreadWaiting || th.Fields["title"] != "Elternabend" || th.Source != "paperless:5444" ||
@@ -126,7 +126,7 @@ func TestIN50_TheYesRunsTheFinishOfTermin(t *testing.T) {
 	e, acts := itemsEnv(t)
 	ctx := context.Background()
 	th := e.item(t, "termin", store.KindAppointment, "Elternbrief: Elternabend",
-		map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30 · Aula"}, e.now.Add(48*time.Hour))
+		map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30 · Aula"}, e.clk.Now().Add(48*time.Hour))
 	inv := e.annasTurn(t)
 	e.m.Take(ctx, inv, th.ID)
 	if _, err := e.m.Fill(ctx, inv, map[string]string{"start": "2026-12-03 19:30", "end": "2026-12-03 20:30", "location": "Aula",
@@ -150,7 +150,7 @@ func TestIN51_TheYesRunsTheFinishOfTodo(t *testing.T) {
 	e, acts := itemsEnv(t)
 	ctx := context.Background()
 	th := e.item(t, "todo", store.KindTodo, "Steuerberater: Steuererklärung",
-		map[string]string{"item": "Steuererklärung abgeben", "due": "2026-11-16"}, e.now.Add(48*time.Hour))
+		map[string]string{"item": "Steuererklärung abgeben", "due": "2026-11-16"}, e.clk.Now().Add(48*time.Hour))
 	inv := e.annasTurn(t)
 	e.m.Take(ctx, inv, th.ID)
 	if _, err := e.m.Fill(ctx, inv, map[string]string{"list": "standard"}); err != nil {
@@ -171,10 +171,10 @@ func TestIN51_TheYesRunsTheFinishOfTodo(t *testing.T) {
 func TestIN53_NoAnswerUntilTheExpiry(t *testing.T) {
 	e, acts := itemsEnv(t)
 	ctx := context.Background()
-	end := e.now.Add(26 * time.Hour)
+	end := e.clk.Now().Add(26 * time.Hour)
 	th := e.item(t, "todo", store.KindTodo, "Steuerberater: Steuererklärung",
 		map[string]string{"item": "Steuererklärung abgeben", "due": "2026-10-16"}, end)
-	e.now = end.Add(time.Minute)
+	e.clk.Set(end.Add(time.Minute))
 	e.m.expire(ctx)
 	got, _ := e.st.GetThread(ctx, th.ID)
 	if got.State != store.ThreadExpired || e.entriesOpen(t, th.ID) != 0 || len(acts.calls) != 0 {
@@ -186,9 +186,9 @@ func TestIN58_JaConfirmsAnAppointmentAndAToDoOneAfterAnother(t *testing.T) {
 	e, acts := itemsEnv(t)
 	ctx := context.Background()
 	appt := e.item(t, "termin", store.KindAppointment, "Elternbrief: Elternabend Do 3.12. 19:30, Aula",
-		map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30 · Aula"}, e.now.Add(48*time.Hour))
+		map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30 · Aula"}, e.clk.Now().Add(48*time.Hour))
 	todo := e.item(t, "todo", store.KindTodo, "Elternbrief: Rückmeldung Ausflug bis Fr 28.11.",
-		map[string]string{"item": "Rückmeldung Ausflug", "due": "2026-11-28"}, e.now.Add(48*time.Hour))
+		map[string]string{"item": "Rückmeldung Ausflug", "due": "2026-11-28"}, e.clk.Now().Add(48*time.Hour))
 	inv := e.annasTurn(t)
 	for _, step := range []struct {
 		id     string
@@ -219,7 +219,7 @@ func TestAnItemsThreadFilledWithoutTakingItUp(t *testing.T) {
 	e, acts := itemsEnv(t)
 	ctx := context.Background()
 	th := e.item(t, "termin", store.KindAppointment, "Elternbrief: Elternabend",
-		map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30 · Aula"}, e.now.Add(48*time.Hour))
+		map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30 · Aula"}, e.clk.Now().Add(48*time.Hour))
 	inv := e.annasTurn(t)
 	if _, err := e.m.Fill(ctx, inv, map[string]string{"start": "2026-12-03 19:30", "end": "2026-12-03 20:30",
 		"calendar": "standard"}); err != nil {
@@ -239,9 +239,9 @@ func TestThreadConfirmWithIDAndFieldsInOneCall(t *testing.T) {
 	e, acts := itemsEnv(t)
 	ctx := context.Background()
 	appt := e.item(t, "termin", store.KindAppointment, "Elternbrief: Elternabend",
-		map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30 · Aula"}, e.now.Add(48*time.Hour))
+		map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30 · Aula"}, e.clk.Now().Add(48*time.Hour))
 	todo := e.item(t, "todo", store.KindTodo, "Elternbrief: Rückmeldung",
-		map[string]string{"item": "Rückmeldung Ausflug", "due": "2026-11-28"}, e.now.Add(48*time.Hour))
+		map[string]string{"item": "Rückmeldung Ausflug", "due": "2026-11-28"}, e.clk.Now().Add(48*time.Hour))
 	inv := e.annasTurn(t)
 	if _, err := e.m.ConfirmWith(ctx, inv, appt.ID, map[string]string{"start": "2026-12-03 19:30", "end": "2026-12-03 20:30",
 		"calendar": "standard"}); err != nil {
@@ -254,7 +254,7 @@ func TestThreadConfirmWithIDAndFieldsInOneCall(t *testing.T) {
 		t.Fatalf("calls = %+v", acts.calls)
 	}
 	// A thread that is not the asker's is refused.
-	ben := e.item(t, "todo", store.KindTodo, "x", map[string]string{"item": "x"}, e.now.Add(time.Hour))
+	ben := e.item(t, "todo", store.KindTodo, "x", map[string]string{"item": "x"}, e.clk.Now().Add(time.Hour))
 	if _, err := e.st.GetThread(ctx, ben.ID); err != nil {
 		t.Fatal(err)
 	}

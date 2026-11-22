@@ -20,7 +20,7 @@ func assignEnv(t *testing.T) *env {
 	e := setup(t)
 	kochen := skills.Skill{Name: "kochen", Description: "Kochen", Body: "Koch.", Target: &skills.Target{Plan: true, Bound: skills.BoundRoom}}
 	vokabeln := skills.Skill{Name: "vokabeln", Description: "Vokabeln", Body: "Frag ab.", Target: &skills.Target{Plan: true}}
-	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{kochen, vokabeln}, Clock: func() time.Time { return e.now }})
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{kochen, vokabeln}, Clock: e.clk})
 	return e
 }
 
@@ -100,7 +100,7 @@ func TestAG112_ATurnSeesItsPersonsThreadsAndItsRooms(t *testing.T) {
 	ctx := context.Background()
 	anna, _ := e.at(t, "voice:a1", "kueche", "person:anna")
 	e.m.Start(ctx, anna, "vokabeln", "Englisch")
-	e.now = e.now.Add(time.Minute) // the room's is the newer one
+	e.clk.Advance(time.Minute) // the room's is the newer one
 	room, _ := e.at(t, "voice:r", "wohnzimmer", "area:wohnzimmer")
 	e.m.Start(ctx, room, "kochen", "Pfannkuchen")
 	_, here := e.at(t, "voice:a2", "wohnzimmer", "person:anna")

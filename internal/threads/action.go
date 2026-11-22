@@ -267,7 +267,7 @@ func describeData(data map[string]any) string {
 // minutes, for a correction; the model then starts the thread anew.
 func (m *Manager) Undo(ctx context.Context, place string) (string, error) {
 	t := m.texts()
-	recent, err := m.opts.Store.RecentThreads(ctx, place, m.opts.Clock().Add(-undoWindow))
+	recent, err := m.opts.Store.RecentThreads(ctx, place, m.opts.Clock.Now().Add(-undoWindow))
 	if err != nil {
 		return "", err
 	}

@@ -60,3 +60,9 @@ Feature: CK A clock for tests
     Given timers of 1 hour and 10 seconds on a fake clock
     When the clock advances to the next timer
     Then it moved 10 seconds and only that timer fired
+
+  @step1
+  Scenario: CK-10 Drive lets every wait of the code run out
+    Given code that waits 1 minute, then 1 hour on a fake clock
+    When the test drives it
+    Then it went on at 1 minute and at 1 hour 1 minute, without real time

@@ -12,14 +12,45 @@ import (
 
 // Lines is what was logged, safe to read while the code still logs.
 type Lines struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
+	mu      sync.Mutex
+	buf     bytes.Buffer
+	waiters []waiter
+}
+
+type waiter struct {
+	parts []string
+	done  chan struct{}
 }
 
 func (l *Lines) Write(p []byte) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.buf.Write(p)
+	n, err := l.buf.Write(p)
+	kept := l.waiters[:0]
+	for _, w := range l.waiters {
+		if lineWith(l.buf.String(), w.parts) != "" {
+			close(w.done)
+			continue
+		}
+		kept = append(kept, w)
+	}
+	l.waiters = kept
+	return n, err
+}
+
+// Await is closed once a line holding every part was logged, at once when
+// one already was: the signal a test waits for instead of polling the log
+// (docs/spec/tests.md).
+func (l *Lines) Await(parts ...string) <-chan struct{} {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	done := make(chan struct{})
+	if lineWith(l.buf.String(), parts) != "" {
+		close(done)
+		return done
+	}
+	l.waiters = append(l.waiters, waiter{parts: parts, done: done})
+	return done
 }
 
 // String is all lines so far.
@@ -30,8 +61,10 @@ func (l *Lines) String() string {
 }
 
 // Line is the first line holding every part; "" without one.
-func (l *Lines) Line(parts ...string) string {
-	for _, line := range strings.Split(l.String(), "\n") {
+func (l *Lines) Line(parts ...string) string { return lineWith(l.String(), parts) }
+
+func lineWith(text string, parts []string) string {
+	for _, line := range strings.Split(text, "\n") {
 		all := true
 		for _, p := range parts {
 			all = all && strings.Contains(line, p)

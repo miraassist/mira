@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/miraassist/mira/internal/clock"
 	"strings"
 	"sync"
 	"testing"
@@ -19,17 +20,24 @@ import (
 
 // fakeFinisher asks once, then proposes; Commit says done.
 type fakeFinisher struct {
-	mu     sync.Mutex
-	works  []store.Thread
-	asked  bool
-	async  bool
-	delay  time.Duration
+	mu    sync.Mutex
+	works []store.Thread
+	asked bool
+	async bool
+	// hold keeps each Work until the test releases it (release): the work
+	// is slower than the turn waits only because the test says so.
+	hold   bool
+	gate   chan struct{}
 	commit string
 }
 
+func (f *fakeFinisher) release() { f.gate <- struct{}{} }
+
 func (f *fakeFinisher) Async() bool { return f.async }
 func (f *fakeFinisher) Work(_ context.Context, th store.Thread) (Result, error) {
-	time.Sleep(f.delay)
+	if f.hold {
+		<-f.gate
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.works = append(f.works, th)
@@ -49,14 +57,14 @@ type env struct {
 	st   *store.Store
 	fin  *fakeFinisher
 	sent chan store.Message
-	now  time.Time
+	clk  *clock.Fake
 }
 
 func setup(t *testing.T) *env {
 	t.Helper()
-	e := &env{fin: &fakeFinisher{async: true}, sent: make(chan store.Message, 8), now: time.Date(2026, 10, 15, 22, 0, 0, 0, time.UTC)}
+	e := &env{fin: &fakeFinisher{async: true, gate: make(chan struct{}, 8)}, sent: make(chan store.Message, 8), clk: clock.NewFake(time.Date(2026, 10, 15, 22, 0, 0, 0, time.UTC))}
 	var err error
-	e.st, err = store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: func() time.Time { return e.now }})
+	e.st, err = store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: e.clk.Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +95,7 @@ func setup(t *testing.T) *env {
 			return nil
 		},
 		InlineWait: 30 * time.Millisecond,
-		Clock:      func() time.Time { return e.now }})
+		Clock:      e.clk})
 	return e
 }
 
@@ -102,22 +110,28 @@ func (e *env) turn(t *testing.T, key string) (tools.Invocation, store.Session) {
 	return tools.Invocation{SessionKey: key, Channel: config.ChannelVoice}, sess
 }
 
+// next is the next message delivered; a test that waits in vain is named by
+// go test -timeout.
 func (e *env) next(t *testing.T) store.Message {
 	t.Helper()
-	select {
-	case n := <-e.sent:
-		return n
-	case <-time.After(3 * time.Second):
-		t.Fatal("nothing delivered")
-	}
-	return store.Message{}
+	return <-e.sent
+}
+
+// late is Fill when the work is slower than the turn waits: the turn's wait
+// runs out on the clock while the work is held, then the work is released.
+func (e *env) late(t *testing.T, inv tools.Invocation, fields map[string]string) string {
+	t.Helper()
+	var out string
+	e.clk.Drive(func() { out, _ = e.m.Fill(context.Background(), inv, fields) })
+	e.fin.release()
+	return out
 }
 
 // Slow work: the turn says Mira comes back, and the result is announced as
 // a message of the thread; replies to it continue the thread.
 func TestThreadOverSeveralTurns(t *testing.T) {
 	e := setup(t)
-	e.fin.delay = 200 * time.Millisecond
+	e.fin.hold = true
 	ctx := context.Background()
 
 	// Turn 1: the wish; one field is clear, the check resolves it.
@@ -130,7 +144,7 @@ func TestThreadOverSeveralTurns(t *testing.T) {
 		t.Errorf("check not applied: %s", out)
 	}
 	e.m.Fill(ctx, inv, map[string]string{"watch": "licht im schlafzimmer"})
-	out, _ = e.m.Fill(ctx, inv, map[string]string{"measure": "- Mira soll es selbst beurteilen"})
+	out = e.late(t, inv, map[string]string{"measure": "- Mira soll es selbst beurteilen"})
 	if !strings.Contains(out, "im Hintergrund") {
 		t.Fatalf("work not started: %s", out)
 	}
@@ -151,7 +165,7 @@ func TestThreadOverSeveralTurns(t *testing.T) {
 		!strings.Contains(ctxText, "zu ungewöhnlicher Zeit") {
 		t.Fatalf("context:\n%s", ctxText)
 	}
-	e.m.Fill(ctx, inv2, map[string]string{"measure": "zwischen 0 und 6 Uhr"})
+	e.late(t, inv2, map[string]string{"measure": "zwischen 0 und 6 Uhr"})
 	p := e.next(t)
 	if !strings.Contains(p.Spoken, "Soll ich?") || p.ThreadID != q.ThreadID {
 		t.Fatalf("proposal: %+v", p)
@@ -196,7 +210,7 @@ func TestWaitingThreadShownAtItsPlaceAndExpires(t *testing.T) {
 		t.Errorf("shown in another room:\n%s", text)
 	}
 
-	e.now = e.now.Add(16 * time.Minute)
+	e.clk.Advance(16 * time.Minute)
 	e.m.expire(ctx)
 	if text, _ := e.m.Context(ctx, sess, placeOf(sess), nil, ""); text != "" {
 		t.Errorf("expired thread still shown:\n%s", text)
@@ -247,10 +261,12 @@ func TestFastWorkAnswersInTheTurn(t *testing.T) {
 	if !strings.Contains(out, "Soll ich?") {
 		t.Fatalf("proposal not in the turn: %q", out)
 	}
+	// The result came in the turn: Fill returned with it, nothing is
+	// announced (no wait: the work is done).
 	select {
 	case n := <-e.sent:
 		t.Errorf("announced although answered in the turn: %+v", n)
-	case <-time.After(100 * time.Millisecond):
+	default:
 	}
 	if out, err := e.m.Confirm(ctx, inv); err != nil || out != "Angelegt." {
 		t.Errorf("confirm: %q %v", out, err)
@@ -270,7 +286,8 @@ func placeOf(sess store.Session) string {
 // thread's id; cancelling the thread cancels the work.
 func TestWorkRunsAsAJobAndEndsWithTheThread(t *testing.T) {
 	e := setup(t)
-	e.fin.delay = 300 * time.Millisecond
+	e.fin.hold = true
+	t.Cleanup(e.fin.release) // the held work ends with the test
 	var mu sync.Mutex
 	var ran, cancelled []string
 	e.m.opts.Run = func(ctx context.Context, id, name string, work func(context.Context) error) error {
@@ -288,7 +305,7 @@ func TestWorkRunsAsAJobAndEndsWithTheThread(t *testing.T) {
 	ctx := context.Background()
 	inv, _ := e.turn(t, "voice:a")
 	e.m.Start(ctx, inv, "aufgabe", "Licht melden")
-	e.m.Fill(ctx, inv, map[string]string{"watch": "licht im flur", "measure": "nachts"})
+	e.clk.Drive(func() { e.m.Fill(ctx, inv, map[string]string{"watch": "licht im flur", "measure": "nachts"}) })
 	th, err := e.m.current(ctx, inv)
 	if err != nil || th.State != store.ThreadWorking {
 		t.Fatalf("thread %+v, %v", th, err)
@@ -327,7 +344,7 @@ func TestWorkingThreadStartsAgainAfterARestart(t *testing.T) {
 // (docs/spec/satellites-rooms.md).
 func TestSR29_TheAnswerOfAThreadComesAtTheSatelliteItBeganAt(t *testing.T) {
 	e := setup(t)
-	e.fin.delay = 200 * time.Millisecond // slower than the turn waits: it comes as a message
+	e.fin.hold = true // slower than the turn waits: it comes as a message
 	ctx := context.Background()
 	inv, _ := e.turn(t, "voice:a")
 	inv.DeviceID = "dev-essen"
@@ -335,7 +352,7 @@ func TestSR29_TheAnswerOfAThreadComesAtTheSatelliteItBeganAt(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.m.Fill(ctx, inv, map[string]string{"watch": "licht im schlafzimmer"})
-	e.m.Fill(ctx, inv, map[string]string{"measure": "- Mira soll es selbst beurteilen"})
+	e.late(t, inv, map[string]string{"measure": "- Mira soll es selbst beurteilen"})
 	if q := e.next(t); q.OriginDevice != "dev-essen" {
 		t.Errorf("message of the thread carries device %q", q.OriginDevice)
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/miraassist/mira/internal/clock"
 	"log/slog"
 	"strings"
 	"testing"
@@ -59,10 +60,10 @@ func voicemailKindApp(t *testing.T) *vmBed {
 	}
 	b := &vmBed{box: &fakeBox{}, log: &bytes.Buffer{}, now: time.Now()}
 	logger := slog.New(slog.NewTextHandler(b.log, nil))
-	clock := func() time.Time { return b.now }
+	now := func() time.Time { return b.now }
 	b.a = &app{store: st, log: logger, lang: i18n.DE,
-		threads: threads.New(threads.Options{Lang: i18n.DE, Store: st, Targets: loaded, Logger: logger, Clock: clock})}
-	b.a.voicemail = voicemail.New(voicemail.Options{Lang: i18n.DE, Logger: logger, Clock: clock, Ask: b.box.ask,
+		threads: threads.New(threads.Options{Lang: i18n.DE, Store: st, Targets: loaded, Logger: logger, Clock: clock.NewFake(b.now)})}
+	b.a.voicemail = voicemail.New(voicemail.Options{Lang: i18n.DE, Logger: logger, Clock: now, Ask: b.box.ask,
 		Do: func(context.Context, string, map[string]any) error { return nil }})
 	return b
 }

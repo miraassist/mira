@@ -116,6 +116,32 @@ func (f *Fake) AdvanceToNext() time.Duration {
 	return to.Sub(from)
 }
 
+// Drive runs fn and, each time the code waits on the clock while fn runs,
+// moves it to the next pending timer: every wait of fn runs out, at once and
+// in order, without real time. For a test of what happens when a wait ends
+// unanswered; where an answer is to come in time, the test gives it before it
+// moves the clock instead.
+func (f *Fake) Drive(fn func()) {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		fn()
+	}()
+	for {
+		select {
+		case <-done:
+			return
+		case <-f.AwaitWaiters(1):
+			select {
+			case <-done:
+				return
+			default:
+			}
+			f.AdvanceToNext()
+		}
+	}
+}
+
 // Waiters is the number of pending timers and tickers.
 func (f *Fake) Waiters() int {
 	f.mu.Lock()

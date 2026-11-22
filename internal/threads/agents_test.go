@@ -87,7 +87,7 @@ func (e *agentEnv) birthday(t *testing.T) (tools.Invocation, store.Thread) {
 	t.Helper()
 	inv, _ := e.turn(t, "voice:a")
 	inv.Person = "anna"
-	if _, err := e.m.Start(context.Background(), inv, "geburtstag", "Plane Tims Geburtstag"); err != nil {
+	if _, err := e.start(context.Background(), inv, "geburtstag", "Plane Tims Geburtstag"); err != nil {
 		t.Fatal(err)
 	}
 	th, err := e.m.current(context.Background(), inv)
@@ -143,7 +143,7 @@ func TestAG43_AnAgentStartsOnceItsInputIsThere(t *testing.T) {
 		t.Fatal("started before its input was there")
 	}
 	// When the user gives that other field
-	if _, err := e.m.Fill(context.Background(), inv, map[string]string{"datum": "2026-11-01"}); err != nil {
+	if _, err := e.fill(context.Background(), inv, map[string]string{"datum": "2026-11-01"}); err != nil {
 		t.Fatal(err)
 	}
 	// Then the agent is started with it, in the thread's call context
@@ -159,7 +159,7 @@ func TestAG44_SeveralAgentsRunAtOnceTheLastResultFinishes(t *testing.T) {
 	e := setupAgents(t)
 	// Given a thread with two fields filled by agents and the other fields given
 	inv, th := e.birthday(t)
-	e.m.Fill(context.Background(), inv, map[string]string{"datum": "2026-11-01", "gaeste": "8"})
+	e.fill(context.Background(), inv, map[string]string{"datum": "2026-11-01", "gaeste": "8"})
 	// When both agents run
 	spiele, _ := e.startedFor("spiele")
 	wetter, ok := e.startedFor("wetter")
@@ -225,7 +225,7 @@ func TestAG47_AnAgentWritesAPlan(t *testing.T) {
 	// Given a plan target that names an agent
 	inv, _ := e.turn(t, "voice:a")
 	// When the thread starts and the agent is done
-	if _, err := e.m.Start(context.Background(), inv, "kochplan", "https://example.com/pfannkuchen"); err != nil {
+	if _, err := e.start(context.Background(), inv, "kochplan", "https://example.com/pfannkuchen"); err != nil {
 		t.Fatal(err)
 	}
 	s, ok := e.startedFor(PlanField)
@@ -293,11 +293,12 @@ func TestAG105_AtASatelliteAQuickAgentsResultComesInTheSameAnswer(t *testing.T) 
 	if !strings.Contains(out, "Milch erhitzen") || !strings.Contains(out, "„Kakao“ ist bereit: 2 Schritte.") {
 		t.Errorf("answer:\n%s", out)
 	}
-	// And no message is sent
+	// And no message is sent: Start returned with the result, nothing is
+	// left to send
 	select {
 	case n := <-e.sent:
 		t.Errorf("message %+v", n)
-	case <-time.After(50 * time.Millisecond):
+	default:
 	}
 }
 
@@ -342,11 +343,12 @@ func TestAG107_AtASatelliteTheFinishAfterAQuickAgentComesInTheSameAnswer(t *test
 	if !strings.Contains(out, "Sag dem Nutzer den Vorschlag und frag, ob es so passt: Die neue Regel: Schlösser nur für Anna.") {
 		t.Errorf("answer:\n%s", out)
 	}
-	// And no message is sent
+	// And no message is sent: Start returned with the result, nothing is
+	// left to send
 	select {
 	case n := <-e.sent:
 		t.Errorf("message %+v", n)
-	case <-time.After(50 * time.Millisecond):
+	default:
 	}
 }
 
@@ -356,7 +358,7 @@ func TestAG106_APersonsThreadSpeaksWhereItBegan(t *testing.T) {
 	// Given a person's thread started at the satellite in the living room
 	inv, _ := e.turn(t, "voice:a")
 	inv.Person, inv.Place = "anna", "person:anna"
-	if _, err := e.m.Start(context.Background(), inv, "kochplan", "https://example.com/kakao"); err != nil {
+	if _, err := e.start(context.Background(), inv, "kochplan", "https://example.com/kakao"); err != nil {
 		t.Fatal(err)
 	}
 	s, _ := e.startedFor(PlanField)
@@ -385,7 +387,7 @@ func TestRM23_ARemoteAgentsOverviewComesAsTheThreadsMessage(t *testing.T) {
 	e.m = New(opts)
 	inv, _ := e.turn(t, "voice:a")
 	inv.Person = "anna"
-	if _, err := e.m.Start(context.Background(), inv, "recherche", "Welche Wärmepumpe passt zu 140 m² Altbau?"); err != nil {
+	if _, err := e.start(context.Background(), inv, "recherche", "Welche Wärmepumpe passt zu 140 m² Altbau?"); err != nil {
 		t.Fatal(err)
 	}
 	s, ok := e.startedFor("message")
@@ -470,4 +472,16 @@ func TestRM24_TheEntryOfASkillWithARemoteAgentNamesItsAgent(t *testing.T) {
 			t.Errorf("thread_start: %s", tl.DescribeIn(i18n.DE))
 		}
 	}
+}
+
+// start and fill are the Manager's at a voice turn whose agents do not answer
+// within it: the turn's wait runs out on the clock (docs/spec/tests.md).
+func (e *agentEnv) start(ctx context.Context, inv tools.Invocation, target, request string) (out string, err error) {
+	e.clk.Drive(func() { out, err = e.m.Start(ctx, inv, target, request) })
+	return out, err
+}
+
+func (e *agentEnv) fill(ctx context.Context, inv tools.Invocation, fields map[string]string) (out string, err error) {
+	e.clk.Drive(func() { out, err = e.m.Fill(ctx, inv, fields) })
+	return out, err
 }

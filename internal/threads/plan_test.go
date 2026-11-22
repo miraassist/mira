@@ -27,7 +27,7 @@ func planEnv(t *testing.T) *env {
 	e := setup(t)
 	kochen := skills.Skill{Name: "kochen", Description: "Kochen nach Rezept", Body: "Mach aus dem Rezept einen Plan.",
 		Target: &skills.Target{Plan: true}}
-	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{kochen}, Clock: func() time.Time { return e.now }})
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{kochen}, Clock: e.clk})
 	return e
 }
 
@@ -62,7 +62,7 @@ func TestPlanAcrossConversations(t *testing.T) {
 	}
 
 	// 40 minutes later, a new conversation in the same room.
-	e.now = e.now.Add(40 * time.Minute)
+	e.clk.Advance(40 * time.Minute)
 	_, sess := e.turn(t, "voice:b")
 	text, foreign := e.m.Context(ctx, sess, placeOf(sess), nil, "")
 	if !foreign || !strings.Contains(text, "1 von 3") || !strings.Contains(text, "Jetzt (Schritt 2): Mineralwasser") ||
@@ -104,9 +104,9 @@ func TestPlanLifecycle(t *testing.T) {
 	sess, _ := e.st.GetSession(ctx, "voice:a")
 	id := sess.ThreadID
 
-	e.now = e.now.Add(50 * time.Minute)
+	e.clk.Advance(50 * time.Minute)
 	e.m.Plan(ctx, inv, "check", "", 1)
-	e.now = e.now.Add(50 * time.Minute)
+	e.clk.Advance(50 * time.Minute)
 	e.m.expire(ctx)
 	if s := e.state(t, id); s != store.ThreadCollecting {
 		t.Fatalf("expired although a step was done 50 minutes ago: %s", s)
@@ -126,20 +126,20 @@ func TestPlanLifecycle(t *testing.T) {
 		t.Errorf("all done: %q", out)
 	}
 	// "Wait, not done yet" within the grace.
-	e.now = e.now.Add(20 * time.Minute)
+	e.clk.Advance(20 * time.Minute)
 	e.m.Plan(ctx, inv, "uncheck", "", 3)
-	e.now = e.now.Add(40 * time.Minute)
+	e.clk.Advance(40 * time.Minute)
 	e.m.expire(ctx)
 	if s := e.state(t, id); s != store.ThreadCollecting {
 		t.Fatalf("reopened plan ended: %s", s)
 	}
 	e.m.Plan(ctx, inv, "check", "", 3)
-	e.now = e.now.Add(29 * time.Minute)
+	e.clk.Advance(29 * time.Minute)
 	e.m.expire(ctx)
 	if s := e.state(t, id); s != store.ThreadCollecting {
 		t.Fatalf("ended within the grace: %s", s)
 	}
-	e.now = e.now.Add(2 * time.Minute)
+	e.clk.Advance(2 * time.Minute)
 	e.m.expire(ctx)
 	if s := e.state(t, id); s != store.ThreadDone {
 		t.Errorf("after the grace: %s", s)
@@ -150,7 +150,7 @@ func TestPlanLifecycle(t *testing.T) {
 	e.m.Start(ctx, inv2, "kochen", "Suppe")
 	e.m.Plan(ctx, inv2, "write", recipe, 0)
 	sess2, _ := e.st.GetSession(ctx, "voice:z")
-	e.now = e.now.Add(61 * time.Minute)
+	e.clk.Advance(61 * time.Minute)
 	e.m.expire(ctx)
 	if s := e.state(t, sess2.ThreadID); s != store.ThreadExpired {
 		t.Errorf("left alone: %s", s)
@@ -219,7 +219,7 @@ func abEnv(t *testing.T) *env {
 	e := setup(t)
 	ab := skills.Skill{Name: "anrufbeantworter", Description: "Anrufbeantworter", Body: "Abhören.",
 		Target: &skills.Target{Plan: true}}
-	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{ab}, Clock: func() time.Time { return e.now }})
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{ab}, Clock: e.clk})
 	return e
 }
 
@@ -353,7 +353,7 @@ func TestMQ10_ADonePlanIsToldOnce(t *testing.T) {
 	e := setup(t)
 	quiz := skills.Skill{Name: "musikquiz", Description: "Musik-Quiz", Body: "Raten.", Target: &skills.Target{Plan: true}}
 	var done []string
-	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{quiz}, Clock: func() time.Time { return e.now },
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{quiz}, Clock: e.clk,
 		Done: func(_ context.Context, th store.Thread) { done = append(done, th.ID) }})
 	ctx := context.Background()
 	inv, _ := e.turn(t, "voice:a")
@@ -420,14 +420,14 @@ func TestMQ11_ASongIsTickedWithItsResult(t *testing.T) {
 // the person's next turn finds it, and OpenWith finds it by a field.
 func TestStartForAPerson(t *testing.T) {
 	e := setup(t)
-	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: briefSkill(t), Clock: func() time.Time { return e.now }})
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: briefSkill(t), Clock: e.clk})
 	ctx := context.Background()
 	th, err := e.m.StartFor(ctx, "brief", "anna", "Elternbrief", "Elternbrief\n- [ ] Elternabend\n- [ ] Feier",
 		map[string]string{"doc": "5444"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if th.Place != "person:anna" || th.Person != "anna" || !th.ExpiresAt.Equal(e.now.Add(72*time.Hour)) {
+	if th.Place != "person:anna" || th.Person != "anna" || !th.ExpiresAt.Equal(e.clk.Now().Add(72*time.Hour)) {
 		t.Fatalf("thread = %+v", th)
 	}
 	if !e.m.OpenWith(ctx, "brief", "doc", "5444") || e.m.OpenWith(ctx, "brief", "doc", "1") {

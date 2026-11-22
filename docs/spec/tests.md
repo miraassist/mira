@@ -1,6 +1,6 @@
 # Tests without time – spec
 
-Status 2026-11-22: decided; step 1 (the clock) and step 2 (`retry`) built. Scenarios:
+Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads built. Scenarios:
 [tests.feature](tests.feature). The inventory behind it (private): `docs/test-review.local.md`.
 
 ## Goal
@@ -46,6 +46,9 @@ func NewFake(now time.Time) *Fake // a test's clock
   - `Set(t)` moves it to `t` (never back).
   - `AdvanceToNext()` moves it to the earliest pending timer and fires it: for a test that drives code through its
     waits one by one, without knowing their lengths.
+  - `Drive(fn)` runs `fn` and lets each wait of the code run out while `fn` runs (moving to the next timer whenever the
+    code waits on the clock): for a test of a wait that ends unanswered. Where an answer is to come in time, the test
+    gives it first and moves the clock after.
   - `Waiters()` is the number of pending timers and tickers; `AwaitWaiters(n)` is a channel closed once at least `n`
     are pending (at once when they already are).
 - A package that waits takes the clock as an option (`Clock clock.Clock`, nil for the real one), or for `retry` as a
@@ -66,7 +69,10 @@ func NewFake(now time.Time) *Fake // a test's clock
 1. **The clock** `internal/clock` with its tests (CK-01 to CK-08). Built when the scenarios run.
 2. **`retry`** waits on the clock (`Policy.Clock`); RY-05 and the other retry tests without real time.
 3. **The packages that wait**, one after the other, each with its fakes made controllable and its tests converted, a
-   green `check.sh --release` before each commit: threads (InlineWait, AgentWait), notifier (`speakPause`,
+   green `check.sh --release` before each commit: threads (InlineWait, AgentWait, the expiry ticker; built 2026-11-22:
+   `Options.Clock` is a `clock.Clock`, the fake finisher holds on a gate, a turn whose wait runs out is driven with
+   `Drive`; users of threads outside the package that pass no clock still wait in real time until their package is
+   converted), notifier (`speakPause`,
    `speakingStart`, waits for states), ha/ws (backoff, `WaitState`), ha/structure (debounce), mcp (retry ticker),
    devices (Gather, EntryWait), agent (attempt timeout, run time), a2a (card retry), conversation (fakellm: gate instead
    of `Delay`/`PieceDelay`), matter, programs, setup, zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch),

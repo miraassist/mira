@@ -3,6 +3,7 @@ package conversation_test
 import (
 	"context"
 	"errors"
+	fakeclock "github.com/miraassist/mira/internal/clock"
 	"log/slog"
 	"strings"
 	"sync"
@@ -69,18 +70,51 @@ type historyHouse struct {
 	threads *threads.Manager
 	person  string
 	mu      sync.Mutex
-	now     time.Time
+	clk     *fakeclock.Fake
+	// recorded are the summaries written into a history ("key: record").
+	recorded []string
+	waits    []recordWait
 }
 
-func (h *historyHouse) clock() time.Time {
+type recordWait struct {
+	match func(string) bool
+	done  chan struct{}
+}
+
+// awaitRecorded is closed once a summary match takes was written, at once
+// when one was: the signal a test waits for instead of a time.
+func (h *historyHouse) awaitRecorded(match func(string) bool) <-chan struct{} {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.now
+	done := make(chan struct{})
+	for _, r := range h.recorded {
+		if match(r) {
+			close(done)
+			return done
+		}
+	}
+	h.waits = append(h.waits, recordWait{match, done})
+	return done
+}
+
+func (h *historyHouse) noteRecorded(r string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.recorded = append(h.recorded, r)
+	kept := h.waits[:0]
+	for _, w := range h.waits {
+		if w.match(r) {
+			close(w.done)
+			continue
+		}
+		kept = append(kept, w)
+	}
+	h.waits = kept
 }
 
 func newHistoryHouse(t *testing.T) *historyHouse {
 	t.Helper()
-	h := &historyHouse{model: &scriptModel{}, now: time.Now()}
+	h := &historyHouse{model: &scriptModel{}, clk: fakeclock.NewFake(time.Now())}
 	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -90,9 +124,11 @@ func newHistoryHouse(t *testing.T) *historyHouse {
 	kochen := skills.Skill{Name: "kochen", Description: "Kochen", Body: "Koch.", Target: &skills.Target{Plan: true, Bound: skills.BoundRoom}}
 	vokabeln := skills.Skill{Name: "vokabeln", Description: "Vokabeln", Body: "Frag ab.", Target: &skills.Target{Plan: true}}
 	h.threads = threads.New(threads.Options{Lang: i18n.DE, Store: st, Targets: []skills.Skill{kochen, vokabeln},
-		Clock: h.clock, Logger: quietLogger(),
+		Clock: h.clk, Logger: quietLogger(),
 		Record: func(ctx context.Context, key, record, ack string) error {
-			return h.engine.Record(ctx, key, record, ack)
+			err := h.engine.Record(ctx, key, record, ack)
+			h.noteRecorded(key + ": " + record)
+			return err
 		}})
 	// fertig ends the turn's thread, as a skill's tool does (device_finish).
 	fertig := tools.InternalTool{Name: "fertig", Description: "beendet den Vorgang", Schema: `{"type":"object","properties":{}}`,
@@ -344,12 +380,18 @@ func TestTV10_AnExpiredOrCancelledThreadGetsItsSummaryAtOnce(t *testing.T) {
 	other := h.startAt(t, "kochen", "area:wohnzimmer")
 	h.announce(t, other, "Welche Pfanne?")
 	h.say(t, "martin", "c8", "Die große")
-	h.mu.Lock()
-	h.now = h.now.Add(48 * time.Hour)
-	h.mu.Unlock()
-	run, stop := context.WithTimeout(ctx, 300*time.Millisecond)
-	defer stop()
-	h.threads.Run(run)
+	h.clk.Advance(48 * time.Hour)
+	// Run's first sweep ends the expired thread; once Run waits on its
+	// ticker, the sweep is done and Run is stopped.
+	// Run's first sweep ends the expired thread and writes its summary.
+	run, stop := context.WithCancel(ctx)
+	ran := make(chan struct{})
+	go func() { h.threads.Run(run); close(ran) }()
+	<-h.awaitRecorded(func(r string) bool {
+		return strings.HasPrefix(r, "voice:person:martin: ") && strings.Contains(r, "abgelaufen")
+	})
+	stop()
+	<-ran
 	if got := h.history(t, "voice:person:martin"); !strings.Contains(got, "„kochen“ abgelaufen") {
 		t.Errorf("expired: %q", got)
 	}

@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/miraassist/mira/internal/clock"
 	"log/slog"
 	"sort"
 	"strings"
@@ -129,8 +130,10 @@ type Options struct {
 	// Done is told once when a thread's plan became done, every step
 	// ticked, while the thread stays open for what comes after (a quiz's
 	// clip stops then, docs/spec/music-quiz.md, decision 9).
-	Done   func(ctx context.Context, th store.Thread)
-	Clock  func() time.Time
+	Done func(ctx context.Context, th store.Thread)
+	// Clock is what the waits wait on and what says now; nil is the real
+	// clock (docs/spec/tests.md).
+	Clock  clock.Clock
 	Logger *slog.Logger
 }
 
@@ -145,9 +148,7 @@ type Manager struct {
 }
 
 func New(opts Options) *Manager {
-	if opts.Clock == nil {
-		opts.Clock = time.Now
-	}
+	opts.Clock = clock.Or(opts.Clock)
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
@@ -400,7 +401,7 @@ func (m *Manager) save(ctx context.Context, th *store.Thread) error {
 func (m *Manager) extend(th *store.Thread) {
 	sk := m.targets[th.Target]
 	was := th.ExpiresAt
-	th.ExpiresAt = m.opts.Clock().Add(sk.Target.TimeoutDuration())
+	th.ExpiresAt = m.opts.Clock.Now().Add(sk.Target.TimeoutDuration())
 	if !th.Deadline.IsZero() {
 		// Its starter's expiry, until a turn takes it up (decision 11).
 		th.ExpiresAt = th.Deadline
@@ -442,7 +443,7 @@ func (m *Manager) change(ctx context.Context, id string, fn func(*store.Thread) 
 const maxChangeTries = 5
 
 func (m *Manager) logEntry(th *store.Thread, who, text string) {
-	th.Log = append(th.Log, store.ThreadEntry{At: m.opts.Clock(), Who: who, Text: text})
+	th.Log = append(th.Log, store.ThreadEntry{At: m.opts.Clock.Now(), Who: who, Text: text})
 }
 
 // Start opens a thread for a target at the turn's place. An older open
@@ -546,12 +547,12 @@ func (m *Manager) unawait(id string, ch chan string) {
 // waitFor waits up to AgentWait for an agent's result for thread id; what
 // it would have said comes back. Past that the result comes as a message.
 func (m *Manager) waitFor(ctx context.Context, id string, ch chan string) string {
-	timer := time.NewTimer(m.opts.AgentWait)
+	timer := m.opts.Clock.NewTimer(m.opts.AgentWait)
 	defer timer.Stop()
 	select {
 	case said := <-ch:
 		return said
-	case <-timer.C:
+	case <-timer.C():
 	case <-ctx.Done():
 	}
 	m.waitMu.Lock()
@@ -740,12 +741,12 @@ func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Threa
 		}
 		m.apply(ctx, th, res, true)
 	}()
-	timer := time.NewTimer(m.opts.InlineWait)
+	timer := m.opts.Clock.NewTimer(m.opts.InlineWait)
 	defer timer.Stop()
 	select {
 	case res := <-inTime:
 		return m.apply(ctx, th, res, false), nil
-	case <-timer.C:
+	case <-timer.C():
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -986,14 +987,14 @@ func (m *Manager) endHow(ctx context.Context, th store.Thread, state, how string
 
 // Run ends threads nobody answered in time, until ctx ends.
 func (m *Manager) Run(ctx context.Context) error {
-	tick := time.NewTicker(30 * time.Second)
+	tick := m.opts.Clock.NewTicker(30 * time.Second)
 	defer tick.Stop()
 	for {
 		m.expire(ctx)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-tick.C:
+		case <-tick.C():
 		}
 	}
 }
@@ -1003,7 +1004,7 @@ func (m *Manager) expire(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	now := m.opts.Clock()
+	now := m.opts.Clock.Now()
 	for _, th := range open {
 		if th.State == store.ThreadWorking || !now.After(th.ExpiresAt) {
 			continue

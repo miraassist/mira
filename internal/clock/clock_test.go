@@ -150,3 +150,16 @@ func TestCK09_AdvanceToNextJumpsToTheEarliestTimer(t *testing.T) {
 		t.Errorf("moved %s with nothing pending", d)
 	}
 }
+
+func TestCK10_DriveLetsEveryWaitOfTheCodeRunOut(t *testing.T) {
+	f := NewFake(ten)
+	var woke []time.Time
+	f.Drive(func() {
+		woke = append(woke, <-f.After(time.Minute))
+		woke = append(woke, <-f.After(time.Hour))
+	})
+	want := []time.Time{ten.Add(time.Minute), ten.Add(time.Minute + time.Hour)}
+	if !slices.EqualFunc(woke, want, time.Time.Equal) {
+		t.Errorf("woke %v", woke)
+	}
+}

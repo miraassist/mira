@@ -120,7 +120,7 @@ func (m *Manager) finished(c *planContent) {
 	}
 	switch {
 	case all && c.DoneAt == nil:
-		now := m.opts.Clock()
+		now := m.opts.Clock.Now()
 		c.DoneAt = &now
 	case !all:
 		c.DoneAt = nil
