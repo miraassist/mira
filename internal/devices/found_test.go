@@ -282,6 +282,7 @@ type foundEnv struct {
 	ended  chan string
 	ticked []string
 	logs   *bytes.Buffer
+	logMu  sync.Mutex // guards logs: the service writes while a test reads
 	wifi   [2]string
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -303,10 +304,9 @@ func newFoundEnv(t *testing.T, kv *memKV, ha *fakeHA) *foundEnv {
 		ha = newFakeHA()
 	}
 	e := &foundEnv{ha: ha, kv: kv, posts: make(chan [2]string, 8), ended: make(chan string, 8), logs: &bytes.Buffer{}}
-	var logMu sync.Mutex
 	logger := slog.New(slog.NewTextHandler(writer(func(b []byte) (int, error) {
-		logMu.Lock()
-		defer logMu.Unlock()
+		e.logMu.Lock()
+		defer e.logMu.Unlock()
 		return e.logs.Write(b)
 	}), nil))
 	tick := func(_ context.Context, _, match string) error {
@@ -399,6 +399,13 @@ func newFoundEnv(t *testing.T, kv *memKV, ha *fakeHA) *foundEnv {
 		return len(ha.flowSubs) > 0 && len(ha.devSubs) > 0
 	})
 	return e
+}
+
+// logText is the log so far, read under the lock the logger writes with.
+func (e *foundEnv) logText() string {
+	e.logMu.Lock()
+	defer e.logMu.Unlock()
+	return e.logs.String()
 }
 
 type writer func([]byte) (int, error)
@@ -698,7 +705,7 @@ func TestFD09_AWifiStepIsFilledFromTheHomeWifi(t *testing.T) {
 			t.Errorf("submitted %v", got)
 		}
 	})
-	if strings.Contains(e.logs.String(), "geheim-123") {
+	if strings.Contains(e.logText(), "geheim-123") {
 		t.Error("the password is in the log")
 	}
 }
@@ -751,8 +758,8 @@ func TestFD12_ARefusedStepIsSaidNotSwallowed(t *testing.T) {
 	if !strings.Contains(out, "400 Bad Request") {
 		t.Fatalf("confirm = %q", out)
 	}
-	if !strings.Contains(e.logs.String(), "could not confirm the discovered device") {
-		t.Errorf("log: %s", e.logs)
+	if log := e.logText(); !strings.Contains(log, "could not confirm the discovered device") {
+		t.Errorf("log: %s", log)
 	}
 }
 
