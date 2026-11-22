@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/skills"
 )
@@ -42,13 +43,7 @@ func program(url, sum, version string) skills.Program {
 // waitReady waits for the background download.
 func waitReady(t *testing.T, ready chan string) string {
 	t.Helper()
-	select {
-	case s := <-ready:
-		return s
-	case <-time.After(5 * time.Second):
-		t.Fatal("the program never became ready")
-		return ""
-	}
+	return <-ready
 }
 
 // PG-01 Mira gets the skill's program: downloaded once, checked, kept
@@ -104,15 +99,14 @@ func TestPG02_AWrongSumIsNeverStarted(t *testing.T) {
 	srv, _ := publisher(t, []byte("evil"))
 	dir := t.TempDir()
 	m := New(dir, nil)
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	m.clock = clk
 	want := sum([]byte("good"))
 	p := program(srv.URL+"/korb_amd64", want, "0.9.0")
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	m.Start(ctx, []skills.Program{p}, func(string) { t.Error("started") })
-	deadline := time.Now().Add(5 * time.Second)
-	for len(m.Problems()) == 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
+	<-clk.AwaitWaiters(1) // the download failed; it waits to be tried again
 	probs := m.Problems()
 	if len(probs) != 1 {
 		t.Fatalf("problems %v", probs)
@@ -168,12 +162,13 @@ func TestPG05_AFailedDownloadIsTriedAgainLater(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	m := New(t.TempDir(), nil)
-	m.retry = 200 * time.Millisecond
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	m.clock, m.retry = clk, 200*time.Millisecond
 	ready := make(chan string, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	m.Start(ctx, []skills.Program{program(srv.URL+"/korb_amd64", sum(body), "0.9.0")}, func(s string) { ready <- s })
-	time.Sleep(50 * time.Millisecond)
+	<-clk.AwaitWaiters(1) // the download failed; it waits to be tried again
 	if probs := m.Problems(); len(probs) != 1 || !strings.Contains(probs[0].Text(i18n.DE), "HTTP 503") {
 		t.Fatalf("problems %v", probs)
 	}
@@ -181,6 +176,7 @@ func TestPG05_AFailedDownloadIsTriedAgainLater(t *testing.T) {
 		t.Fatalf("%d tries at once", n)
 	}
 	fail.Store(false)
+	clk.Advance(200 * time.Millisecond)
 	waitReady(t, ready)
 	if len(m.Problems()) != 0 {
 		t.Errorf("problem stays: %v", m.Problems())

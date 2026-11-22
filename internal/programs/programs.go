@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/skills"
 )
 
@@ -40,8 +41,11 @@ type Manager struct {
 	client *http.Client
 	log    *slog.Logger
 
-	// retry is Retry; tests shorten it.
+	// retry is Retry; tests shorten it. clock is what the wait before the
+	// next download waits on; tests set a fake one. A download's own time
+	// limit bounds a connection and stays real time.
 	retry time.Duration
+	clock clock.Clock
 
 	mu       sync.Mutex
 	problems map[string]skills.Problem // by skill
@@ -53,7 +57,7 @@ func New(dir string, log *slog.Logger) *Manager {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Manager{dir: dir, client: &http.Client{Timeout: timeout}, log: log.With("component", "programs"), retry: Retry,
+	return &Manager{dir: dir, client: &http.Client{Timeout: timeout}, log: log.With("component", "programs"), retry: Retry, clock: clock.Real(),
 		problems: map[string]skills.Problem{}, loading: map[string]bool{}}
 }
 
@@ -94,7 +98,7 @@ func (m *Manager) Start(ctx context.Context, list []skills.Program, ready func(s
 				select {
 				case <-ctx.Done():
 					return
-				case <-time.After(m.retry):
+				case <-m.clock.After(m.retry):
 				}
 			}
 		}()
