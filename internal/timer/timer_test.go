@@ -456,16 +456,29 @@ func TestTheSleepTimersFollowHassTimerStatus(t *testing.T) {
 	run(t, sleep, tools.Invocation{Person: "ben", Area: "wohnzimmer"}, `{"minutes":45}`)
 	status := anna
 	status.Name = "ha__intent__HassTimerStatus"
-	if got := timers.Supplement(context.Background(), status); got != "Außerdem Schlaf-Timer (sleep_timer): endet um 22:35, in 30 Minuten, Raum Wohnzimmer." {
+	if got := timers.Supplement(context.Background(), status, false); got != "Außerdem Schlaf-Timer (sleep_timer): endet um 22:35, in 30 Minuten, Raum Wohnzimmer." {
 		t.Errorf("supplement %q", got)
 	}
 	other := anna
 	other.Name = "ha__intent__HassTurnOn"
-	if got := timers.Supplement(context.Background(), other); got != "" {
+	if got := timers.Supplement(context.Background(), other, false); got != "" {
 		t.Errorf("another tool: %q", got)
 	}
 	ha.fail = errors.New("not connected")
-	if got := timers.Supplement(context.Background(), status); !strings.Contains(got, "nicht gelesen werden: not connected") {
+	if got := timers.Supplement(context.Background(), status, false); !strings.Contains(got, "nicht gelesen werden: not connected") {
 		t.Errorf("failure %q", got)
+	}
+}
+
+// A cancelled countdown timer is said as cancelled: Home Assistant's answer
+// is empty; one not found is Home Assistant's error and gets nothing.
+func TestACancelledCountdownTimerIsSaidAsCancelled(t *testing.T) {
+	timers := New(Options{Lang: i18n.DE, HA: &fakeHA{own: newOwn()}})
+	inv := tools.Invocation{Name: "ha__intent__HassCancelTimer"}
+	if got := timers.Supplement(context.Background(), inv, false); !strings.Contains(got, "Kurzzeit-Timer ist abgebrochen") {
+		t.Errorf("cancelled: %q", got)
+	}
+	if got := timers.Supplement(context.Background(), inv, true); got != "" {
+		t.Errorf("not found: %q", got)
 	}
 }

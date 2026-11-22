@@ -78,7 +78,7 @@ func TestASupplementIsAddedToAnMCPAnswer(t *testing.T) {
 	}
 	defer host.Close()
 	reg := NewRegistry(host)
-	reg.Supplement(func(_ context.Context, inv Invocation) string {
+	reg.Supplement(func(_ context.Context, inv Invocation, _ bool) string {
 		if inv.Name == "ha__HassTurnOn" {
 			return "Außerdem: etwas"
 		}

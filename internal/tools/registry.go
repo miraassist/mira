@@ -164,7 +164,7 @@ type Registry struct {
 	// done are told of every MCP tool call that succeeded (Observe).
 	done []func(Invocation)
 	// extra add to an MCP tool's answer (Supplement).
-	extra []func(context.Context, Invocation) string
+	extra []func(context.Context, Invocation, bool) string
 }
 
 func NewRegistry(src MCPSource, internal ...InternalTool) *Registry {
@@ -192,7 +192,7 @@ func (r *Registry) Add(tools ...InternalTool) {
 // Supplement adds what f returns, when not empty, as a line to the answer
 // of every MCP tool call, an error too; f decides by the tool's name
 // (docs/spec/scheduled-actions.md: the sleep timers after HassTimerStatus).
-func (r *Registry) Supplement(f func(context.Context, Invocation) string) {
+func (r *Registry) Supplement(f func(ctx context.Context, inv Invocation, isError bool) string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.extra = append(r.extra, f)
@@ -394,7 +394,7 @@ func (r *Registry) Execute(ctx context.Context, inv Invocation) (text string, is
 	}
 	out := res.Text
 	for _, f := range extra {
-		if add := f(ctx, inv); add != "" {
+		if add := f(ctx, inv, res.IsError); add != "" {
 			out = strings.TrimRight(out, "\n") + "\n" + add
 		}
 	}

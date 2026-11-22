@@ -36,7 +36,13 @@ timer), it adds the open sleep timers of the person in the room (anonymous: of t
 - **What it costs**: one `mira/automation/list` (label `once`) per call of `HassTimerStatus`; the turn waits for it.
 - **When reading fails**: the line says that the sleep timers could not be read, with the error, and the log names
   it; Home Assistant's answer stays as it is.
-- Only `HassTimerStatus` of Home Assistant's Assist server; no other tool's result is changed.
+- `HassCancelTimer` answered without an error: the service adds "Der Kurzzeit-Timer ist abgebrochen; ein Schlaf-Timer
+  ist davon nicht betroffen." Home Assistant's answer to a cancelled timer is an empty `action_done`
+  (`success: [], failed: []`); flash lite read it as "nothing happened", said "Der Timer läuft gar nicht" and
+  cancelled the sleep timer as well (2026-11-22). Checked on the test HA over its MCP server as the fake Show
+  (2026-11-22): a cancelled timer is that empty answer, no matching timer is an error ("Timer not found"), so the line
+  comes only without an error. `HassCancelAllTimers` names the number (`speech_slots.canceled`) and gets nothing.
+- No other tool's result is changed.
 
 ## Countdown timers are a third thing
 

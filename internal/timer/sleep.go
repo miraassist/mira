@@ -317,15 +317,20 @@ func (c *controller) area(inv tools.Invocation, room string) (string, bool) {
 	return inv.Area, inv.Area != ""
 }
 
-// Supplement is what the service adds to Home Assistant's HassTimerStatus
-// (docs/spec/scheduled-actions.md, "Welche Timer habe ich?"): the open sleep
-// timers of the person in the room, one line each; "" for another tool or
-// none. Reading them costs one list of the timers.
-func (s *Timers) Supplement(ctx context.Context, inv tools.Invocation) string {
+// Supplement is what the service adds to Home Assistant's timer tools
+// (docs/spec/scheduled-actions.md, "Welche Timer habe ich?"): after
+// HassTimerStatus the open sleep timers of the person in the room, one line
+// each (reading them costs one list of the timers); after HassCancelTimer
+// without an error, that the countdown timer is cancelled and no sleep timer.
+// "" for another tool or nothing to add.
+func (s *Timers) Supplement(ctx context.Context, inv tools.Invocation, isError bool) string {
+	c := s.c
+	if strings.HasSuffix(inv.Name, "__HassCancelTimer") && !isError {
+		return c.t.countdownCancelled
+	}
 	if !strings.HasSuffix(inv.Name, "__HassTimerStatus") {
 		return ""
 	}
-	c := s.c
 	mine, err := c.mine(ctx, inv)
 	if err != nil {
 		c.log.Warn("could not read the sleep timers to add them to HassTimerStatus", "error", err)
