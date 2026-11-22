@@ -54,6 +54,49 @@ type Server struct {
 	conns map[*connState]bool
 	// connectCount counts successful authentications.
 	connectCount int
+
+	// watchMu guards watchers: tests waiting for the fake to reach a state
+	// (Await). It is never held together with mu.
+	watchMu  sync.Mutex
+	watchers []watcher
+}
+
+// watcher is a test waiting for the fake to reach a state.
+type watcher struct {
+	cond func() bool
+	ch   chan struct{}
+}
+
+// Await returns a channel closed once cond holds, at once when it does
+// already. cond is checked again after everything that changes the fake: a
+// connection made or lost, a command handled. It may read the fake through
+// its methods (SubscriptionCount, ServiceCalls, ConnectCount …).
+func (s *Server) Await(cond func() bool) <-chan struct{} {
+	s.watchMu.Lock()
+	defer s.watchMu.Unlock()
+	ch := make(chan struct{})
+	if cond() {
+		close(ch)
+		return ch
+	}
+	s.watchers = append(s.watchers, watcher{cond, ch})
+	return ch
+}
+
+// changed closes the channels of the watchers whose state was reached. The
+// caller holds no lock of the fake.
+func (s *Server) changed() {
+	s.watchMu.Lock()
+	defer s.watchMu.Unlock()
+	keep := s.watchers[:0]
+	for _, w := range s.watchers {
+		if w.cond() {
+			close(w.ch)
+		} else {
+			keep = append(keep, w)
+		}
+	}
+	s.watchers = keep
 }
 
 type connState struct {
@@ -196,6 +239,7 @@ func (s *Server) DropConnections() {
 	for _, c := range conns {
 		c.conn.CloseNow()
 	}
+	s.changed()
 }
 
 // flowSubscription marks a subscription to the open config flows.
@@ -380,11 +424,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	s.conns[cs] = true
 	s.connectCount++
 	s.mu.Unlock()
+	s.changed()
 	defer func() {
 		s.mu.Lock()
 		delete(s.conns, cs)
 		s.mu.Unlock()
 		conn.CloseNow()
+		s.changed()
 	}()
 
 	for {
@@ -397,6 +443,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) dispatch(cs *connState, cmd map[string]any) {
+	defer s.changed() // last, after the connection's lock is given back
 	id := intOf(cmd["id"])
 	cmdType, _ := cmd["type"].(string)
 

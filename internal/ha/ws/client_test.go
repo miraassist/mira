@@ -3,12 +3,14 @@ package ws_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/testsupport/fakeha"
 )
@@ -19,23 +21,43 @@ func quietLogger() *slog.Logger {
 
 func startClient(t *testing.T, srv *fakeha.Server, token string) (*haws.Client, context.Context) {
 	t.Helper()
-	c, err := haws.New(haws.Options{
-		URL: srv.URL, Token: token, Logger: quietLogger(),
-		CallTimeout: 5 * time.Second, ReconnectMin: 20 * time.Millisecond, ReconnectMax: 100 * time.Millisecond,
-	})
+	c, ctx, _ := startOnClock(t, srv, haws.Options{Token: token})
+	return c, ctx
+}
+
+// startOnClock runs a client on a fake clock until it is connected; opts
+// gives the token and what else the test needs.
+func startOnClock(t *testing.T, srv *fakeha.Server, opts haws.Options) (*haws.Client, context.Context, *clock.Fake) {
+	t.Helper()
+	clk := clock.NewFake(time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC))
+	opts.URL, opts.Clock, opts.CallTimeout = srv.URL, clk, 5*time.Second
+	if opts.Logger == nil {
+		opts.Logger = quietLogger()
+	}
+	c, err := haws.New(opts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go c.Run(ctx)
-
-	ready, done := context.WithTimeout(ctx, 5*time.Second)
-	defer done()
-	if err := c.WaitReady(ready); err != nil {
+	if err := c.WaitReady(ctx); err != nil {
 		t.Fatalf("WaitReady: %v", err)
 	}
-	return c, ctx
+	return c, ctx, clk
+}
+
+// reconnect drops the connection and lets the client's wait before the
+// next attempt run out.
+func reconnect(srv *fakeha.Server, clk *clock.Fake) {
+	srv.DropConnections()
+	<-clk.AwaitWaiters(1) // the client noticed and waits before dialling again
+	clk.AdvanceToNext()
+}
+
+// subscriptions is closed once the fake has n live subscriptions.
+func subscriptions(srv *fakeha.Server, n int) <-chan struct{} {
+	return srv.Await(func() bool { return srv.SubscriptionCount() == n })
 }
 
 func TestRegistryReads(t *testing.T) {
@@ -66,23 +88,15 @@ func TestAuthFailureStopsRunInsteadOfLoopingForever(t *testing.T) {
 	srv := fakeha.New()
 	defer srv.Close()
 
+	// On a fake clock nobody moves, a retry would wait forever: Run
+	// returns only by giving up (else go test's timeout names the test).
 	c, err := haws.New(haws.Options{URL: srv.URL, Token: "wrong", Logger: quietLogger(),
-		ReconnectMin: 10 * time.Millisecond})
+		Clock: clock.NewFake(time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC))})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	done := make(chan error, 1)
-	go func() { done <- c.Run(ctx) }()
-	select {
-	case err := <-done:
-		if err == nil {
-			t.Fatal("Run returned nil for a bad token")
-		}
-	case <-ctx.Done():
-		t.Fatal("Run kept retrying a bad token instead of giving up")
+	if err := c.Run(context.Background()); err == nil {
+		t.Fatal("Run returned nil for a bad token")
 	}
 }
 
@@ -128,31 +142,23 @@ func TestSubscribeReceivesEvents(t *testing.T) {
 	if n := srv.PushEvent("state_changed", map[string]any{"entity_id": "sensor.inverter_status"}); n != 1 {
 		t.Fatalf("event reached %d subscriptions, want 1", n)
 	}
-	select {
-	case e := <-events:
-		if e.EventType != "state_changed" {
-			t.Errorf("event type = %q", e.EventType)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("no event arrived")
+	if e := <-events; e.EventType != "state_changed" {
+		t.Errorf("event type = %q", e.EventType)
 	}
 
-	// An event of a different type must not reach this subscription.
-	srv.PushEvent("call_service", map[string]any{})
-	select {
-	case e := <-events:
+	// An event of a different type must not reach this subscription: the
+	// next one of its type comes first, as one connection keeps the order.
+	if n := srv.PushEvent("call_service", map[string]any{}); n != 0 {
+		t.Errorf("call_service reached %d subscriptions", n)
+	}
+	srv.PushEvent("state_changed", map[string]any{"entity_id": "sensor.next"})
+	if e := <-events; e.EventType != "state_changed" {
 		t.Errorf("unexpected event %q", e.EventType)
-	case <-time.After(200 * time.Millisecond):
 	}
 
-	cancel()
-	// Give the unsubscribe a moment, then check nothing arrives any more.
-	time.Sleep(200 * time.Millisecond)
-	srv.PushEvent("state_changed", map[string]any{})
-	select {
-	case <-events:
-		t.Error("events still arrive after cancelling the subscription")
-	case <-time.After(200 * time.Millisecond):
+	cancel() // returns once Home Assistant confirmed the unsubscribe
+	if n := srv.PushEvent("state_changed", map[string]any{}); n != 0 {
+		t.Errorf("events still reach %d subscriptions after cancelling", n)
 	}
 }
 
@@ -169,13 +175,8 @@ func TestSubscribeFlowsTakesAList(t *testing.T) {
 	srv.PushFlows([]map[string]any{{"type": "added", "flow_id": "f1", "flow": map[string]any{
 		"flow_id": "f1", "handler": "hue", "step_id": "link",
 		"context": map[string]any{"source": "zeroconf", "unique_id": "001788", "title_placeholders": map[string]any{"name": "Hue Bridge"}}}}})
-	select {
-	case list := <-got:
-		if len(list) != 1 || list[0].Type != "added" || list[0].Flow == nil || list[0].Flow.Name() != "Hue Bridge" {
-			t.Fatalf("got %+v", list)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("no change of the flows arrived")
+	if list := <-got; len(list) != 1 || list[0].Type != "added" || list[0].Flow == nil || list[0].Flow.Name() != "Hue Bridge" {
+		t.Fatalf("got %+v", list)
 	}
 }
 
@@ -184,20 +185,8 @@ func TestSubscriptionsSurviveReconnect(t *testing.T) {
 	defer srv.Close()
 
 	reconnected := make(chan struct{}, 4)
-	c, err := haws.New(haws.Options{
-		URL: srv.URL, Token: "test-token", Logger: quietLogger(),
-		CallTimeout: 5 * time.Second, ReconnectMin: 20 * time.Millisecond, ReconnectMax: 50 * time.Millisecond,
-		OnConnect: func(context.Context) { reconnected <- struct{}{} },
-	})
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go c.Run(ctx)
-	if err := c.WaitReady(ctx); err != nil {
-		t.Fatalf("WaitReady: %v", err)
-	}
+	c, ctx, clk := startOnClock(t, srv, haws.Options{Token: "test-token",
+		OnConnect: func(context.Context) { reconnected <- struct{}{} }})
 	<-reconnected // first connect
 
 	events := make(chan haws.Event, 4)
@@ -205,32 +194,14 @@ func TestSubscriptionsSurviveReconnect(t *testing.T) {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
-	srv.DropConnections()
-
-	select {
-	case <-reconnected:
-	case <-time.After(5 * time.Second):
-		t.Fatal("client did not reconnect")
-	}
-	if err := c.WaitReady(ctx); err != nil {
-		t.Fatalf("WaitReady after reconnect: %v", err)
-	}
-
-	// The subscription must have been re-issued on the new connection.
-	deadline := time.Now().Add(3 * time.Second)
-	for srv.SubscriptionCount() == 0 && time.Now().Before(deadline) {
-		time.Sleep(20 * time.Millisecond)
-	}
-	if srv.SubscriptionCount() == 0 {
-		t.Fatal("no subscription on the new connection")
+	reconnect(srv, clk)
+	<-reconnected // after the subscriptions were restored
+	if n := srv.SubscriptionCount(); n != 1 {
+		t.Fatalf("%d subscriptions on the new connection, want 1", n)
 	}
 
 	srv.PushEvent("state_changed", map[string]any{"entity_id": "sensor.inverter_status"})
-	select {
-	case <-events:
-	case <-time.After(3 * time.Second):
-		t.Fatal("no event after reconnect; the subscription was lost")
-	}
+	<-events
 	if srv.ConnectCount() < 2 {
 		t.Errorf("connect count = %d, want at least 2", srv.ConnectCount())
 	}
@@ -238,18 +209,22 @@ func TestSubscriptionsSurviveReconnect(t *testing.T) {
 
 func TestCallFailsFastWhileDisconnected(t *testing.T) {
 	srv := fakeha.New()
-	c, err := haws.New(haws.Options{URL: srv.URL, Token: "test-token", Logger: quietLogger(),
-		CallTimeout: time.Second, ReconnectMin: time.Hour})
+	clk := clock.NewFake(time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC))
+	c, err := haws.New(haws.Options{URL: srv.URL, Token: "test-token", Logger: quietLogger(), Clock: clk})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	srv.Close() // never comes up
 
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go c.Run(ctx)
-	if _, err := c.Areas(ctx); err == nil {
-		t.Error("a call on a dead connection should fail")
+	<-clk.AwaitWaiters(1) // the dial failed; the client waits before the next
+	callErr := make(chan error, 1)
+	go func() { _, err := c.Areas(ctx); callErr <- err }()
+	cancel() // the caller gives up
+	if err := <-callErr; !errors.Is(err, haws.ErrNotConnected) {
+		t.Errorf("a call on a dead connection: %v", err)
 	}
 }
 
@@ -276,17 +251,8 @@ func TestCancelAfterReconnectStopsTheSubscription(t *testing.T) {
 	srv := fakeha.New()
 	defer srv.Close()
 	reconnected := make(chan struct{}, 4)
-	c, err := haws.New(haws.Options{
-		URL: srv.URL, Token: "test-token", Logger: quietLogger(),
-		CallTimeout: 5 * time.Second, ReconnectMin: 20 * time.Millisecond, ReconnectMax: 50 * time.Millisecond,
-		OnConnect: func(context.Context) { reconnected <- struct{}{} },
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go c.Run(ctx)
+	c, ctx, clk := startOnClock(t, srv, haws.Options{Token: "test-token",
+		OnConnect: func(context.Context) { reconnected <- struct{}{} }})
 	<-reconnected
 
 	events := make(chan haws.Event, 4)
@@ -294,27 +260,21 @@ func TestCancelAfterReconnectStopsTheSubscription(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv.DropConnections()
-	<-reconnected
-	deadline := time.Now().Add(3 * time.Second)
-	for srv.SubscriptionCount() == 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
+	reconnect(srv, clk)
+	<-reconnected // after the subscriptions were restored
+	if n := srv.SubscriptionCount(); n != 1 {
+		t.Fatalf("%d subscriptions after the reconnect, want 1", n)
 	}
 
 	// The subscription now lives under a new id; cancelling must still work.
-	unsubscribe()
-	deadline = time.Now().Add(3 * time.Second)
-	for srv.SubscriptionCount() != 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
+	unsubscribe() // returns once Home Assistant confirmed it
 	if n := srv.SubscriptionCount(); n != 0 {
 		t.Fatalf("server still has %d subscriptions after cancel", n)
 	}
 
 	// And it must not come back on the next reconnect.
-	srv.DropConnections()
-	<-reconnected
-	time.Sleep(100 * time.Millisecond)
+	reconnect(srv, clk)
+	<-reconnected // after the subscriptions were restored
 	if n := srv.SubscriptionCount(); n != 0 {
 		t.Fatalf("cancelled subscription was restored after reconnect (%d)", n)
 	}
@@ -322,28 +282,18 @@ func TestCancelAfterReconnectStopsTheSubscription(t *testing.T) {
 
 func TestCancelWhileDisconnectedDoesNotBlock(t *testing.T) {
 	srv := fakeha.New()
-	c, ctx := startClient(t, srv, "test-token")
+	c, ctx, clk := startOnClock(t, srv, haws.Options{Token: "test-token"})
 	unsubscribe, err := c.Subscribe(ctx, "state_changed", func(haws.Event) {})
 	if err != nil {
 		t.Fatal(err)
 	}
 	srv.Close() // no reconnect possible
 	srv.DropConnections()
-	deadline := time.Now().Add(3 * time.Second)
-	for c.Connected() && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
+	<-clk.AwaitWaiters(1) // the client noticed and waits before dialling again
 	if c.Connected() {
 		t.Fatal("client did not notice the dropped connection")
 	}
-
-	done := make(chan struct{})
-	go func() { unsubscribe(); close(done) }()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("unsubscribe blocked while disconnected")
-	}
+	unsubscribe() // does not block while disconnected (else go test's timeout names the test)
 }
 
 func TestSubscribeTriggerDeliversVariables(t *testing.T) {
@@ -358,8 +308,10 @@ func TestSubscribeTriggerDeliversVariables(t *testing.T) {
 	}
 	srv.SetState("sensor.inverter_status", "ok", map[string]any{"power": 3}) // attribute change only
 	srv.SetState("sensor.inverter_status", "fault", nil)
-	select {
-	case e := <-got:
+	srv.SetState("sensor.inverter_status", "ok", nil) // a change the trigger does not want
+	srv.SetState("sensor.inverter_status", "fault", nil)
+	{
+		e := <-got
 		var v haws.TriggerVariables
 		if err := json.Unmarshal(e.Variables, &v); err != nil {
 			t.Fatal(err)
@@ -370,13 +322,11 @@ func TestSubscribeTriggerDeliversVariables(t *testing.T) {
 		if v.Trigger.ToState.Attributes["power"] != 3.0 {
 			t.Errorf("attributes not carried over: %+v", v.Trigger.ToState.Attributes)
 		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("no trigger event")
 	}
-	select {
-	case e := <-got:
-		t.Fatalf("unexpected second event: %s", e.Variables)
-	case <-time.After(100 * time.Millisecond):
+	// The next event is the second fault: nothing came between.
+	var v haws.TriggerVariables
+	if err := json.Unmarshal((<-got).Variables, &v); err != nil || v.Trigger.FromState.State != "ok" || v.Trigger.ToState.State != "fault" {
+		t.Errorf("second event: %+v %v", v, err)
 	}
 }
 
@@ -384,27 +334,21 @@ func TestStateChangeDuringReconnectFires(t *testing.T) {
 	srv := fakeha.New()
 	defer srv.Close()
 	srv.SetStates([]haws.State{{EntityID: "binary_sensor.motion", State: "off"}})
-	c, ctx := startClient(t, srv, "test-token")
+	c, ctx, clk := startOnClock(t, srv, haws.Options{Token: "test-token"})
 	got := make(chan haws.Event, 4)
 	if _, err := c.SubscribeTrigger(ctx, map[string]any{"trigger": "state", "entity_id": "binary_sensor.motion", "not_to": "unavailable"},
 		func(e haws.Event) { got <- e }); err != nil {
 		t.Fatal(err)
 	}
 	// A first change proves the client knows the current state.
-	waitFor(t, func() bool { return srv.SubscriptionCount() == 1 })
+	<-subscriptions(srv, 1)
 	srv.SetState("binary_sensor.motion", "on", nil)
-	select {
-	case <-got:
-	case <-time.After(3 * time.Second):
-		t.Fatal("no event for the first change")
-	}
+	<-got
 	srv.DropConnections()
 	srv.SetState("binary_sensor.motion", "off", nil) // nobody connected
-	select {
-	case <-got:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the change during the outage was lost")
-	}
+	<-clk.AwaitWaiters(1)
+	clk.AdvanceToNext()
+	<-got // the change during the outage is not lost
 }
 
 func TestSubscribeTriggerRejectsOtherTriggers(t *testing.T) {
@@ -413,17 +357,6 @@ func TestSubscribeTriggerRejectsOtherTriggers(t *testing.T) {
 	c, ctx := startClient(t, srv, "test-token")
 	if _, err := c.SubscribeTrigger(ctx, map[string]any{"trigger": "time", "at": "07:00"}, func(haws.Event) {}); err == nil {
 		t.Fatal("time trigger accepted")
-	}
-}
-
-func waitFor(t *testing.T, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatal("condition not met in time")
-		}
-		time.Sleep(10 * time.Millisecond)
 	}
 }
 
@@ -458,7 +391,7 @@ func TestWaitStateWatchesOneEntity(t *testing.T) {
 	srv := fakeha.New()
 	defer srv.Close()
 	srv.SetStates([]haws.State{{EntityID: "assist_satellite.show", State: "responding"}, {EntityID: "light.other", State: "on"}})
-	c, ctx := startClient(t, srv, "test-token")
+	c, ctx, clk := startOnClock(t, srv, haws.Options{Token: "test-token"})
 	if !c.WaitState(ctx, "assist_satellite.show", time.Second, func(s string) bool { return s == "responding" }) {
 		t.Fatal("the state it has now was not seen")
 	}
@@ -466,13 +399,17 @@ func TestWaitStateWatchesOneEntity(t *testing.T) {
 	go func() {
 		done <- c.WaitState(ctx, "assist_satellite.show", 3*time.Second, func(s string) bool { return s == "idle" })
 	}()
-	waitFor(t, func() bool { return srv.SubscriptionCount() == 1 })
+	<-subscriptions(srv, 1)
 	srv.SetState("light.other", "off", nil)
 	srv.SetState("assist_satellite.show", "idle", nil)
 	if !<-done {
 		t.Fatal("the change was not seen")
 	}
-	if c.WaitState(ctx, "assist_satellite.show", 50*time.Millisecond, func(s string) bool { return s == "listening" }) {
+	var reached bool
+	clk.Drive(func() { // its limit runs out
+		reached = c.WaitState(ctx, "assist_satellite.show", 50*time.Millisecond, func(s string) bool { return s == "listening" })
+	})
+	if reached {
 		t.Error("a state it never had")
 	}
 	if !c.WaitState(ctx, "assist_satellite.gone", time.Second, func(s string) bool { return s == "" }) {
@@ -502,7 +439,7 @@ func TestGetStatesReadsOnlyTheFilter(t *testing.T) {
 	if got, _ := c.GetStates(ctx, haws.StateFilter{}); got != nil {
 		t.Errorf("empty filter read %v", got)
 	}
-	waitFor(t, func() bool { return srv.SubscriptionCount() == 0 })
+	<-subscriptions(srv, 0)
 }
 
 // WatchStates keeps a domain's states current: changes and new entities
@@ -525,11 +462,14 @@ func TestWatchStatesKeepsADomain(t *testing.T) {
 	srv.SetState("person.anna", "not_home", nil)
 	srv.SetState("person.ben", "home", map[string]any{"friendly_name": "Ben"})
 	srv.SetState("light.kitchen", "off", nil)
-	waitFor(t, func() bool {
+	for {
 		a, _ := w.State("person.anna")
 		b, _ := w.State("person.ben")
-		return a.State == "not_home" && b.State == "home"
-	})
+		if a.State == "not_home" && b.State == "home" {
+			break
+		}
+		<-changed
+	}
 	if _, ok := w.State("light.kitchen"); ok {
 		t.Error("another domain came in")
 	}

@@ -152,12 +152,12 @@ func (c *Client) WaitState(ctx context.Context, entity string, limit time.Durati
 		return false
 	}
 	defer cancel()
-	timer := time.NewTimer(limit)
+	timer := c.clock.NewTimer(limit)
 	defer timer.Stop()
 	select {
 	case <-done:
 		return true
-	case <-timer.C:
+	case <-timer.C():
 		return false
 	case <-ctx.Done():
 		return false

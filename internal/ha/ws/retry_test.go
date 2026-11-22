@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
@@ -30,15 +31,23 @@ func TestRY43_HomeAssistantsConnectionWaitsGrowUpToTheLongest(t *testing.T) {
 	addr := l.Addr().String()
 	l.Close() // nothing listens: every dial is refused
 	logs := &syncBuf{}
+	clk := clock.NewFake(time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC))
 	c, err := haws.New(haws.Options{URL: "ws://" + addr + "/api/websocket", Token: "t",
 		Logger:       slog.New(slog.NewTextHandler(logs, nil)),
-		ReconnectMin: 10 * time.Millisecond, ReconnectMax: 40 * time.Millisecond})
+		ReconnectMin: 10 * time.Millisecond, ReconnectMax: 40 * time.Millisecond, Clock: clk})
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-	defer cancel()
-	c.Run(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	ran := make(chan struct{})
+	go func() { c.Run(ctx); close(ran) }()
+	for range 5 { // five refused dials, each followed by its wait
+		<-clk.AwaitWaiters(1)
+		clk.AdvanceToNext()
+	}
+	<-clk.AwaitWaiters(1) // the sixth wait: its line is written
+	cancel()
+	<-ran
 	var waits []string
 	for _, line := range strings.Split(logs.String(), "\n") {
 		if i := strings.Index(line, " in="); i >= 0 {

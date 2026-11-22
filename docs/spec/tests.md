@@ -1,6 +1,6 @@
 # Tests without time – spec
 
-Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads and the notifier built. Scenarios:
+Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads, the notifier and ha/ws built. Scenarios:
 [tests.feature](tests.feature). The inventory behind it (private): `docs/test-review.local.md`.
 
 ## Goal
@@ -75,7 +75,11 @@ func NewFake(now time.Time) *Fake // a test's clock
    `Drive`; users of threads outside the package that pass no clock still wait in real time until their package is
    converted), notifier (`speakPause`, `speakingStart`, waits for states; built 2026-11-22: `Options.Clock` is a
    `clock.Clock`; the fake Home Assistant's `WaitState` runs out on the clock and reports a wait begun, a wait returned
-   and each call; the fake trigger subscription reports what it subscribed), ha/ws (backoff, `WaitState`), ha/structure (debounce), mcp (retry ticker),
+   and each call; the fake trigger subscription reports what it subscribed), ha/ws (backoff, `WaitState`; built
+   2026-11-22: `Options.Clock` carries the wait between attempts, `WaitState`'s limit and a template's answer;
+   `fakeha.Server.Await(cond)` is closed once a condition on the fake holds, checked after every connection made or
+   lost and every command; the deadlines of the socket itself, dialling, authenticating and `CallTimeout`, stay
+   context deadlines in real time: they bound a network that hangs, and no test waits for them to run out), ha/structure (debounce), mcp (retry ticker),
    devices (Gather, EntryWait), agent (attempt timeout, run time), a2a (card retry), conversation (fakellm: gate instead
    of `Delay`/`PieceDelay`), matter, programs, setup, zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch),
    waiting, clip, voicemail, heard, cmd/mira (a ready signal of `runAgent`, `fakeha.Await`).

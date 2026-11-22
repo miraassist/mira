@@ -21,9 +21,7 @@ func TestFB16_a_state_that_cannot_be_watched_is_in_the_log(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go c.Run(ctx)
-	ready, done := context.WithTimeout(ctx, 5*time.Second)
-	defer done()
-	if err := c.WaitReady(ready); err != nil {
+	if err := c.WaitReady(ctx); err != nil {
 		t.Fatal(err)
 	}
 	cancel() // the subscription cannot be made any more

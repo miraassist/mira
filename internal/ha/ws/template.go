@@ -52,7 +52,7 @@ func (c *Client) RenderTemplate(ctx context.Context, template string, variables 
 		return nil, fmt.Errorf("render_template of %q: %w", excerpt.Of(template), err)
 	}
 	defer cancel()
-	timer := time.NewTimer(TemplateTimeout)
+	timer := c.clock.NewTimer(TemplateTimeout)
 	defer timer.Stop()
 	select {
 	case a := <-first:
@@ -60,7 +60,7 @@ func (c *Client) RenderTemplate(ctx context.Context, template string, variables 
 			return nil, &Error{Command: CmdRenderTemplate, Code: "template_error", Message: a.Error}
 		}
 		return a.Result, nil
-	case <-timer.C:
+	case <-timer.C():
 		return nil, fmt.Errorf("render_template of %q: no answer within %s: %w", excerpt.Of(template), TemplateTimeout, context.DeadlineExceeded)
 	case <-ctx.Done():
 		return nil, ctx.Err()

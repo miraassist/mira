@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/retry"
 	"log/slog"
@@ -56,6 +57,11 @@ type Options struct {
 	// reconnect. The structure cache uses it to rebuild, because registry
 	// changes may have happened while the connection was down.
 	OnConnect func(ctx context.Context)
+	// Clock is what the waits between attempts, WaitState's limit and a
+	// template's answer wait on; nil is the real one. The deadlines of
+	// reading and writing the socket (dial, auth, CallTimeout) are
+	// context deadlines of the socket and stay real time.
+	Clock clock.Clock
 }
 
 type Client struct {
@@ -67,6 +73,7 @@ type Client struct {
 	log         *slog.Logger
 	httpClient  *http.Client
 	onConnect   func(context.Context)
+	clock       clock.Clock
 
 	// sendMu keeps taking an id and sending it together: Home Assistant
 	// refuses an id lower than one it has seen (id_reuse), so two calls
@@ -107,6 +114,7 @@ func New(opts Options) (*Client, error) {
 		log:         opts.Logger.With("component", "ha-ws"),
 		httpClient:  opts.HTTPClient,
 		onConnect:   opts.OnConnect,
+		clock:       clock.Or(opts.Clock),
 		nextID:      1,
 		pending:     map[int]chan incoming{},
 		subs:        map[int]*subscription{},
@@ -164,7 +172,7 @@ func (c *Client) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(wait):
+		case <-c.clock.After(wait):
 		}
 	}
 }
