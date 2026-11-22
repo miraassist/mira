@@ -115,9 +115,20 @@ func NewFake(now time.Time) *Fake // a test's clock
      bounds a connection and stays real time.
    - **setup** (2026-11-23): `Handler.Clock` is a `clock.Clock`; the restart after an answer waits on it, and a
      test moves the clock past it instead of sleeping.
+   - **zigbee** (2026-11-23): `Options.Clock` carries the pairing time, Wait and Interview; a test lets the pairing
+     time run out with `Drive` and shows that a device joining again is not said once the log line of its second
+     join is there.
+   - **llm** (2026-11-23): `Options.Clock` carries the waits between attempts; a test reads the wait the server named
+     from the clock it moves (RY-30, RY-31) and gives the caller's deadline on the clock (`clock.WithTimeout`, RY-32).
+     The test of a timeout in the middle of an answer waits for the HTTP client's real 150 ms: the timeout of a
+     connection is its subject.
+   - **speakerid** (2026-11-23): Match's Timeout is `clock.WithTimeout` on the client's clock; the fake service holds
+     until the request is given up, and the test lets the timeout run out with `Drive`.
+   - **hooks** (2026-11-23): Watch's next look is a timer of the engine's clock set anew once a look is done; the test
+     moves the clock look by look.
 
-   Open: zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch), waiting, clip, voicemail, heard,
-   cmd/mira (a ready signal of `runAgent`, `fakeha.Await`), and the other packages whose tests still sleep or poll.
+   Open: waiting, clip, voicemail, heard, cmd/mira (a ready signal of `runAgent`, `fakeha.Await`), and the other
+   packages whose tests still sleep or poll.
 
 4. **Absence after a positive signal** (rule 6): the "handled" traces the code lacks, each with its log line.
 5. **Python:** `settle()` and `later()` wait on an `asyncio.Event` of the mocked call; `later()` moves the frozen clock.

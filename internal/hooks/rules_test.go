@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/prompt"
@@ -70,19 +71,25 @@ func TestHW03_AChangedFileAppliesWithoutARestart(t *testing.T) {
 	f := newFixture(t, map[string]string{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	f.e.clock = clk
 	go f.e.Watch(ctx, 20*time.Millisecond)
 	outcome := func() tools.Outcome {
 		return f.g.Check(context.Background(), voice(), turnOn, args(`{"name":"Küchenlicht"}`)).Outcome
 	}
+	// wait lets the watch look again and again: a change applies at the
+	// second look that sees it.
 	wait := func(want tools.Outcome) {
 		t.Helper()
-		for range 200 {
+		for range 3 {
+			<-clk.AwaitWaiters(1)
+			clk.Advance(20 * time.Millisecond)
+			<-clk.AwaitWaiters(1) // the look is done
 			if outcome() == want {
 				return
 			}
-			time.Sleep(10 * time.Millisecond)
 		}
-		t.Fatalf("still not %v", want)
+		t.Fatalf("still not %v after three looks", want)
 	}
 	if outcome() != tools.Allow {
 		t.Fatal("denied before")

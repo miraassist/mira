@@ -25,6 +25,7 @@ import (
 	"go.starlark.net/starlark"
 	"go.starlark.net/syntax"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/ha/structure"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
@@ -95,6 +96,9 @@ type Engine struct {
 	system   []*hook
 	mu       sync.Mutex // one load at a time
 	cur      atomic.Pointer[state]
+	// clock is what Watch's looks wait on; nil is the real one (tests set
+	// a fake one).
+	clock clock.Clock
 }
 
 // state is one load: the chain in the order it runs, what the page shows.
@@ -191,14 +195,15 @@ func (e *Engine) Watch(ctx context.Context, interval time.Duration) {
 	if e.dir == "" {
 		return
 	}
-	t := time.NewTicker(interval)
+	// The next look is a timer set anew once a look is done.
+	t := clock.Or(e.clock).NewTimer(interval)
 	defer t.Stop()
 	pending := ""
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
+		case <-t.C():
 		}
 		sig := folderSig(e.dir)
 		switch {
@@ -211,6 +216,7 @@ func (e *Engine) Watch(ctx context.Context, interval time.Duration) {
 			e.Reload()
 			pending = ""
 		}
+		t.Reset(interval)
 	}
 }
 
