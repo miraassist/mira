@@ -1,7 +1,7 @@
 # Alarm – spec
 
-Status 2026-11-22: steps 1 to 4 done (the trial, the wake sound, setting, listing and deleting, radio and light); step 5
-(the guide) open. Scenarios: [alarm.feature](alarm.feature).
+Status 2026-11-22: built, steps 1 to 5 (the trial, the wake sound, setting, listing and deleting, radio and light, the
+guide). Not checked: a satellite that is not a TECHO5 (state table, row 13). Scenarios: [alarm.feature](alarm.feature).
 
 ## Goal
 
@@ -254,4 +254,4 @@ ended within half a second); then it deletes the automation.
 4. **Radio and light** (decisions 10 and 11): the thread's fields `station` and `light`, the search when it is set, the
    light trigger, the once-alarm's date. Built 2026-11-22.
 5. **The guide** (both languages): "Weck mich" at every satellite, with radio and light; that an alarm set at a TECHO5
-   itself is the device's own.
+   itself is the device's own. Built 2026-11-22.
