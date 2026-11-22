@@ -208,7 +208,7 @@ func classifySend(err error) error {
 }
 
 func (h *Host) policy3() retry.Policy {
-	return retry.Policy{Attempts: 3, First: h.callRetry, Growth: retry.Exponential}
+	return retry.Policy{Attempts: 3, First: h.callRetry, Growth: retry.Exponential, Clock: h.clock}
 }
 
 func randomToken() string {
@@ -1007,12 +1007,7 @@ func (h *Host) drain(c *call) {
 	}
 }
 
-func (h *Host) now() time.Time {
-	if h.clock != nil {
-		return h.clock()
-	}
-	return time.Now()
-}
+func (h *Host) now() time.Time { return h.clock.Now() }
 
 // Asking is the question an agent request of a call still waits on, and
 // how Mira names the agent; ok false when the call asks nothing.

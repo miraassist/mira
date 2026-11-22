@@ -17,6 +17,7 @@ import (
 
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/skills"
@@ -293,13 +294,17 @@ func TestRM04_TheCardCannotBeRead(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	log, buf := logger()
-	h := New(Options{Skills: load(t, skillFile(t, "", ""), srv.URL), Logger: log, RetryInterval: 20 * time.Millisecond})
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	h := New(Options{Skills: load(t, skillFile(t, "", ""), srv.URL), Logger: log, RetryInterval: 20 * time.Millisecond, Clock: clk})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- h.Run(ctx) }()
+	<-clk.AwaitWaiters(1) // the first reading is done
 
-	waitFor(t, func() bool { return only(t, h).Problem != nil })
+	if only(t, h).Problem == nil {
+		t.Fatal("no problem after the first reading")
+	}
 	st := only(t, h)
 	if text := st.Problem.Text(i18n.DE); !strings.Contains(text, "nicht erreichbar") || !strings.Contains(text, "503") {
 		t.Errorf("problem %q", text)
@@ -311,7 +316,7 @@ func TestRM04_TheCardCannotBeRead(t *testing.T) {
 	}
 
 	up.Store(true)
-	waitFor(t, func() bool { return only(t, h).Ready })
+	roundsUntil(t, clk, 20*time.Millisecond, func() bool { return only(t, h).Ready })
 	if !strings.Contains(buf.String(), "remote agent ready after its card could be read again") {
 		t.Errorf("log:\n%s", buf)
 	}
@@ -335,10 +340,14 @@ func TestRemoteCardRefusedOrNotACard(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	log, buf := logger()
-	h := New(Options{Skills: load(t, skillFile(t, "", ""), srv.URL), Logger: log, RetryInterval: 10 * time.Millisecond})
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-	h.Run(ctx)
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	h := New(Options{Skills: load(t, skillFile(t, "", ""), srv.URL), Logger: log, RetryInterval: 10 * time.Millisecond, Clock: clk})
+	ctx, cancel := context.WithCancel(context.Background())
+	ran := make(chan struct{})
+	go func() { h.Run(ctx); close(ran) }()
+	rounds(clk, 10*time.Millisecond, 20)
+	cancel()
+	<-ran
 	if n := calls.Load(); n != 1 {
 		t.Errorf("a refused card was read %d times", n)
 	}
@@ -415,14 +424,27 @@ func TestRemoteCards(t *testing.T) {
 	}
 }
 
-func waitFor(t *testing.T, cond func() bool) {
+// rounds lets n rounds of Run's reading again pass: Run waits on one
+// timer between rounds and sets it anew once a round is done.
+func rounds(clk *clock.Fake, every time.Duration, n int) {
+	for range n {
+		<-clk.AwaitWaiters(1)
+		clk.Advance(every)
+		<-clk.AwaitWaiters(1)
+	}
+}
+
+// roundsUntil lets Run's rounds pass until cond holds, at most 20.
+func roundsUntil(t *testing.T, clk *clock.Fake, every time.Duration, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatal("condition not met within 5 s")
+	for range 20 {
+		if cond() {
+			return
 		}
-		time.Sleep(5 * time.Millisecond)
+		rounds(clk, every, 1)
+	}
+	if !cond() {
+		t.Fatal("not reached in 20 rounds")
 	}
 }
 
@@ -471,19 +493,23 @@ func TestRM25_WithoutTheSkillsNameTheCardsNameOnceRead(t *testing.T) {
 	}
 	// Given the skill gives no name for its remote agent
 	// And its card cannot be read yet
-	h := New(Options{Skills: load(t, skillFile(t, "", ""), srv.URL), Logger: log, RetryInterval: 20 * time.Millisecond})
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	h := New(Options{Skills: load(t, skillFile(t, "", ""), srv.URL), Logger: log, RetryInterval: 20 * time.Millisecond, Clock: clk})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- h.Run(ctx) }()
-	waitFor(t, func() bool { return only(t, h).Problem != nil })
+	<-clk.AwaitWaiters(1) // the first reading is done
+	if only(t, h).Problem == nil {
+		t.Fatal("no problem after the first reading")
+	}
 	// Then the entry names no agent (not its key)
 	if got := h.Names("recherche"); len(got) != 0 {
 		t.Errorf("before the card: %v", got)
 	}
 	// When the card is read
 	up.Store(true)
-	waitFor(t, func() bool { return only(t, h).Ready })
+	roundsUntil(t, clk, 20*time.Millisecond, func() bool { return only(t, h).Ready })
 	// Then the next turn's entry names the card's name
 	if got := h.Names("recherche"); len(got) != 1 || got[0] != a2afake.Name {
 		t.Errorf("after the card: %v", got)

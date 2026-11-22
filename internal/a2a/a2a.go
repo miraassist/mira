@@ -28,6 +28,7 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 	"github.com/a2aproject/a2a-go/v2/a2aclient/agentcard"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/oauth"
@@ -84,8 +85,11 @@ type Options struct {
 	// CallRetry is the first wait before a send or a read of a call is
 	// tried again; 1 s when 0, doubling, 3 attempts (Retries).
 	CallRetry time.Duration
-	Clock     func() time.Time
-	Logger    *slog.Logger
+	// Clock is the time of run records and what the waits between reads
+	// and attempts wait on; nil is the real one. The wait for the calls to
+	// stop on Close and a cancel's deadline stay real time.
+	Clock  clock.Clock
+	Logger *slog.Logger
 }
 
 // Host holds the remote agents of the loaded skills.
@@ -103,7 +107,7 @@ type Host struct {
 	deliver   func(ctx context.Context, rec store.AgentRun)
 	ask       func(ctx context.Context, q Question) error
 	callRetry time.Duration
-	clock     func() time.Time
+	clock     clock.Clock
 	// base ends every call's stream and send at shutdown; the calls stay
 	// running in their rows and are taken up at the next start (G).
 	base     context.Context
@@ -172,7 +176,7 @@ type Status struct {
 // New collects the remote agents of the skills; Start reads their cards.
 func New(o Options) *Host {
 	h := &Host{log: o.Logger, http: o.HTTP, transport: o.Transport, serverURL: o.ServerURL, conns: o.Connections,
-		retry: o.RetryInterval, runs: o.Runs, deliver: o.Deliver, ask: o.Ask, callRetry: o.CallRetry, clock: o.Clock,
+		retry: o.RetryInterval, runs: o.Runs, deliver: o.Deliver, ask: o.Ask, callRetry: o.CallRetry, clock: clock.Or(o.Clock),
 		calls: map[string]*call{}, read: make(chan struct{})}
 	h.base, h.stopBase = context.WithCancel(context.Background())
 	h.skills = o.Skills
@@ -253,14 +257,16 @@ func (h *Host) Run(ctx context.Context) error {
 	}
 	defer h.Close()
 	h.Start(ctx)
-	t := time.NewTicker(h.retry)
+	// The retry is a timer set anew once a round is done, as for MCP
+	// servers.
+	t := h.clock.NewTimer(h.retry)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-t.C:
-			now := time.Now()
+		case <-t.C():
+			now := h.clock.Now()
 			for _, a := range h.agents {
 				a.mu.Lock()
 				due := !a.read && a.err != nil && retry.Retryable(a.err) && !now.Before(a.next)
@@ -269,6 +275,7 @@ func (h *Host) Run(ctx context.Context) error {
 					h.load(ctx, a)
 				}
 			}
+			t.Reset(h.retry)
 		}
 	}
 }
@@ -291,7 +298,7 @@ func (h *Host) Close() {
 }
 
 func (h *Host) policy() retry.Policy {
-	return retry.Policy{First: h.retry, Max: 30 * time.Minute, Growth: retry.Exponential}
+	return retry.Policy{First: h.retry, Max: 30 * time.Minute, Growth: retry.Exponential, Clock: h.clock}
 }
 
 // load reads an agent's card and takes it, or keeps why not.
@@ -329,12 +336,12 @@ func (h *Host) failedRead(a *Agent, err error) {
 	a.read, a.err = false, err
 	a.failed++
 	failed := a.failed
-	next, stop := h.policy().Next(time.Now(), failed, err)
+	next, stop := h.policy().Next(h.clock.Now(), failed, err)
 	var tooLong *retry.WaitTooLong
 	if errors.As(stop, &tooLong) {
 		// A wait the agent names, longer than the longest of the policy:
 		// kept (docs/spec/retry.md, decision 5).
-		next, stop = time.Now().Add(tooLong.Wait), nil
+		next, stop = h.clock.Now().Add(tooLong.Wait), nil
 	}
 	a.next = next
 	a.mu.Unlock()
@@ -347,7 +354,7 @@ func (h *Host) failedRead(a *Agent, err error) {
 		}
 	case changed:
 		h.log.Warn("remote agent's card cannot be read, trying again", "skill", a.Skill, "agent", a.Name,
-			"url", a.def.Remote.URL, "attempt", failed, "wait", time.Until(next).Round(time.Second).String(), "error", err)
+			"url", a.def.Remote.URL, "attempt", failed, "wait", h.clock.Until(next).Round(time.Second).String(), "error", err)
 	default:
 		h.log.Debug("remote agent's card still cannot be read", "skill", a.Skill, "agent", a.Name,
 			"url", a.def.Remote.URL, "attempt", failed, "error", err)

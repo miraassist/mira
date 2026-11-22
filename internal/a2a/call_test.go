@@ -14,6 +14,7 @@ import (
 
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 	a2afake "github.com/miraassist/mira/testenv/a2a_fake"
@@ -30,21 +31,19 @@ func callHost(t *testing.T, url, a2aSkill string) (*Host, chan store.AgentRun, *
 	log, buf := logger()
 	got := make(chan store.AgentRun, 4)
 	h := New(Options{Skills: load(t, skillFile(t, "          a2a_skill: "+a2aSkill+"\n", ""), url), Runs: st,
-		Deliver: func(_ context.Context, rec store.AgentRun) { got <- rec }, CallRetry: 5 * time.Millisecond, Logger: log})
+		Deliver: func(_ context.Context, rec store.AgentRun) { got <- rec }, CallRetry: 5 * time.Millisecond, Logger: log,
+		Clock: clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))})
 	h.Start(context.Background())
 	t.Cleanup(h.Close)
 	return h, got, buf
 }
 
-func delivered(t *testing.T, got chan store.AgentRun) store.AgentRun {
-	t.Helper()
-	select {
-	case rec := <-got:
-		return rec
-	case <-time.After(5 * time.Second):
-		t.Fatal("nothing delivered")
-	}
-	return store.AgentRun{}
+// delivered is the next run the host delivers; the waits before its
+// attempts run out on the host's clock meanwhile.
+func delivered(h *Host, got chan store.AgentRun) store.AgentRun {
+	var rec store.AgentRun
+	h.clock.(*clock.Fake).Drive(func() { rec = <-got })
+	return rec
 }
 
 // proxy stands before the fake and answers the first n calls of the
@@ -74,7 +73,7 @@ func TestRemoteSendRetriedOnlyWhenNotReached(t *testing.T) {
 	if err := h.Send(context.Background(), Request{CallID: "c1", Agent: "recherche", Input: json.RawMessage(`{"input":"Finde X"}`)}); err != nil {
 		t.Fatal(err)
 	}
-	rec := delivered(t, got)
+	rec := delivered(h, got)
 	if rec.Status != statusDone || rec.Output != a2afake.Result || calls.Load() != 3 {
 		t.Errorf("rec %+v after %d calls", rec, calls.Load())
 	}
@@ -97,7 +96,7 @@ func TestRemoteSendRetriedOnlyWhenNotReached(t *testing.T) {
 	if err := h2.Send(context.Background(), Request{CallID: "c2", Agent: "recherche", Input: json.RawMessage(`{"input":"Finde X"}`)}); err != nil {
 		t.Fatal(err)
 	}
-	rec = delivered(t, got2)
+	rec = delivered(h2, got2)
 	if rec.Status != statusFailed || calls2.Load() != 1 || !strings.Contains(rec.Error, "504") {
 		t.Errorf("rec %+v after %d calls", rec, calls2.Load())
 	}

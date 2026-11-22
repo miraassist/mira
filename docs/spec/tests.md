@@ -1,6 +1,6 @@
 # Tests without time – spec
 
-Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads, the notifier, ha/ws, ha/structure, mcp, devices and agent built. Scenarios:
+Status 2026-11-23: decided; steps 1 and 2 built, step 3 for the packages its list names as built. Scenarios:
 [tests.feature](tests.feature). The inventory behind it (private): `docs/test-review.local.md`.
 
 ## Goal
@@ -98,10 +98,15 @@ func NewFake(now time.Time) *Fake // a test's clock
      timeout are `clock.WithTimeout`, the retry waits on the clock; the scripted model holds its calls on a gate
      instead of a delay and reports each call that comes in; two debug lines say why a run waits, for a place at its
      model and for one of the places of the runs, and are the signals the tests of the limits await.
+   - **a2a** (2026-11-23): `Options.Clock` is a `clock.Clock`; the reading of the cards again is a timer set anew after
+     each round, as for MCP servers, and the attempts of a call wait on the clock; a test drives them with `Drive`
+     while it waits for the delivery. The wait for the calls to stop on Close and a cancel's deadline stay real time.
+     The fake remote agent's "stored" signal replaces polling for a completed task.
 
-   Open: a2a (card retry), conversation (fakellm: gate instead of `Delay`/`PieceDelay`), matter, programs, setup,
-   zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch), waiting, clip, voicemail, heard, cmd/mira (a
-   ready signal of `runAgent`, `fakeha.Await`), and the other packages whose tests still sleep or poll.
+   Open: conversation (fakellm: gate instead of `Delay`/`PieceDelay`), matter, programs, setup, zigbee, llm
+   (Retry-After), speakerid (timeout), hooks (file watch), waiting, clip, voicemail, heard, cmd/mira (a ready signal
+   of `runAgent`, `fakeha.Await`), and the other packages whose tests still sleep or poll.
+
 4. **Absence after a positive signal** (rule 6): the "handled" traces the code lacks, each with its log line.
 5. **Python:** `settle()` and `later()` wait on an `asyncio.Event` of the mocked call; `later()` moves the frozen clock.
 6. **Against relapse:** `check.sh` refuses `time.Sleep`, `time.After` and polling loops in `_test.go` outside a short

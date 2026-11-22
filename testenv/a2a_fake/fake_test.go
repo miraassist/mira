@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
@@ -144,19 +143,9 @@ func TestFakeBehaviours(t *testing.T) {
 		t.Fatalf("slow: %s", slow.Status.State)
 	}
 	f.Release()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		got, err := cl.GetTask(ctx, &a2a.GetTaskRequest{ID: slow.ID})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got.Status.State == a2a.TaskStateCompleted {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("slow did not complete after Release: %s", got.Status.State)
-		}
-		time.Sleep(10 * time.Millisecond)
+	<-f.Await(func(r Received) bool { return r.Kind == "stored" && r.TaskID == string(slow.ID) })
+	if got, err := cl.GetTask(ctx, &a2a.GetTaskRequest{ID: slow.ID}); err != nil || got.Status.State != a2a.TaskStateCompleted {
+		t.Fatalf("slow after Release: %v %v", got, err)
 	}
 
 	// Cancel a slow one.
