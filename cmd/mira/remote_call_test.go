@@ -617,12 +617,13 @@ func TestRM14_ARestartDuringTheWork(t *testing.T) {
 			env := newRemoteEnv(t, card, a2afake.SkillSlow, true)
 			env.start(t, "Welche Wärmepumpe passt?")
 			// Signals, no times: the call's state "working" written,
-			// the fake's task completed while the service is down, the
-			// thread finished after the restart.
+			// the fake's task stored completed while the service is down,
+			// the thread finished after the restart.
 			<-env.runs.saved.await(func(v string) bool { return strings.Contains(v, "TASK_STATE_WORKING") })
 			env.restart(t, func() {
 				env.fake.Release()
-				<-env.fake.Await(func(r a2afake.Received) bool { return r.Kind == "completed" })
+				// GetTask answers "completed" from now on.
+				<-env.fake.Await(func(r a2afake.Received) bool { return r.Kind == "stored" })
 				if card == a2afake.CardPushOnly {
 					// Its push of the end goes out while no service is there.
 					<-env.fake.Await(func(r a2afake.Received) bool { return r.Kind == "push" && r.State == "TASK_STATE_COMPLETED" })

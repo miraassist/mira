@@ -121,6 +121,10 @@ type call struct {
 	// queue are pushes not yet taken, in order.
 	queue    []sdk.Event
 	draining bool
+	// rank is how far the task got since Mira's last message: a state that
+	// comes later but is behind it is stale (docs/spec/remote-agents.md,
+	// decision 37a).
+	rank int
 }
 
 // StatusError is an answer of a remote agent with an HTTP status Mira reads
@@ -567,6 +571,17 @@ func (h *Host) take(c *call, ev sdk.Event) {
 	}
 	stateNow := status.State
 	text := partsTextOf(status.Message)
+	if r, ok := lifecycle[stateNow]; ok {
+		if r < c.rank {
+			// The send's answer and the pushes come side by side: a state
+			// behind the one taken since Mira's last message is stale.
+			c.mu.Unlock()
+			h.log.Debug("remote agent's stale state left", "agent", c.agent.Name, "call_id", c.id,
+				"state", stateNow, "task_id", c.st.TaskID)
+			return
+		}
+		c.rank = r
+	}
 	switch stateNow {
 	case sdk.TaskStateCompleted:
 		out := artifactsText(c.artifacts)
@@ -591,15 +606,6 @@ func (h *Host) take(c *call, ev sdk.Event) {
 		h.asked(c, text)
 		return
 	case sdk.TaskStateSubmitted, sdk.TaskStateWorking:
-		if stateNow == sdk.TaskStateSubmitted && c.st.State == string(sdk.TaskStateWorking) {
-			// A task does not go back from working to submitted: the send's
-			// answer is taken beside the pushes, and a push "working" may
-			// come first (TestRM14 on GitHub's runner, 2026-11-22).
-			c.mu.Unlock()
-			h.log.Debug("remote agent's task reported submitted after working; kept working", "agent", c.agent.Name,
-				"call_id", c.id, "task_id", c.st.TaskID)
-			return
-		}
 		if c.st.State != string(stateNow) {
 			c.st.State, c.st.Asked, save = string(stateNow), "", true
 		}
@@ -617,6 +623,15 @@ func (h *Host) take(c *call, ev sdk.Event) {
 		reason += ": " + text
 	}
 	h.failSaid(c, reason, text)
+}
+
+// lifecycle ranks the states a task goes through while Mira sends nothing
+// new: it goes forward only (decision 37a).
+var lifecycle = map[sdk.TaskState]int{
+	sdk.TaskStateSubmitted:     0,
+	sdk.TaskStateWorking:       1,
+	sdk.TaskStateInputRequired: 2,
+	sdk.TaskStateAuthRequired:  2,
 }
 
 // ours: an event of the call's task, or the first one naming it.
@@ -1041,6 +1056,7 @@ func (h *Host) Answer(ctx context.Context, callID, text string) error {
 		return fmt.Errorf("%s asks nothing now", c.label)
 	}
 	c.st.Sent++
+	c.rank = 0 // Mira's new message: the task may start over
 	m := sdk.NewMessage(sdk.MessageRoleUser, sdk.NewTextPart(text))
 	m.ID = fmt.Sprintf("%s-%d", c.id, c.st.Sent)
 	m.TaskID, m.ContextID = sdk.TaskID(c.st.TaskID), c.st.ContextID

@@ -232,7 +232,12 @@ func TestRM18_ARemoteAgentThatAsksForOAuth2(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := f.Received()
-	last := got[len(got)-1]
+	var last a2afake.Received
+	for _, r := range got {
+		if r.Kind == "SendMessage" {
+			last = r
+		}
+	}
 	if last.Kind != "SendMessage" || last.Auth != "Bearer "+token || last.Refused {
 		t.Errorf("received %+v", got)
 	}

@@ -28,6 +28,7 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 	"github.com/a2aproject/a2a-go/v2/a2asrv/push"
+	"github.com/a2aproject/a2a-go/v2/a2asrv/taskstore"
 )
 
 // The skills of the card, one per behaviour.
@@ -124,8 +125,8 @@ type Received struct {
 	Card string `json:"card"`
 	// Kind is "card" (the card was read), a JSON-RPC method (SendMessage,
 	// SendStreamingMessage, GetTask, CancelTask, …), "cancel" (the task was
-	// cancelled), "push" (a push the fake sent) or "completed" (a SkillSlow
-	// task completed, its events handed on).
+	// cancelled), "push" (a push the fake sent) or "stored" (the fake's
+	// task store holds the task completed: what GetTask answers from now).
 	Kind string `json:"kind"`
 	// Auth is the credential that came: the Authorization header, or the
 	// API key for CardAPIKey.
@@ -177,10 +178,11 @@ func New(o Options) *Fake {
 	if f.log == nil {
 		f.log = slog.Default()
 	}
-	handler := a2asrv.NewHandler(f, a2asrv.WithPushNotifications(push.NewInMemoryStore(), &recordingSender{f: f,
-		// The fake runs beside Mira in the home network: its pushes go to
-		// private addresses, which the SDK's sender refuses by default.
-		next: push.NewHTTPPushSender(&push.HTTPSenderConfig{Timeout: 10 * time.Second, AllowPrivateNetworks: true})}))
+	handler := a2asrv.NewHandler(f, a2asrv.WithTaskStore(&signalStore{Store: taskstore.NewInMemory(nil), f: f}),
+		a2asrv.WithPushNotifications(push.NewInMemoryStore(), &recordingSender{f: f,
+			// The fake runs beside Mira in the home network: its pushes go to
+			// private addresses, which the SDK's sender refuses by default.
+			next: push.NewHTTPPushSender(&push.HTTPSenderConfig{Timeout: 10 * time.Second, AllowPrivateNetworks: true})}))
 	rpc := a2asrv.NewJSONRPCHandler(handler)
 	for _, card := range Cards {
 		prefix := ""
@@ -464,7 +466,6 @@ func (f *Fake) Execute(ctx context.Context, ec *a2asrv.ExecutorContext) iter.Seq
 			case <-timeout:
 			}
 			complete(Result)
-			f.record(Received{Kind: "completed", TaskID: string(ec.TaskID)})
 		case SkillAsk, SkillAskTwice:
 			yield(a2a.NewStatusUpdateEvent(ec, a2a.TaskStateInputRequired, say(Question)), nil)
 		case SkillLogin:
@@ -489,6 +490,21 @@ func (f *Fake) Cancel(_ context.Context, ec *a2asrv.ExecutorContext) iter.Seq2[a
 
 // recordingSender sends the SDK's pushes, records each, and sends each twice
 // for SkillPushTwice.
+// signalStore is the fake's task store, recording when it holds a task
+// completed: the signal a test waits for before it asks the task again.
+type signalStore struct {
+	taskstore.Store
+	f *Fake
+}
+
+func (s *signalStore) Update(ctx context.Context, u *taskstore.UpdateRequest) (taskstore.TaskVersion, error) {
+	v, err := s.Store.Update(ctx, u)
+	if err == nil && u.Task != nil && u.Task.Status.State == a2a.TaskStateCompleted {
+		s.f.record(Received{Kind: "stored", TaskID: string(u.Task.ID), State: string(u.Task.Status.State)})
+	}
+	return v, err
+}
+
 type recordingSender struct {
 	f    *Fake
 	next push.Sender

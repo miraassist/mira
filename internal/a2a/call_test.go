@@ -134,22 +134,39 @@ func TestRemoteSendWhileTheCardCannotBeRead(t *testing.T) {
 	}
 }
 
-// The send's answer ("submitted") is taken beside the pushes: when the push
-// "working" came first, the stored state stays working.
-func TestATaskDoesNotGoBackFromWorkingToSubmitted(t *testing.T) {
-	h, _, _ := callHost(t, "http://127.0.0.1:1", "slow")
-	ctx := context.Background()
-	if err := h.runs.PutAgentRun(ctx, store.AgentRun{CallID: "c1", Agent: "recherche", Status: statusRunning}); err != nil {
+// The send's answer and the pushes come side by side: a state behind the
+// one taken since Mira's last message is stale and left
+// (docs/spec/remote-agents.md, decision 37a). Seen on GitHub's runner: the
+// send's answer already asked, a push "submitted" came after it.
+func TestAStaleStateIsLeft(t *testing.T) {
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	if err != nil {
 		t.Fatal(err)
 	}
-	c := &call{id: "c1", agent: h.agents[0], ctx: ctx}
-	status := func(state sdk.TaskState) *sdk.TaskStatusUpdateEvent {
-		return &sdk.TaskStatusUpdateEvent{TaskID: "t1", ContextID: "x1", Status: sdk.TaskStatus{State: state}}
+	t.Cleanup(func() { st.Close() })
+	log, _ := logger()
+	var questions []string
+	h := New(Options{Skills: load(t, skillFile(t, "          a2a_skill: ask\n", ""), "http://127.0.0.1:1"), Runs: st,
+		Ask: func(_ context.Context, q Question) error { questions = append(questions, q.Text); return nil }, Logger: log})
+	ctx, stop := context.WithCancel(context.Background())
+	t.Cleanup(stop)
+	if err := st.PutAgentRun(ctx, store.AgentRun{CallID: "c1", Agent: "recherche", Status: statusRunning}); err != nil {
+		t.Fatal(err)
 	}
-	h.take(c, status(sdk.TaskStateWorking))
-	h.take(c, &sdk.Task{ID: "t1", ContextID: "x1", Status: sdk.TaskStatus{State: sdk.TaskStateSubmitted}})
+	c := &call{id: "c1", agent: h.agents[0], label: "Hermes", ctx: ctx, stop: stop}
+	h.mu.Lock()
+	h.calls["c1"] = c
+	h.mu.Unlock()
+	asked := &sdk.Task{ID: "t1", ContextID: "x1", Status: sdk.TaskStatus{State: sdk.TaskStateInputRequired,
+		Message: sdk.NewMessage(sdk.MessageRoleAgent, sdk.NewTextPart("Wie groß ist das Haus?"))}}
+	h.take(c, asked) // the send's answer, asking already
+	h.take(c, &sdk.TaskStatusUpdateEvent{TaskID: "t1", ContextID: "x1", Status: sdk.TaskStatus{State: sdk.TaskStateSubmitted}})
+	h.take(c, &sdk.TaskStatusUpdateEvent{TaskID: "t1", ContextID: "x1", Status: sdk.TaskStatus{State: sdk.TaskStateWorking}})
+	if label, q, ok := h.Asking("c1"); !ok || label != "Hermes" || q != "Wie groß ist das Haus?" || len(questions) != 1 {
+		t.Errorf("asking: %q %q %v, asked %v", label, q, ok, questions)
+	}
 	rec, err := h.runs.GetAgentRun(ctx, "c1")
-	if err != nil || !strings.Contains(string(rec.Remote), `"state":"TASK_STATE_WORKING"`) {
+	if err != nil || !strings.Contains(string(rec.Remote), `"state":"TASK_STATE_INPUT_REQUIRED"`) {
 		t.Errorf("stored %s: %v", rec.Remote, err)
 	}
 }
