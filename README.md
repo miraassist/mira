@@ -169,6 +169,11 @@ More, each explained in the guide ([de](docs/guide/de.md), [en](docs/guide/en.md
   danach …"), more of the same ("Spiel mehr davon") and jumping within the
   song ("Spring 30 Sekunden vor") work by voice. While a satellite listens,
   the players playing in its room go down to a third.
+- **Alarm at every satellite**: "Weck mich morgen um 6" – Mira's wake sound
+  grows louder until you say the wake word, with the speaker at 90 % and back
+  afterwards; or music instead (a station, and through Music Assistant a
+  playlist, album or artist), and the room's light rising before the alarm.
+  "Nein, halb sieben" corrects it.
 - **Access tokens**: a partner who looks after Mira for you gets a named
   token of their own, which reads only Mira's state; what was done with it is
   listed on Mira's page. Everything else the partner does in Home Assistant,

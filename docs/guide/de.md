@@ -1661,7 +1661,7 @@ Docker legt die Ordner `config` und `data` neben der `compose.yaml` an. In `conf
 
   Dann das Modell aus der Liste. Mira probiert es gleich aus und fragt den Anbieter, wie viel Kontext das Modell hat; das steht danach auf ihrer Seite unter Modelle. Sagt der Anbieter es nicht (OpenAI), trägst du es dort ein.
 - **Mira verwenden in**: die Assistenten, in denen Mira antwortet; der bevorzugte ist schon angehakt.
-- **Mira jetzt nutzen**: erscheint, sobald nichts mehr fehlt, und fragt nach einem **Zugang für Mira**. Mira legt eure Aufgaben und Timer als Automationen an, und das darf in Home Assistant nur ein Administrator. Den Zugang gibst du ihr selbst: Klicke in deinem Profil unter **Sicherheit → Langlebige Zugriffstoken** auf **Token erstellen**, nenne es zum Beispiel „Mira“, kopiere es und füge es im Dialog ein. Es muss einem Administrator gehören. Fertig.
+- **Mira jetzt nutzen**: erscheint, sobald nichts mehr fehlt, und fragt nach einem **Zugang für Mira**. Mira legt eure Aufgaben, Timer und Wecker als Automationen an, und das darf in Home Assistant nur ein Administrator. Den Zugang gibst du ihr selbst: Klicke in deinem Profil unter **Sicherheit → Langlebige Zugriffstoken** auf **Token erstellen**, nenne es zum Beispiel „Mira“, kopiere es und füge es im Dialog ein. Es muss einem Administrator gehören. Fertig.
 
 Schließt du den Dialog zwischendurch, geht es beim nächsten Öffnen in der Übersicht weiter.
 

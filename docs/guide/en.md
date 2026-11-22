@@ -1637,7 +1637,7 @@ Docker creates the folders `config` and `data` next to `compose.yaml`. In `confi
 
   Then the model from the list. Mira tries it at once and asks the provider how much context the model has; it shows on her page under Models afterwards. If the provider does not say (OpenAI), you enter it there.
 - **Use Mira in**: the assistants Mira answers in; the preferred one is already ticked.
-- **Start using Mira**: shows once nothing is missing, and asks for an **access for Mira**. Mira creates your tasks and timers as automations, and in Home Assistant only an administrator may do that. You give her the access yourself: in your profile under **Security → Long-lived access tokens**, click **Create token**, name it for example "Mira", copy it and paste it into the dialog. It must belong to an administrator. Done.
+- **Start using Mira**: shows once nothing is missing, and asks for an **access for Mira**. Mira creates your tasks, timers and alarms as automations, and in Home Assistant only an administrator may do that. You give her the access yourself: in your profile under **Security → Long-lived access tokens**, click **Create token**, name it for example "Mira", copy it and paste it into the dialog. It must belong to an administrator. Done.
 
 If you close the dialog in between, opening it again goes on at the overview.
 
