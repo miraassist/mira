@@ -3,8 +3,8 @@ satellite behaves): it plays nothing, but reads the media's length and
 reports the end of a playback when that length is over.
 
 - Without announce a playback is background music: the wake word lowers it.
-- With announce it plays in the foreground: the satellite is "responding"
-  meanwhile, and the wake word does not lower it.
+- With announce it plays in the foreground: the wake word does not lower it;
+  the satellite stays as it is (the Show's stayed "idle", 2026-11-22).
 - Stopping or pausing leaves it "paused"; a play_media that replaces one
   still playing reports no change of state.
 - Media without a length (a stream) plays until it is stopped."""
@@ -16,7 +16,6 @@ from datetime import datetime, timedelta
 import logging
 from typing import Any
 
-from homeassistant.components.assist_satellite.entity import AssistSatelliteState
 from homeassistant.components.media_player import MediaPlayerEntity, MediaPlayerEntityFeature, MediaPlayerState
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
@@ -213,9 +212,6 @@ class FakeSpeaker(FakeEntity, MediaPlayerEntity):
 
     @callback
     def _set_announcing(self, on: bool) -> None:
-        """A foreground playback keeps the satellite "responding"."""
-        if on == self.announcing:
-            return
+        """A foreground playback is not lowered by the wake word. The satellite
+        stays as it is, as the Show's did (2026-11-22)."""
         self.announcing = on
-        if self.dev.satellite:
-            self.dev.satellite.set_state(AssistSatelliteState.RESPONDING if on else AssistSatelliteState.IDLE)

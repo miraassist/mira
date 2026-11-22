@@ -57,6 +57,8 @@ is used in a spec; a term that is not here is not a term yet.
 | announcement | Ansage | Mira saying waiting messages at a satellite | table `announcements`, `notify.compose` | Durchsage |
 | broadcast | Durchsage | "Sag allen …": at once over all satellites, not stored | Home Assistant's own (Assist); nothing of Mira's | announcement |
 | reminder | Erinnerung | A message of kind `reminder`, due at a time | `messages.kind = reminder`, `deliver_at` | alarm |
+| alarm | Wecker | Waking a person at a time in a room: an automation of Mira's in Home Assistant that sets the satellite's volume and rings the wake sound there until a reaction, at every satellite; with radio and light on request ([Alarm](spec/alarm.md)). An alarm set at a TECHO5 itself is the device's alarm, not Mira's | automations with the label `mira_alarm`, the tool `alarm` | reminder, timer (for an alarm) |
+| wake sound | Weckton | What an alarm of Mira's rings with: a rise, then a loop at full volume; one sound, in the Mira service | `internal/satellite/sounds` (`wake_rise`, `wake_loop`) | alarm sound, ringtone |
 | indicator | Anzeige | The LED ring and the screen showing what waits | `internal/notifier` | lamp, light |
 | reading (of a mail or document) | Auswertung | The isolated analysis of a mail or document by the agent `inbox.read`: what is to be done, as items of the kinds a switched-on skill takes; nothing is read out | `inbox.read`, the skill `postfach`'s `inbox.extract` | Lesen, Vorlesen (for it) |
 | taking skill | aufnehmender Skill | The skill whose threads a kind's entries lead to; it says so with `takes: <kind>`; at most one switched-on skill per kind | a skill's `takes` (until step 10 of the inbox: `store.KindSkill`) | — |

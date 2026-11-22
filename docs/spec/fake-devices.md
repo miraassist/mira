@@ -39,7 +39,8 @@ real Show. A test that runs a flow against fakes catches that early only if the 
 
 - `play_media` **without `announce`** plays as background: the speaker goes `playing` at once. The satellite stays
   `idle`.
-- `play_media` **with `announce`** plays in the foreground: the speaker goes `playing`, the satellite `responding`.
+- `play_media` **with `announce`** plays in the foreground: the speaker goes `playing`; the satellite stays as it is
+  (`idle`), as the Show's did on 2026-11-22 (before, the fake set it `responding`).
   The wake word neither lowers nor stops it.
 - **The end of a playback** comes from the media, as on the real device: the fake fetches the media it is given once
   and reads its length (`ffprobe`, which the Home Assistant image has; any format), plays nothing, and when the

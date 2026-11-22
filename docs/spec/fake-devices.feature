@@ -40,8 +40,8 @@ Feature: FG Fake satellites that behave like the real ones
   @step1
   Scenario: FG-05 An announced playback plays in the foreground
     When the Fake Show's speaker gets play_media with announce and a test file
-    Then the speaker is "playing" and the satellite "responding"
-    And after the file's length both are "idle"
+    Then the speaker is "playing" and the satellite stays "idle"
+    And after the file's length the speaker is "idle"
 
   @step1
   Scenario: FG-06 The title names the next playback once

@@ -121,7 +121,7 @@ async def test_FG04_a_replacing_playback_reports_no_change(hass, fakes):
 async def test_FG05_an_announced_playback_plays_in_the_foreground(hass, fakes):
     await play(hass, TWO_SECONDS, announce=True)
     assert hass.states.get(SPK).state == "playing"
-    assert hass.states.get(SAT).state == "responding"
+    assert hass.states.get(SAT).state == "idle"
     await later(hass, 2.5)
     assert hass.states.get(SPK).state == "idle"
     assert hass.states.get(SAT).state == "idle"
