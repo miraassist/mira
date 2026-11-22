@@ -1047,9 +1047,10 @@ func (h *Host) Answer(ctx context.Context, callID, text string) error {
 	h.wg.Go(func() {
 		err := h.sendMessage(c, m, func() { tell(nil) })
 		if err != nil {
-			tell(err)
+			// The trace first: the caller goes on once told.
 			h.log.Warn("the answer did not reach the remote agent", "agent", c.agent.Name, "call_id", c.id,
 				"task_id", snap.TaskID, "error", err)
+			tell(err)
 			return
 		}
 		tell(nil)
