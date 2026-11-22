@@ -68,7 +68,7 @@ cleanup: restore                # test HA back to its initial state
 
 - **Preparation**: appointments and list items relative to today, memory facts, who is at home (the sim switches of the test HA), waiting messages.
 - **Steps**: sentence, place (satellite via its device ID) or person and channel. Several steps are one conversation.
-- **Expectations** per step and level. Checks on the result exist as fixed building blocks (`event_exists`, `calendar_empty`, `todo_item`, `alarm_set`, `fact_saved`, `message_for` …). So a scenario stays readable and need not query anything itself.
+- **Expectations** per step and level. Checks on the result exist as fixed building blocks (`event_exists`, `calendar_empty`, `todo_item`, `alarm_set` (a device's alarm), `mira_alarm` (Mira's alarm, [Alarm](alarm.md)), `fact_saved`, `message_for` …). So a scenario stays readable and need not query anything itself.
 - **Cleanup**: After each run the test HA is as before. Alarms on the Show are always deleted.
 
 ## Model setups

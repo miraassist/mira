@@ -9,7 +9,7 @@ import (
 )
 
 // snap is the test HA before a scenario run, to put it back afterwards:
-// events, to-do items, alarms on devices, entity states and Mira's tasks.
+// events, to-do items, alarms on devices, entity states, Mira's tasks and alarms.
 type snap struct {
 	events map[string]map[string]bool // calendar -> uids
 	todos  map[string]map[string]bool // list -> uids
@@ -80,7 +80,7 @@ func (r *evalRun) snapshot(ctx context.Context, sc Scenario) (snap, error) {
 		s.states[e] = st.State
 	}
 	var tpl string
-	if err := r.ha(ctx, "POST", "/api/template", map[string]any{"template": `{% for e in label_entities('mira') %}{{ e }};{% endfor %}`}, &tpl); err != nil {
+	if err := r.ha(ctx, "POST", "/api/template", map[string]any{"template": `{% for e in label_entities('mira') + label_entities('mira_alarm') %}{{ e }};{% endfor %}`}, &tpl); err != nil {
 		return s, err
 	}
 	for _, e := range strings.Split(tpl, ";") {
@@ -149,7 +149,7 @@ func (r *evalRun) restore(ctx context.Context, s snap) error {
 		}
 	}
 	var tpl string
-	if err := r.ha(ctx, "POST", "/api/template", map[string]any{"template": `{% for e in label_entities('mira') %}{{ e }}={{ state_attr(e, 'id') }};{% endfor %}`}, &tpl); err == nil {
+	if err := r.ha(ctx, "POST", "/api/template", map[string]any{"template": `{% for e in label_entities('mira') + label_entities('mira_alarm') %}{{ e }}={{ state_attr(e, 'id') }};{% endfor %}`}, &tpl); err == nil {
 		for _, part := range strings.Split(tpl, ";") {
 			if e, id, ok := strings.Cut(part, "="); ok && !s.tasks[e] && id != "None" {
 				if err := r.ha(ctx, "DELETE", "/api/config/automation/config/"+id, nil, nil); err != nil {
@@ -298,6 +298,34 @@ func (r *evalRun) todoItems(ctx context.Context, list string) ([]todoItem, error
 type alarm struct {
 	ID   string `json:"id"`
 	Time string `json:"time"`
+}
+
+// miraAlarm is one of Mira's alarms, as its automation's variables say.
+type miraAlarm struct{ time, days string }
+
+// miraAlarms are Mira's alarms: the automations labelled "Mira: Wecker"
+// (docs/spec/alarm.md), read from Home Assistant's automation config.
+func (r *evalRun) miraAlarms(ctx context.Context) ([]miraAlarm, error) {
+	var tpl string
+	if err := r.ha(ctx, "POST", "/api/template", map[string]any{"template": `{% for e in label_entities('mira_alarm') %}{{ state_attr(e, 'id') }};{% endfor %}`}, &tpl); err != nil {
+		return nil, err
+	}
+	var out []miraAlarm
+	for _, id := range strings.Split(tpl, ";") {
+		if id == "" || id == "None" {
+			continue
+		}
+		var config struct {
+			Variables map[string]any `json:"variables"`
+		}
+		if err := r.ha(ctx, "GET", "/api/config/automation/config/"+id, nil, &config); err != nil {
+			return nil, err
+		}
+		t, _ := config.Variables["mira_time"].(string)
+		d, _ := config.Variables["mira_days"].(string)
+		out = append(out, miraAlarm{time: t, days: d})
+	}
+	return out, nil
 }
 
 // alarmNodes are the ESPHome nodes with alarms (a TECHO5 Echo Show).

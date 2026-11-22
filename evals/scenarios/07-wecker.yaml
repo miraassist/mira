@@ -5,15 +5,15 @@ steps:
   - say: Weck mich morgen um sechs
     expect:
       result:
-        - alarm_set: { device: fake_show, time: "06:00" }
+        - mira_alarm: { time: "06:00" }
       behaviour:
-        must: [thread:wecker, action:esphome.fake_show_alarm_set]
+        must: [thread:wecker, action:alarm.set]
       answer:
         contains: ["6"]
   - say: Nein, halb sieben
     expect:
       result:
-        - alarm_set: { device: fake_show, time: "06:30" }
-        - alarm_set: { device: fake_show, time: "06:00", not: true }
+        - mira_alarm: { time: "06:30" }
+        - mira_alarm: { time: "06:00", not: true }
       behaviour:
         must: [tool:thread_undo]

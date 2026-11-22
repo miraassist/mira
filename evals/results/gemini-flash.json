@@ -703,26 +703,26 @@
       "name": "wecker",
       "description": "Wecker an der (Fake-)Show stellen und gleich korrigieren",
       "core": true,
-      "passed_runs": 3,
-      "answer_ok_runs": 3,
+      "passed_runs": 1,
+      "answer_ok_runs": 1,
       "passed": true,
       "step_times": [
         {
           "say": "Weck mich morgen um sechs",
-          "median_seconds": 5.557750384,
-          "max_seconds": 7.606412563,
-          "model_ms_median": 5530,
-          "rating": "brauchbar"
+          "median_seconds": 7.349525337,
+          "max_seconds": 7.349525337,
+          "model_ms_median": 7264,
+          "rating": "usable"
         },
         {
           "say": "Nein, halb sieben",
-          "median_seconds": 8.773094386,
-          "max_seconds": 10.927971084,
-          "model_ms_median": 8745,
-          "rating": "langsam"
+          "median_seconds": 11.311427843,
+          "max_seconds": 11.311427843,
+          "model_ms_median": 11210,
+          "rating": "slow"
         }
       ],
-      "tokens": 298736,
+      "tokens": 123253,
       "runs": [
         {
           "passed": true,
@@ -730,131 +730,41 @@
           "steps": [
             {
               "say": "Weck mich morgen um sechs",
-              "text": "Wecker steht: morgen früh um 6 Uhr.",
-              "seconds": 5.349305073,
-              "model_ms": 5321,
+              "text": "[ruhig] Wecker steht: morgen früh um 6 Uhr.",
+              "seconds": 7.349525337,
+              "model_ms": 7264,
               "rounds": 3,
-              "tokens": 41872,
+              "tokens": 51636,
               "trace": [
-                "round:main:2132ms",
+                "round:main:2488ms",
                 "tool:thread_start",
                 "thread:wecker:started",
-                "round:main:1748ms",
+                "round:main:2499ms",
                 "tool:thread_fill",
-                "action:esphome.fake_show_alarm_set",
+                "action:alarm.set",
                 "thread:wecker:done",
-                "round:main:1441ms"
+                "round:main:2277ms"
               ]
             },
             {
               "say": "Nein, halb sieben",
-              "text": "Alles klar, Wecker steht: morgen, 6:30 Uhr.",
-              "seconds": 8.773094386,
-              "model_ms": 8745,
+              "text": "[ruhig] Umgestellt: Der Wecker klingelt morgen um 6:30 Uhr.",
+              "seconds": 11.311427843,
+              "model_ms": 11210,
               "rounds": 4,
-              "tokens": 57691,
+              "tokens": 71617,
               "trace": [
-                "round:main:4281ms",
+                "round:main:2018ms",
                 "tool:thread_undo",
-                "action:esphome.fake_show_alarm_delete",
-                "round:main:1661ms",
+                "action:alarm.delete_created",
+                "round:main:2154ms",
                 "tool:thread_start",
                 "thread:wecker:started",
-                "round:main:1461ms",
+                "round:main:2419ms",
                 "tool:thread_fill",
-                "action:esphome.fake_show_alarm_set",
+                "action:alarm.set",
                 "thread:wecker:done",
-                "round:main:1342ms"
-              ]
-            }
-          ]
-        },
-        {
-          "passed": true,
-          "answer_ok": true,
-          "steps": [
-            {
-              "say": "Weck mich morgen um sechs",
-              "text": "Wecker steht: morgen früh um 6 Uhr. Schlaf gut!",
-              "seconds": 7.606412563,
-              "model_ms": 7580,
-              "rounds": 3,
-              "tokens": 41875,
-              "trace": [
-                "round:main:1713ms",
-                "tool:thread_start",
-                "thread:wecker:started",
-                "round:main:1892ms",
-                "tool:thread_fill",
-                "action:esphome.fake_show_alarm_set",
-                "thread:wecker:done",
-                "round:main:3975ms"
-              ]
-            },
-            {
-              "say": "Nein, halb sieben",
-              "text": "Alles klar, umgestellt: Der Wecker klingelt morgen um 6:30 Uhr.",
-              "seconds": 10.927971084,
-              "model_ms": 10898,
-              "rounds": 4,
-              "tokens": 57707,
-              "trace": [
-                "round:main:5300ms",
-                "tool:thread_undo",
-                "action:esphome.fake_show_alarm_delete",
-                "round:main:2065ms",
-                "tool:thread_start",
-                "thread:wecker:started",
-                "round:main:1572ms",
-                "tool:thread_fill",
-                "action:esphome.fake_show_alarm_set",
-                "thread:wecker:done",
-                "round:main:1961ms"
-              ]
-            }
-          ]
-        },
-        {
-          "passed": true,
-          "answer_ok": true,
-          "steps": [
-            {
-              "say": "Weck mich morgen um sechs",
-              "text": "Wecker steht: morgen um 6:00 Uhr. Schlaf gut.",
-              "seconds": 5.557750384,
-              "model_ms": 5530,
-              "rounds": 3,
-              "tokens": 41877,
-              "trace": [
-                "round:main:1439ms",
-                "tool:thread_start",
-                "thread:wecker:started",
-                "round:main:2220ms",
-                "tool:thread_fill",
-                "action:esphome.fake_show_alarm_set",
-                "thread:wecker:done",
-                "round:main:1871ms"
-              ]
-            },
-            {
-              "say": "Nein, halb sieben",
-              "text": "Alles klar, Wecker ist korrigiert auf morgen um 6:30 Uhr.",
-              "seconds": 7.8542260630000005,
-              "model_ms": 7811,
-              "rounds": 4,
-              "tokens": 57714,
-              "trace": [
-                "round:main:1925ms",
-                "tool:thread_undo",
-                "action:esphome.fake_show_alarm_delete",
-                "round:main:2452ms",
-                "tool:thread_start",
-                "thread:wecker:started",
-                "round:main:1865ms",
-                "tool:thread_fill",
-                "action:esphome.fake_show_alarm_set",
-                "thread:wecker:done",
-                "round:main:1569ms"
+                "round:main:4619ms"
               ]
             }
           ]
@@ -1459,6 +1369,7 @@
     "x (MIRA_SKILL_X_CLIENT_SECRET)"
   ],
   "again": [
-    "termin-absagen (2026-11-05 22:34, Mira 0.16.0, 3 runs)"
+    "termin-absagen (2026-11-05 22:34, Mira 0.16.0, 3 runs)",
+    "wecker (2026-11-22 17:07, Mira 0.29.0, 1 runs)"
   ]
 }

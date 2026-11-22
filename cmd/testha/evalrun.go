@@ -24,16 +24,19 @@ type Expect struct {
 
 // ResultCheck is one check of the state afterwards; exactly one is set.
 type ResultCheck struct {
-	EventExists   *EventCheck   `yaml:"event_exists"`
-	CalendarEmpty *EventCheck   `yaml:"calendar_empty"`
-	TodoItem      *TodoCheck    `yaml:"todo_item"`
-	AlarmSet      *AlarmCheck   `yaml:"alarm_set"`
-	FactSaved     *FactCheck    `yaml:"fact_saved"`
-	MessageFor    *MessageCheck `yaml:"message_for"`
-	EntityState   *StateCheck   `yaml:"entity_state"`
-	TaskExists    *TaskCheck    `yaml:"task_exists"`
-	Plan          *PlanCheck    `yaml:"plan"`
-	NoMessage     *NoMessage    `yaml:"no_message"`
+	EventExists   *EventCheck `yaml:"event_exists"`
+	CalendarEmpty *EventCheck `yaml:"calendar_empty"`
+	TodoItem      *TodoCheck  `yaml:"todo_item"`
+	AlarmSet      *AlarmCheck `yaml:"alarm_set"`
+	// MiraAlarm wants Mira's alarm, an automation labelled "Mira: Wecker"
+	// (docs/spec/alarm.md), at this time and on these days.
+	MiraAlarm   *MiraAlarmCheck `yaml:"mira_alarm"`
+	FactSaved   *FactCheck      `yaml:"fact_saved"`
+	MessageFor  *MessageCheck   `yaml:"message_for"`
+	EntityState *StateCheck     `yaml:"entity_state"`
+	TaskExists  *TaskCheck      `yaml:"task_exists"`
+	Plan        *PlanCheck      `yaml:"plan"`
+	NoMessage   *NoMessage      `yaml:"no_message"`
 	// RemoteReceived wants a message to the fake A2A agent whose text
 	// contains this (docs/spec/evals.md, Remote agents and delegate).
 	RemoteReceived *RemoteCheck `yaml:"remote_received"`
@@ -67,6 +70,13 @@ type AlarmCheck struct {
 	Device string `yaml:"device"`
 	Time   string `yaml:"time"`
 	Not    bool   `yaml:"not"`
+}
+
+type MiraAlarmCheck struct {
+	Time string `yaml:"time"`
+	// Days as the automation keeps them ("mon,tue"); empty is any.
+	Days string `yaml:"days"`
+	Not  bool   `yaml:"not"`
 }
 
 type FactCheck struct {
@@ -440,6 +450,23 @@ func (r *evalRun) checkResult(ctx context.Context, c ResultCheck) string {
 				return fmt.Sprintf("an alarm at %s is still on %s", c.AlarmSet.Time, c.AlarmSet.Device)
 			}
 			return fmt.Sprintf("no alarm at %s on %s", c.AlarmSet.Time, c.AlarmSet.Device)
+		}
+	case c.MiraAlarm != nil:
+		alarms, err := r.miraAlarms(ctx)
+		if err != nil {
+			return err.Error()
+		}
+		found := false
+		for _, a := range alarms {
+			if a.time == c.MiraAlarm.Time && (c.MiraAlarm.Days == "" || a.days == c.MiraAlarm.Days) {
+				found = true
+			}
+		}
+		if found == c.MiraAlarm.Not {
+			if c.MiraAlarm.Not {
+				return fmt.Sprintf("Mira still has an alarm at %s", c.MiraAlarm.Time)
+			}
+			return fmt.Sprintf("Mira has no alarm at %s %s (has %v)", c.MiraAlarm.Time, c.MiraAlarm.Days, alarms)
 		}
 	case c.FactSaved != nil:
 		var mem struct {
