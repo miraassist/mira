@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -21,7 +21,7 @@ import (
 // cancelled by its call ID. It is not stored: what runs it starts it anew
 // after a restart. It runs in the caller's goroutine.
 func (r *Runtime) Job(ctx context.Context, spec Spec, cc CallContext, fn func(ctx context.Context) error) error {
-	began := time.Now()
+	began := r.clock().Now()
 	if parent := current(ctx); parent != nil {
 		cc = inherit(parent, cc)
 	}
@@ -30,7 +30,7 @@ func (r *Runtime) Job(ctx context.Context, spec Spec, cc CallContext, fn func(ct
 	}
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
-	ctx, stop := context.WithTimeout(ctx, maxRunTime)
+	ctx, stop := clock.WithTimeout(ctx, r.clock(), maxRunTime)
 	defer stop()
 	r.mu.Lock()
 	r.cancels[cc.CallID] = cancel
@@ -65,7 +65,7 @@ func (r *Runtime) Job(ctx context.Context, spec Spec, cc CallContext, fn func(ct
 	case err != nil:
 		res.Status = Failed
 	}
-	r.logRun(spec, cc, res, time.Since(began), err)
+	r.logRun(spec, cc, res, r.clock().Since(began), err)
 	return err
 }
 

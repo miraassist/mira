@@ -1,6 +1,6 @@
 # Tests without time – spec
 
-Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads, the notifier, ha/ws, ha/structure, mcp and devices built. Scenarios:
+Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads, the notifier, ha/ws, ha/structure, mcp, devices and agent built. Scenarios:
 [tests.feature](tests.feature). The inventory behind it (private): `docs/test-review.local.md`.
 
 ## Goal
@@ -52,6 +52,10 @@ func NewFake(now time.Time) *Fake // a test's clock
     gives it first and moves the clock after.
   - `Waiters()` is the number of pending timers and tickers; `AwaitWaiters(n)` is a channel closed once at least `n`
     are pending (at once when they already are).
+- `WithTimeout(ctx, clock, d)` is `context.WithTimeout` on the clock (CK-13): the context ends when the clock passes
+  `d`, with `context.DeadlineExceeded` as its error and its children's; on the real clock it is `context.WithTimeout`
+  itself. For code whose time limit is a context deadline and whose tests drive that limit (the agents' run time,
+  timeout and attempt timeout).
 - A package that waits takes the clock as an option (`Clock clock.Clock`, nil for the real one), or for `retry` as a
   field of its `Policy`. Packages that keep a `Clock func() time.Time` today (threads, store, notifier) move to
   `clock.Clock` when their waits are converted.
@@ -67,30 +71,37 @@ func NewFake(now time.Time) *Fake // a test's clock
 
 ## Steps
 
-1. **The clock** `internal/clock` with its tests (CK-01 to CK-08). Built when the scenarios run.
+1. **The clock** `internal/clock` with its tests (CK-01 to CK-13). Built when the scenarios run.
 2. **`retry`** waits on the clock (`Policy.Clock`); RY-05 and the other retry tests without real time.
 3. **The packages that wait**, one after the other, each with its fakes made controllable and its tests converted, a
-   green `check.sh --release` before each commit: threads (InlineWait, AgentWait, the expiry ticker; built 2026-11-22:
-   `Options.Clock` is a `clock.Clock`, the fake finisher holds on a gate, a turn whose wait runs out is driven with
-   `Drive`; users of threads outside the package that pass no clock still wait in real time until their package is
-   converted), notifier (`speakPause`, `speakingStart`, waits for states; built 2026-11-22: `Options.Clock` is a
-   `clock.Clock`; the fake Home Assistant's `WaitState` runs out on the clock and reports a wait begun, a wait returned
-   and each call; the fake trigger subscription reports what it subscribed), ha/ws (backoff, `WaitState`; built
-   2026-11-22: `Options.Clock` carries the wait between attempts, `WaitState`'s limit and a template's answer;
-   `fakeha.Server.Await(cond)` is closed once a condition on the fake holds, checked after every connection made or
-   lost and every command; the deadlines of the socket itself, dialling, authenticating and `CallTimeout`, stay
-   context deadlines in real time: they bound a network that hangs, and no test waits for them to run out),
-   ha/structure (debounce; built 2026-11-22: `Options.Clock`; the debounce is a timer of the clock armed by the first
-   change of a burst; the fake subscriber reports when every registry event is subscribed), mcp (retry ticker;
-   built 2026-11-22: `Options.Clock`; the retry is a timer set anew after each round instead of a ticker, so the
-   clock's waiters tell the test when a round is done; a call's `CallTimeout` and the wait for a stdio server's
-   process to end stay real time, as bounds of a connection and a process),
-   devices (Gather, EntryWait; built 2026-11-23: `FoundOptions.Clock` carries Gather, EntryWait and `Await`'s limit;
-   Run counts what it handled (a change taken with its gathering set, a gathering said) and closes its `changed` with
-   each, so a test waits until Run handled every change the fake handed over, moves the clock past a gathering and
-   waits until it was said; the fake creates an entry's device before it answers the submit, without a goroutine), agent (attempt timeout, run time), a2a (card retry), conversation (fakellm: gate instead
-   of `Delay`/`PieceDelay`), matter, programs, setup, zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch),
-   waiting, clip, voicemail, heard, cmd/mira (a ready signal of `runAgent`, `fakeha.Await`).
+   green `check.sh --release` before each commit. Users of a package outside it that pass no clock still wait in real
+   time until their own package is converted. Built:
+   - **threads** (2026-11-22): `Options.Clock` is a `clock.Clock` (InlineWait, AgentWait, the expiry ticker); the fake
+     finisher holds on a gate; a turn whose wait runs out is driven with `Drive`.
+   - **notifier** (2026-11-22): `Options.Clock` (`speakPause`, `speakingStart`, the tickers); the fake Home Assistant's
+     `WaitState` runs out on the clock and reports a wait begun, a wait returned and each call; the fake trigger
+     subscription reports what it subscribed.
+   - **ha/ws** (2026-11-22): `Options.Clock` carries the wait between attempts, `WaitState`'s limit and a template's
+     answer; `fakeha.Server.Await(cond)` is closed once a condition on the fake holds, checked after every connection
+     made or lost and every command. The deadlines of the socket itself (dialling, authenticating, `CallTimeout`) stay
+     context deadlines in real time: they bound a network that hangs, and no test waits for them to run out.
+   - **ha/structure** (2026-11-22): `Options.Clock`; the debounce is a timer of the clock armed by the first change of
+     a burst; the fake subscriber reports when every registry event is subscribed.
+   - **mcp** (2026-11-22): `Options.Clock`; the retry is a timer set anew after each round instead of a ticker, so the
+     clock's waiters tell the test when a round is done. A call's `CallTimeout` and the wait for a stdio server's
+     process to end stay real time, as bounds of a connection and a process.
+   - **devices** (2026-11-23): `FoundOptions.Clock` carries Gather, EntryWait and `Await`'s limit; Run counts what it
+     handled (a change taken with its gathering set, a gathering said) and closes its `changed` with each, so a test
+     waits until Run handled every change the fake handed over, moves the clock past a gathering and waits until it
+     was said; the fake creates an entry's device before it answers the submit, without a goroutine.
+   - **agent** (2026-11-23): `Options.Clock` is a `clock.Clock`; the run time, a call's timeout and the attempt
+     timeout are `clock.WithTimeout`, the retry waits on the clock; the scripted model holds its calls on a gate
+     instead of a delay and reports each call that comes in; two debug lines say why a run waits, for a place at its
+     model and for one of the places of the runs, and are the signals the tests of the limits await.
+
+   Open: a2a (card retry), conversation (fakellm: gate instead of `Delay`/`PieceDelay`), matter, programs, setup,
+   zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch), waiting, clip, voicemail, heard, cmd/mira (a
+   ready signal of `runAgent`, `fakeha.Await`), and the other packages whose tests still sleep or poll.
 4. **Absence after a positive signal** (rule 6): the "handled" traces the code lacks, each with its log line.
 5. **Python:** `settle()` and `later()` wait on an `asyncio.Event` of the mocked call; `later()` moves the frozen clock.
 6. **Against relapse:** `check.sh` refuses `time.Sleep`, `time.After` and polling loops in `_test.go` outside a short

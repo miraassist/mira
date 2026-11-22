@@ -78,3 +78,10 @@ Feature: CK A clock for tests
     Given a fake clock
     When a test sets it to a time before now
     Then Set panics naming both times, and the clock stays where it was
+
+  @step1
+  Scenario: CK-13 A context ends when the clock passes its timeout
+    Given a fake clock and a context made with clock.WithTimeout of a minute
+    When the clock is moved by 59 seconds, and then by one more
+    Then the context is still open after the first move and ends after the second, with DeadlineExceeded, its children too
+    And one cancelled before its time is cancelled, not expired, and leaves no timer

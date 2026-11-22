@@ -18,6 +18,7 @@ type Lines struct {
 }
 
 type waiter struct {
+	n     int
 	parts []string
 	done  chan struct{}
 }
@@ -28,7 +29,7 @@ func (l *Lines) Write(p []byte) (int, error) {
 	n, err := l.buf.Write(p)
 	kept := l.waiters[:0]
 	for _, w := range l.waiters {
-		if lineWith(l.buf.String(), w.parts) != "" {
+		if linesWith(l.buf.String(), w.parts) >= w.n {
 			close(w.done)
 			continue
 		}
@@ -41,15 +42,18 @@ func (l *Lines) Write(p []byte) (int, error) {
 // Await is closed once a line holding every part was logged, at once when
 // one already was: the signal a test waits for instead of polling the log
 // (docs/spec/tests.md).
-func (l *Lines) Await(parts ...string) <-chan struct{} {
+func (l *Lines) Await(parts ...string) <-chan struct{} { return l.AwaitN(1, parts...) }
+
+// AwaitN is Await for n lines holding every part.
+func (l *Lines) AwaitN(n int, parts ...string) <-chan struct{} {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	done := make(chan struct{})
-	if lineWith(l.buf.String(), parts) != "" {
+	if linesWith(l.buf.String(), parts) >= n {
 		close(done)
 		return done
 	}
-	l.waiters = append(l.waiters, waiter{parts: parts, done: done})
+	l.waiters = append(l.waiters, waiter{n: n, parts: parts, done: done})
 	return done
 }
 
@@ -62,6 +66,21 @@ func (l *Lines) String() string {
 
 // Line is the first line holding every part; "" without one.
 func (l *Lines) Line(parts ...string) string { return lineWith(l.String(), parts) }
+
+// linesWith counts the lines holding every part.
+func linesWith(text string, parts []string) int {
+	n := 0
+	for _, line := range strings.Split(text, "\n") {
+		all := line != ""
+		for _, p := range parts {
+			all = all && strings.Contains(line, p)
+		}
+		if all {
+			n++
+		}
+	}
+	return n
+}
 
 func lineWith(text string, parts []string) string {
 	for _, line := range strings.Split(text, "\n") {

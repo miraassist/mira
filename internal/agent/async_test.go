@@ -83,12 +83,26 @@ func (e *env) record(t *testing.T, callID string) store.AgentRun {
 // AG-22 Timeout, and the caller lets it run on
 func TestAG22_TimeoutAndTheCallerLetsItRunOn(t *testing.T) {
 	e := setup(t)
-	e.main.delay = 300 * time.Millisecond
+	e.main.holding()
 	// Given a synchronous call whose caller wants it to run on at the timeout
 	cc := CallContext{Rights: AllRights, Mode: Mode{Timeout: 50 * time.Millisecond, OnTimeout: RunOn,
 		Delivery: Delivery{Route: ToEvent}}}
 	// When the agent is not done by the timeout
-	res, err := e.rt.Call(context.Background(), worker(), "x", cc)
+	type called struct {
+		res Result
+		err error
+	}
+	got := make(chan called, 1)
+	go func() {
+		res, err := e.rt.Call(context.Background(), worker(), "x", cc)
+		got <- called{res, err}
+	}()
+	e.main.awaitRunning(1)
+	<-e.clk.AwaitWaiters(2) // the run's time limit and the caller's timeout
+	e.clk.Advance(50 * time.Millisecond)
+	c := <-got
+	res, err := c.res, c.err
+	e.main.release()
 	// Then the caller gets the call ID
 	if err != nil || res.CallID == "" || res.Status != Running {
 		t.Fatalf("result %+v, %v", res, err)
@@ -157,6 +171,8 @@ func TestAG33_ARunBeyondItsTimeLimitsHasExpired(t *testing.T) {
 	e.main.steps = []step{{hang: true}}
 	res, _ := e.rt.Call(context.Background(), worker(), "x", async)
 	// When it exceeds its time limits
+	e.main.awaitRunning(1)
+	e.clk.Advance(maxRunTime)
 	e.waitDelivered(t)
 	// Then the run record has the status "expired"
 	if rec := e.record(t, res.CallID); rec.Status != string(Expired) {
@@ -203,7 +219,7 @@ func TestAG36_SixtyMinutesAfterItsEndARunRecordIsGone(t *testing.T) {
 	// Given a run that was done 61 minutes ago
 	res, _ := e.rt.Call(context.Background(), worker(), "x", async)
 	e.waitDelivered(t)
-	e.advance(61 * time.Minute)
+	e.clk.Advance(61 * time.Minute)
 	// When someone asks with its call ID
 	_, err := e.rt.Record(context.Background(), res.CallID)
 	// Then the run no longer exists
@@ -322,9 +338,15 @@ func TestAG89_SynchronousCallsAreNotContinued(t *testing.T) {
 	e := setup(t)
 	// Given a synchronous run without run-on that was running when the agent stopped
 	e.main.steps = []step{{hang: true}}
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	res, _ := e.rt.Call(ctx, worker(), "x", CallContext{Rights: AllRights})
+	ctx, cancel := context.WithCancel(context.Background())
+	called := make(chan Result, 1)
+	go func() {
+		res, _ := e.rt.Call(ctx, worker(), "x", CallContext{Rights: AllRights})
+		called <- res
+	}()
+	e.main.awaitRunning(1)
+	cancel() // the agent stops while the run is in the model
+	res := <-called
 	// When the agent starts again
 	e.restart(t)
 	e.rt.Register(worker())
@@ -343,7 +365,7 @@ func TestAG90_TheTimeLimitsCountAcrossARestart(t *testing.T) {
 	e := setup(t)
 	// Given an asynchronous run whose time limit passed while the agent was stopped
 	e.stored(t, "r1", "worker", e.clock().Add(time.Hour))
-	e.advance(61 * time.Minute)
+	e.clk.Advance(61 * time.Minute)
 	// When the agent starts again
 	e.restart(t)
 	e.rt.Register(worker())
@@ -391,8 +413,8 @@ func TestAG92_AtMostTenRunsAtTheSameTime(t *testing.T) {
 		res, _ := e.rt.Call(context.Background(), spec, "x", async)
 		ids = append(ids, res.CallID)
 	}
-	time.Sleep(100 * time.Millisecond)
 	// Then it waits until one of the 10 ends
+	<-e.logs.Await("a run waits for one of the places of the runs")
 	if n := len(e.rt.async); n != maxAsync {
 		t.Fatalf("%d runs at once, want %d", n, maxAsync)
 	}
@@ -453,11 +475,12 @@ func TestAG97_ConversationsDoNotCountTowardsTheTenRuns(t *testing.T) {
 			e.rt.Cancel(id)
 		}
 	}()
-	time.Sleep(50 * time.Millisecond)
-	// When a person talks to Mira
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	ctx, done := e.rt.Enter(ctx, Spec{Name: "conversation.voice", Profile: Conversation}, CallContext{}, nil)
+	// All ten have their place: four are in the model, six wait for it.
+	e.smart.awaitRunning(4)
+	<-e.logs.AwaitN(maxAsync-4, waitsForModel, "model=smart")
+	// When a person talks to Mira (it would wait for ever if it waited:
+	// go test's timeout names the test)
+	ctx, done := e.rt.Enter(context.Background(), Spec{Name: "conversation.voice", Profile: Conversation}, CallContext{}, nil)
 	release, err := e.rt.Acquire(ctx, "main", e.cfg.Main())
 	// Then the conversation runs without waiting for them
 	if err != nil {

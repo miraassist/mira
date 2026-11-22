@@ -1,12 +1,10 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/ha/structure"
 	"github.com/miraassist/mira/internal/hooks"
@@ -22,6 +21,7 @@ import (
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 	"github.com/miraassist/mira/internal/tools"
 
 	"gopkg.in/yaml.v3"
@@ -47,12 +47,54 @@ type model struct {
 	reqs     []llm.ChatRequest
 	running  atomic.Int32
 	maxAtOne atomic.Int32
-	delay    time.Duration
+	// hold keeps every call until release; entered is closed and made anew
+	// whenever a call comes in.
+	hold    bool
+	gate    chan struct{}
+	entered chan struct{}
+}
+
+// holding makes the model keep its calls until release.
+func (m *model) holding() *model {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.hold, m.gate = true, make(chan struct{})
+	return m
+}
+
+// release lets every held call and every later one answer.
+func (m *model) release() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	close(m.gate)
+}
+
+// awaitRunning waits until n calls are in the model at once.
+func (m *model) awaitRunning(n int32) {
+	for {
+		m.mu.Lock()
+		if m.entered == nil {
+			m.entered = make(chan struct{})
+		}
+		entered := m.entered
+		m.mu.Unlock()
+		if m.running.Load() >= n {
+			return
+		}
+		<-entered
+	}
 }
 
 func (m *model) Chat(ctx context.Context, req llm.ChatRequest) (*llm.ChatResponse, error) {
 	n := m.running.Add(1)
 	defer m.running.Add(-1)
+	m.mu.Lock()
+	if m.entered != nil {
+		close(m.entered)
+		m.entered = nil
+	}
+	hold, gate := m.hold, m.gate
+	m.mu.Unlock()
 	for {
 		old := m.maxAtOne.Load()
 		if n <= old || m.maxAtOne.CompareAndSwap(old, n) {
@@ -75,9 +117,9 @@ func (m *model) Chat(ctx context.Context, req llm.ChatRequest) (*llm.ChatRespons
 	if s.err != nil {
 		return nil, s.err
 	}
-	if m.delay > 0 {
+	if hold {
 		select {
-		case <-time.After(m.delay):
+		case <-gate:
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -104,7 +146,7 @@ type env struct {
 	main   *model
 	smart  *model
 	cfg    config.Config
-	logs   *syncBuffer
+	logs   *logcap.Lines
 	ran    map[string]int
 	mu     sync.Mutex
 	helper func(ctx context.Context) (Result, error)
@@ -112,66 +154,31 @@ type env struct {
 	onTool func(name string)
 	// st keeps the asynchronous runs; delivered gets each finished one.
 	st        *store.Store
-	now       time.Time
+	clk       *clock.Fake
 	delivered chan store.AgentRun
 }
 
-// syncBuffer is a log the runs' goroutines write to at once.
-type syncBuffer struct {
-	mu sync.Mutex
-	b  bytes.Buffer
-}
-
-func (s *syncBuffer) Write(p []byte) (int, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.b.Write(p)
-}
-
-func (s *syncBuffer) String() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.b.String()
-}
-
-func (e *env) clock() time.Time {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.now
-}
-
-func (e *env) advance(d time.Duration) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.now = e.now.Add(d)
-}
+func (e *env) clock() time.Time { return e.clk.Now() }
 
 // restart is a new runtime on the same store, as after the agent started
 // again; the agents are registered anew by the caller.
 func (e *env) restart(t *testing.T) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	e.rt.Close(ctx)
+	e.rt.Close(context.Background())
 	e.rt = New(e.opts)
 }
 
 // waitDelivered is the next finished asynchronous run.
 func (e *env) waitDelivered(t *testing.T) store.AgentRun {
 	t.Helper()
-	select {
-	case rec := <-e.delivered:
-		return rec
-	case <-time.After(5 * time.Second):
-		t.Fatal("no run was delivered")
-	}
-	return store.AgentRun{}
+	return <-e.delivered
 }
 
 func setup(t *testing.T) *env {
 	t.Helper()
-	e := &env{main: &model{}, smart: &model{}, cfg: config.Default(), logs: &syncBuffer{}, ran: map[string]int{},
-		now: time.Date(2026, 10, 21, 8, 0, 0, 0, time.UTC), delivered: make(chan store.AgentRun, 20)}
+	log, lines := logcap.Logger()
+	e := &env{main: &model{}, smart: &model{}, cfg: config.Default(), logs: lines, ran: map[string]int{},
+		clk: clock.NewFake(time.Date(2026, 10, 21, 8, 0, 0, 0, time.UTC)), delivered: make(chan store.AgentRun, 20)}
 	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: e.clock})
 	if err != nil {
 		t.Fatal(err)
@@ -237,15 +244,11 @@ def pre_tool(call, verdict):
 		},
 		Runs:    st,
 		Deliver: func(_ context.Context, rec store.AgentRun, _ CallContext) { e.delivered <- rec },
-		Clock:   e.clock,
-		Logger:  slog.New(slog.NewTextHandler(e.logs, nil)),
+		Clock:   e.clk,
+		Logger:  log,
 	}
 	e.rt = New(e.opts)
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		e.rt.Close(ctx)
-	})
+	t.Cleanup(func() { e.rt.Close(context.Background()) })
 	return e
 }
 
@@ -519,8 +522,12 @@ func TestAG21_TimeoutAndTheCallerCancels(t *testing.T) {
 	// Given a synchronous call whose caller wants to cancel at the timeout
 	// When the agent is not done by the timeout
 	e.main.steps = []step{{hang: true}}
-	res, err := e.rt.Call(context.Background(), Spec{Name: "a", Profile: Isolated}, "x",
-		CallContext{Mode: Mode{Timeout: 30 * time.Millisecond, OnTimeout: Cancel}})
+	var res Result
+	var err error
+	e.clk.Drive(func() { // the timeout runs out
+		res, err = e.rt.Call(context.Background(), Spec{Name: "a", Profile: Isolated}, "x",
+			CallContext{Mode: Mode{Timeout: 30 * time.Millisecond, OnTimeout: Cancel}})
+	})
 	// Then the run is cancelled
 	// And the caller gets that the time is up
 	if !errors.Is(err, ErrTimeout) || res.Status != Cancelled {
@@ -555,7 +562,9 @@ func TestAG24_HangingModelCallIsRetried(t *testing.T) {
 	spec := Spec{Name: "a", Profile: Isolated, Limits: Limits{AttemptTimeout: 30 * time.Millisecond, Retries: 1}}
 	// When the first model call has no answer in time
 	e.main.steps = []step{{hang: true}, {text: "zweiter Versuch"}}
-	res, err := e.rt.Call(context.Background(), spec, "x", CallContext{})
+	var res Result
+	var err error
+	e.clk.Drive(func() { res, err = e.rt.Call(context.Background(), spec, "x", CallContext{}) })
 	// Then it is retried once
 	// And the run goes on with the answer of the second attempt
 	if err != nil || res.Text != "zweiter Versuch" || res.ModelCalls != 2 {
@@ -691,7 +700,8 @@ func TestAG71_WithAnEntryTheAgentTakesThatModel(t *testing.T) {
 // --- Runtime -------------------------------------------------------------------
 
 // runTwo starts two runs at the same moment on a model and waits for both.
-func runTwo(e *env, spec Spec) {
+// runTwo starts two runs at once; the returned wait waits for both.
+func runTwo(e *env, spec Spec) (wait func()) {
 	var wg sync.WaitGroup
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
@@ -700,17 +710,27 @@ func runTwo(e *env, spec Spec) {
 			e.rt.Call(context.Background(), spec, fmt.Sprint(i), CallContext{})
 		}()
 	}
-	wg.Wait()
+	return wg.Wait
 }
+
+// waitsForModel is the debug line of a run that waits for a place at a model.
+const waitsForModel = "a run waits for a place at its model"
 
 // AG-80 A local model serves one run at a time
 func TestAG80_LocalModelServesOneRunAtATime(t *testing.T) {
 	e := setup(t)
 	// Given two runs that use the same local model
-	e.main.delay = 40 * time.Millisecond
+	e.main.holding()
 	// When both want to call the model at the same moment
-	runTwo(e, Spec{Name: "a", Profile: Isolated})
+	wait := runTwo(e, Spec{Name: "a", Profile: Isolated})
 	// Then the second waits until the first call is answered
+	e.main.awaitRunning(1)
+	<-e.logs.Await(waitsForModel, "model=main")
+	if got := e.main.maxAtOne.Load(); got != 1 {
+		t.Errorf("at once %d while the first is held", got)
+	}
+	e.main.release()
+	wait()
 	if got := e.main.maxAtOne.Load(); got != 1 || len(e.main.reqs) != 2 {
 		t.Errorf("at once %d, calls %d", got, len(e.main.reqs))
 	}
@@ -720,10 +740,13 @@ func TestAG80_LocalModelServesOneRunAtATime(t *testing.T) {
 func TestAG81_CloudModelServesSeveralRunsAtOnce(t *testing.T) {
 	e := setup(t)
 	// Given two runs that use the same cloud model
-	e.smart.delay = 40 * time.Millisecond
+	e.smart.holding()
 	// When both call the model at the same moment
-	runTwo(e, Spec{Name: "a", Model: "smart", Profile: Isolated})
+	wait := runTwo(e, Spec{Name: "a", Model: "smart", Profile: Isolated})
 	// Then both calls run at the same time
+	e.smart.awaitRunning(2)
+	e.smart.release()
+	wait()
 	if got := e.smart.maxAtOne.Load(); got != 2 {
 		t.Errorf("at once %d", got)
 	}
@@ -811,9 +834,9 @@ models:
 	if err != nil {
 		t.Fatal(err)
 	}
-	clients := map[string]*model{"main": {delay: 40 * time.Millisecond}, "smart": {delay: 40 * time.Millisecond},
-		"lite": {delay: 40 * time.Millisecond}}
-	rt := New(Options{Config: func() config.Config { return cfg },
+	clients := map[string]*model{"main": (&model{}).holding(), "smart": (&model{}).holding(), "lite": (&model{}).holding()}
+	log, lines := logcap.Logger()
+	rt := New(Options{Config: func() config.Config { return cfg }, Logger: log,
 		Models: func(name string) (Chatter, config.LLM, bool) {
 			m, ok := cfg.Model(name)
 			return clients[name], m, ok
@@ -829,8 +852,19 @@ models:
 			}()
 		}
 	}
+	// Then the local one takes 1 at a time, the first cloud one 4, the second 2:
+	// as many as it takes are in the model, the others wait for a place.
+	for name, at := range map[string]int32{"main": 1, "smart": 4, "lite": 2} {
+		clients[name].awaitRunning(at)
+		<-lines.AwaitN(5-int(at), waitsForModel, "model="+name+" ")
+	}
+	if a, b, c := clients["main"].maxAtOne.Load(), clients["smart"].maxAtOne.Load(), clients["lite"].maxAtOne.Load(); a != 1 || b != 4 || c != 2 {
+		t.Errorf("held: main %d, smart %d, lite %d", a, b, c)
+	}
+	for _, m := range clients {
+		m.release()
+	}
 	wg.Wait()
-	// Then the local one takes 1 at a time, the first cloud one 4, the second 2
 	if a, b, c := clients["main"].maxAtOne.Load(), clients["smart"].maxAtOne.Load(), clients["lite"].maxAtOne.Load(); a != 1 || b != 4 || c != 2 {
 		t.Errorf("at once: main %d, smart %d, lite %d", a, b, c)
 	}
@@ -850,19 +884,19 @@ func TestMO10_AnAgentWithoutAModelTakesMain(t *testing.T) {
 
 // fallbackEnv has the models main (local), smart and lite (cloud), each a
 // scripted model of its own; their fallbacks come from the test.
-func fallbackEnv(t *testing.T, models string) (*Runtime, map[string]*model, *syncBuffer) {
+func fallbackEnv(t *testing.T, models string) (*Runtime, map[string]*model, *logcap.Lines) {
 	t.Helper()
 	cfg, err := config.Parse([]byte("ha: { url: http://ha, token: t }\n"+models), func(string) (string, bool) { return "", false })
 	if err != nil {
 		t.Fatal(err)
 	}
 	clients := map[string]*model{"main": {}, "smart": {}, "lite": {}}
-	logs := &syncBuffer{}
+	log, logs := logcap.Logger()
 	rt := New(Options{Config: func() config.Config { return cfg },
 		Models: func(name string) (Chatter, config.LLM, bool) {
 			m, ok := cfg.Model(name)
 			return clients[name], m, ok
-		}, Logger: slog.New(slog.NewTextHandler(logs, nil))})
+		}, Logger: log})
 	return rt, clients, logs
 }
 
@@ -894,7 +928,7 @@ func TestMO30_AFailingModelPassesToItsFallback(t *testing.T) {
 // MO-31 A busy model is waited for, not passed by
 func TestMO31_ABusyModelIsWaitedForNotPassedBy(t *testing.T) {
 	// Given smart with fallback main and all of smart's requests taken
-	rt, clients, _ := fallbackEnv(t, `
+	rt, clients, logs := fallbackEnv(t, `
 models:
   main: { endpoint: http://lokal/v1, model: m, privacy: local }
   smart: { endpoint: https://cloud/v1, model: m, privacy: cloud, parallel: 1, fallback: main }
@@ -903,11 +937,17 @@ models:
 	busy, stop := context.WithCancel(context.Background())
 	defer stop()
 	go rt.Call(busy, Spec{Name: "a", Model: "smart", Profile: Isolated}, "x", CallContext{})
-	time.Sleep(30 * time.Millisecond)
+	clients["smart"].awaitRunning(1)
 	// When another call for smart comes
-	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
-	defer cancel()
-	_, err := rt.Call(ctx, Spec{Name: "b", Model: "smart", Profile: Isolated}, "x", CallContext{})
+	ctx, cancel := context.WithCancel(context.Background())
+	errs := make(chan error, 1)
+	go func() {
+		_, err := rt.Call(ctx, Spec{Name: "b", Model: "smart", Profile: Isolated}, "x", CallContext{})
+		errs <- err
+	}()
+	<-logs.Await(waitsForModel, "model=smart")
+	cancel() // its caller gives up while it waits
+	err := <-errs
 	// Then it waits for smart
 	if err == nil || clients["main"].calls() != 0 {
 		t.Errorf("err %v, main called %d times", err, clients["main"].calls())
@@ -967,7 +1007,9 @@ func TestRY34_AnAgentTriesAgainAModelThatHung(t *testing.T) {
 	e := setup(t)
 	spec := Spec{Name: "a", Profile: Isolated, Limits: Limits{AttemptTimeout: 30 * time.Millisecond, Retries: 1}}
 	e.main.steps = []step{{hang: true}, {text: "zweiter Versuch"}}
-	res, err := e.rt.Call(context.Background(), spec, "x", CallContext{})
+	var res Result
+	var err error
+	e.clk.Drive(func() { res, err = e.rt.Call(context.Background(), spec, "x", CallContext{}) })
 	if err != nil || res.Text != "zweiter Versuch" || res.ModelCalls != 2 {
 		t.Errorf("%+v %v", res, err)
 	}

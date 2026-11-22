@@ -1,6 +1,8 @@
 package clock
 
 import (
+	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -188,4 +190,31 @@ func TestCK12_TheClockNeverGoesBack(t *testing.T) {
 		}
 	}()
 	f.Set(ten.Add(-time.Minute))
+}
+
+func TestCK13_AContextEndsWhenTheClockPassesItsTimeout(t *testing.T) {
+	f := NewFake(ten)
+	ctx, cancel := WithTimeout(context.Background(), f, time.Minute)
+	defer cancel()
+	child, stop := context.WithCancel(ctx)
+	defer stop()
+	if d, ok := ctx.Deadline(); !ok || !d.Equal(ten.Add(time.Minute)) {
+		t.Errorf("deadline %s %v", d, ok)
+	}
+	f.Advance(59 * time.Second)
+	if ctx.Err() != nil {
+		t.Fatalf("ended early: %v", ctx.Err())
+	}
+	f.Advance(time.Second)
+	<-child.Done()
+	if !errors.Is(ctx.Err(), context.DeadlineExceeded) || !errors.Is(child.Err(), context.DeadlineExceeded) {
+		t.Errorf("err %v, child %v", ctx.Err(), child.Err())
+	}
+	// Cancelled before its time, it is cancelled, not expired, and its
+	// timer is gone.
+	ctx2, cancel2 := WithTimeout(context.Background(), f, time.Minute)
+	cancel2()
+	if !errors.Is(ctx2.Err(), context.Canceled) || f.Waiters() != 0 {
+		t.Errorf("err %v, waiters %d", ctx2.Err(), f.Waiters())
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -118,7 +119,7 @@ func (r *Runtime) start(ctx context.Context, parent *run, spec Spec, input strin
 	if cc.Mode.Async {
 		return res, nil
 	}
-	timer := time.NewTimer(cc.Mode.Timeout)
+	timer := r.clock().NewTimer(cc.Mode.Timeout)
 	defer timer.Stop()
 	select {
 	case out := <-done:
@@ -128,7 +129,7 @@ func (r *Runtime) start(ctx context.Context, parent *run, spec Spec, input strin
 			parent.ts.ForeignContext = true
 		}
 		return out.res, out.err
-	case <-timer.C:
+	case <-timer.C():
 	case <-ctx.Done():
 	}
 	return res, nil
@@ -145,7 +146,7 @@ func (r *Runtime) launch(rec store.AgentRun, spec Spec, cc CallContext, steps []
 	out := make(chan outcome, 1)
 	ctx, cancel := context.WithCancelCause(r.base)
 	// The time limit as the runtime's clock counts it, also across a restart.
-	ctx, stopDeadline := context.WithTimeout(ctx, rec.Deadline.Sub(r.now()))
+	ctx, stopDeadline := clock.WithTimeout(ctx, r.clock(), rec.Deadline.Sub(r.now()))
 	r.mu.Lock()
 	r.cancels[rec.CallID] = cancel
 	r.mu.Unlock()
@@ -159,7 +160,7 @@ func (r *Runtime) launch(rec store.AgentRun, spec Spec, cc CallContext, steps []
 			r.mu.Unlock()
 			cancel(nil)
 		}()
-		began := time.Now()
+		began := r.clock().Now()
 		res, status, err := r.drive(ctx, rec, spec, cc, steps)
 		switch {
 		case r.stopping.Load() && status == Cancelled && !errors.Is(context.Cause(ctx), ErrCancelled):
@@ -172,7 +173,7 @@ func (r *Runtime) launch(rec store.AgentRun, spec Spec, cc CallContext, steps []
 			err = ErrCancelled
 		}
 		res.Status = status
-		r.end(rec, spec, cc, res, err, time.Since(began))
+		r.end(rec, spec, cc, res, err, r.clock().Since(began))
 		out <- outcome{res, err}
 	}()
 	return out
@@ -183,10 +184,16 @@ func (r *Runtime) launch(rec store.AgentRun, spec Spec, cc CallContext, steps []
 func (r *Runtime) drive(ctx context.Context, rec store.AgentRun, spec Spec, cc CallContext, steps []store.AgentStep) (Result, Status, error) {
 	select {
 	case r.async <- struct{}{}:
-		defer func() { <-r.async }()
-	case <-ctx.Done():
-		return Result{CallID: rec.CallID}, Cancelled, ctx.Err()
+	default:
+		// Every place is taken: the run waits, and the log says why.
+		r.log.Debug("a run waits for one of the places of the runs", "agent", spec.Name, "call_id", rec.CallID, "places", maxAsync)
+		select {
+		case r.async <- struct{}{}:
+		case <-ctx.Done():
+			return Result{CallID: rec.CallID}, Cancelled, ctx.Err()
+		}
 	}
+	defer func() { <-r.async }()
 	ex, ctx, err := r.prepare(ctx, spec, rec.Input, cc)
 	if err != nil {
 		return ex.res, Failed, err
@@ -421,9 +428,7 @@ func inputFor(spec Spec, raw json.RawMessage) (string, error) {
 	return string(raw), nil
 }
 
-func (r *Runtime) now() time.Time {
-	if r.o.Clock != nil {
-		return r.o.Clock()
-	}
-	return time.Now()
-}
+func (r *Runtime) now() time.Time { return r.clock().Now() }
+
+// clock is the runtime's clock, the real one unless a test gave one.
+func (r *Runtime) clock() clock.Clock { return clock.Or(r.o.Clock) }

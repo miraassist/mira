@@ -16,6 +16,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
@@ -62,8 +63,9 @@ type Options struct {
 	Runs RunStore
 	// Deliver hands a finished asynchronous run to its route.
 	Deliver Deliverer
-	// Clock is the time for run records; tests set it.
-	Clock  func() time.Time
+	// Clock is the time of run records and what the time limits wait on;
+	// nil is the real one.
+	Clock  clock.Clock
 	Logger *slog.Logger
 }
 
@@ -133,7 +135,7 @@ func Current(ctx context.Context) (cc CallContext, ok bool) {
 // guard state. done logs the run as every run is logged; the caller fills
 // in the result.
 func (r *Runtime) Enter(ctx context.Context, spec Spec, cc CallContext, ts *tools.TurnState) (context.Context, func(Result, error)) {
-	began := time.Now()
+	began := r.clock().Now()
 	if parent := current(ctx); parent != nil {
 		cc = inherit(parent, cc)
 	}
@@ -149,7 +151,7 @@ func (r *Runtime) Enter(ctx context.Context, spec Spec, cc CallContext, ts *tool
 				res.Status = Failed
 			}
 		}
-		r.logRun(spec, cc, res, time.Since(began), err)
+		r.logRun(spec, cc, res, r.clock().Since(began), err)
 	}
 }
 
@@ -201,7 +203,7 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 	if cc.Mode.Async || (cc.Mode.OnTimeout == RunOn && cc.Mode.Timeout > 0) {
 		return r.start(ctx, parent, spec, input, cc)
 	}
-	began := time.Now()
+	began := r.clock().Now()
 	finish := func(res Result, status Status, err error) (Result, error) {
 		res.Status = status
 		// Third-party text read by this run counts for its caller.
@@ -211,12 +213,12 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 		if parent != nil {
 			parent.usage.add(res)
 		}
-		r.logRun(spec, cc, res, time.Since(began), err)
+		r.logRun(spec, cc, res, r.clock().Since(began), err)
 		return res, err
 	}
 	if cc.Mode.Timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, cc.Mode.Timeout)
+		ctx, cancel = clock.WithTimeout(ctx, r.clock(), cc.Mode.Timeout)
 		defer cancel()
 	}
 	ex, ctx, err := r.prepare(ctx, spec, input, cc)
@@ -641,7 +643,7 @@ func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t tex
 // the model client has classified and retried already.
 func (r *Runtime) chat(ctx context.Context, client Chatter, model string, parallel int, req llm.ChatRequest, lim Limits, res *Result) (*llm.ChatResponse, error) {
 	var out *llm.ChatResponse
-	p := retry.Policy{Attempts: lim.Retries + 1, Growth: retry.Fixed}
+	p := retry.Policy{Attempts: lim.Retries + 1, Growth: retry.Fixed, Clock: r.clock()}
 	err := retry.Do(ctx, p, func(ctx context.Context) error {
 		o, err := r.attempt(ctx, client, model, parallel, req, lim.AttemptTimeout, res)
 		out = o
@@ -669,13 +671,13 @@ func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, par
 	parent := ctx
 	if timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
+		ctx, cancel = clock.WithTimeout(ctx, r.clock(), timeout)
 		defer cancel()
 	}
-	began := time.Now()
+	began := r.clock().Now()
 	out, err := client.Chat(ctx, req)
 	res.ModelCalls++
-	res.ModelTime += time.Since(began)
+	res.ModelTime += r.clock().Since(began)
 	if err != nil {
 		if timeout > 0 && errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil {
 			// The model hung past the attempt's time: worth another attempt.
@@ -683,7 +685,7 @@ func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, par
 		}
 		return nil, retry.Fatal(err)
 	}
-	llm.Count(ctx, model, time.Since(began), out)
+	llm.Count(ctx, model, r.clock().Since(began), out)
 	res.PromptTokens += out.Usage.PromptTokens
 	res.Completion += out.Usage.CompletionTokens
 	return out, nil
@@ -702,6 +704,13 @@ func (r *Runtime) acquire(ctx context.Context, model string, parallel int) (func
 		r.slots[model] = slot
 	}
 	r.mu.Unlock()
+	select {
+	case slot <- struct{}{}:
+		return func() { <-slot }, nil
+	default:
+	}
+	// Every place is taken: the run waits, and the log says why it is slow.
+	r.log.Debug("a run waits for a place at its model", "model", model, "parallel", parallel)
 	select {
 	case slot <- struct{}{}:
 		return func() { <-slot }, nil
