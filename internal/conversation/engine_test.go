@@ -26,6 +26,7 @@ import (
 	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/testsupport/fakemcp"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 	"github.com/miraassist/mira/internal/tools"
 )
 
@@ -54,7 +55,7 @@ type harness struct {
 	store  *store.Store
 	clock  *clock
 	// logs holds the engine's log at info level.
-	logs *syncBuffer
+	logs *logcap.Lines
 	// identify, when set, says who speaks instead of the default below.
 	identify func(context.Context, conversation.Request) (string, string)
 	// playing, when set, says whether a clip still plays at a satellite.
@@ -114,7 +115,7 @@ func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm
 // newHarnessTools adds internal tools of the test's own.
 func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.InternalTool, script ...fakellm.Step) *harness {
 	t.Helper()
-	h := &harness{clock: &clock{now: time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC)}, logs: &syncBuffer{}, housePrompt: harnessHousePrompt}
+	h := &harness{clock: &clock{now: time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC)}, logs: &logcap.Lines{}, housePrompt: harnessHousePrompt}
 
 	h.llm = fakellm.New(script...)
 	t.Cleanup(h.llm.Close)
@@ -147,9 +148,7 @@ func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.In
 	t.Cleanup(func() { h.store.Close() })
 
 	host := mcp.New(mcp.Options{Servers: cfg.MCPServers, ReadOnlyTools: cfg.Security.ReadOnlyTools, Logger: quietLogger()})
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := host.Start(ctx); err != nil {
+	if err := host.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(host.Close)

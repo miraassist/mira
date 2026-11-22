@@ -15,15 +15,18 @@ import (
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 	"github.com/miraassist/mira/internal/tools"
 )
 
 // The conversation agents (docs/spec/agents.md, Several conversations at
 // once, What a turn belongs to).
 
-// slowModel answers after a pause and notes how many requests ran at once.
+// slowModel answers, when it holds, once the test releases it, and notes
+// how many requests ran at once.
 type slowModel struct {
-	delay    time.Duration
+	hold     chan struct{} // nil: answers at once
+	entered  chan struct{} // closed and made anew at each request
 	mu       sync.Mutex
 	reqs     []llm.ChatRequest
 	running  atomic.Int32
@@ -41,13 +44,36 @@ func (m *slowModel) Chat(ctx context.Context, req llm.ChatRequest) (*llm.ChatRes
 	}
 	m.mu.Lock()
 	m.reqs = append(m.reqs, req)
+	if m.entered != nil {
+		close(m.entered)
+	}
+	m.entered = make(chan struct{})
+	hold := m.hold
 	m.mu.Unlock()
-	select {
-	case <-time.After(m.delay):
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	if hold != nil {
+		select {
+		case <-hold:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 	return &llm.ChatResponse{Choices: []llm.Choice{{Message: llm.Message{Role: llm.RoleAssistant, Content: "Hallo."}}}}, nil
+}
+
+// awaitRunning waits until n requests are in the model at once.
+func (m *slowModel) awaitRunning(n int32) {
+	for {
+		m.mu.Lock()
+		if m.entered == nil {
+			m.entered = make(chan struct{})
+		}
+		entered := m.entered
+		m.mu.Unlock()
+		if m.running.Load() >= n {
+			return
+		}
+		<-entered
+	}
 }
 
 func (m *slowModel) Warmup(context.Context, llm.ChatRequest) error { return nil }
@@ -68,6 +94,7 @@ func (m *slowModel) last() string {
 type house struct {
 	engine  *conversation.Engine
 	model   *slowModel
+	logs    *logcap.Lines
 	person  string
 	private map[string]bool
 	mu      sync.Mutex
@@ -75,9 +102,12 @@ type house struct {
 	places  []string
 }
 
-func newHouse(t *testing.T, privacy string, delay time.Duration) *house {
+// newHouse is the house; a model that holds answers once the test closes
+// its hold.
+func newHouse(t *testing.T, privacy string, hold chan struct{}) *house {
 	t.Helper()
-	h := &house{model: &slowModel{delay: delay}, private: map[string]bool{}, plans: map[string]string{}}
+	log, lines := logcap.Logger()
+	h := &house{model: &slowModel{hold: hold}, logs: lines, private: map[string]bool{}, plans: map[string]string{}}
 	cfg := config.Default()
 	m := cfg.Main()
 	m.Privacy, m.Parallel = privacy, 1
@@ -112,7 +142,7 @@ func newHouse(t *testing.T, privacy string, delay time.Duration) *house {
 			h.places = append(h.places, place)
 			return h.plans[place], false
 		},
-		Logger: quietLogger(), Location: time.UTC,
+		Logger: log, Location: time.UTC,
 	})
 	return h
 }
@@ -141,7 +171,8 @@ func (h *house) startPlan(place, plan string) {
 // AG-95 Two conversations in different rooms run at the same time on a cloud model
 func TestAG95_TwoConversationsRunAtTheSameTimeOnACloudModel(t *testing.T) {
 	// Given two satellites in different rooms and a cloud model for conversations
-	h := newHouse(t, config.PrivacyCloud, 200*time.Millisecond)
+	hold := make(chan struct{})
+	h := newHouse(t, config.PrivacyCloud, hold)
 	// When two persons ask at the same moment
 	var wg sync.WaitGroup
 	for _, dev := range []string{"sat-kueche", "sat-wohnzimmer"} {
@@ -151,6 +182,8 @@ func TestAG95_TwoConversationsRunAtTheSameTimeOnACloudModel(t *testing.T) {
 			h.say(t, dev, "c-"+dev, "Wie spät ist es?")
 		}()
 	}
+	h.model.awaitRunning(2)
+	close(hold)
 	wg.Wait()
 	// Then both turns run at the same time
 	if n := h.model.maxAtOne.Load(); n != 2 {
@@ -160,17 +193,24 @@ func TestAG95_TwoConversationsRunAtTheSameTimeOnACloudModel(t *testing.T) {
 
 // AG-96 Two turns of the same session run one after the other
 func TestAG96_TwoTurnsOfTheSameSessionRunOneAfterTheOther(t *testing.T) {
-	h := newHouse(t, config.PrivacyCloud, 100*time.Millisecond)
+	hold := make(chan struct{})
+	h := newHouse(t, config.PrivacyCloud, hold)
 	// Given a session with a turn still running
-	// When a second turn of the same session arrives
 	var wg sync.WaitGroup
-	for _, text := range []string{"Erstens", "Zweitens"} {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			h.say(t, "sat-kueche", "same", text)
-		}()
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		h.say(t, "sat-kueche", "same", "Erstens")
+	}()
+	h.model.awaitRunning(1)
+	// When a second turn of the same session arrives
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		h.say(t, "sat-kueche", "same", "Zweitens")
+	}()
+	<-h.logs.Await("a turn waits for the turn before it in its session")
+	close(hold)
 	wg.Wait()
 	// Then it starts after the first one has ended
 	if n := h.model.maxAtOne.Load(); n != 1 {
@@ -183,7 +223,7 @@ func TestAG96_TwoTurnsOfTheSameSessionRunOneAfterTheOther(t *testing.T) {
 
 // AG-B1 A known person's conversation follows them to another satellite
 func TestAGB1_AKnownPersonsConversationFollowsThem(t *testing.T) {
-	h := newHouse(t, config.PrivacyLocal, 0)
+	h := newHouse(t, config.PrivacyLocal, nil)
 	// Given a person known to Mira (alone at home) talking at the satellite in the kitchen
 	h.person = "anna"
 	h.say(t, "sat-kueche", "k1", "Merk dir das Wort Erdbeere.")
@@ -202,7 +242,7 @@ func TestAGB1_AKnownPersonsConversationFollowsThem(t *testing.T) {
 
 // AG-B2 Without a known person the conversation stays in its room
 func TestAGB2_WithoutAKnownPersonTheConversationStaysInItsRoom(t *testing.T) {
-	h := newHouse(t, config.PrivacyLocal, 0)
+	h := newHouse(t, config.PrivacyLocal, nil)
 	// Given several persons at home and nobody recognized
 	// And a conversation at the satellite in the kitchen
 	h.say(t, "sat-kueche", "k1", "Merk dir das Wort Erdbeere.")
@@ -218,7 +258,7 @@ func TestAGB2_WithoutAKnownPersonTheConversationStaysInItsRoom(t *testing.T) {
 
 // AG-B3 A private area is a hard border
 func TestAGB3_APrivateAreaIsAHardBorder(t *testing.T) {
-	h := newHouse(t, config.PrivacyLocal, 0)
+	h := newHouse(t, config.PrivacyLocal, nil)
 	// Given the area "Gästezimmer" has the label "Mira: privater Bereich"
 	h.private["gaeste"] = true
 	// And a known person starts a plan there
@@ -235,7 +275,7 @@ func TestAGB3_APrivateAreaIsAHardBorder(t *testing.T) {
 
 // AG-B4 Nothing comes into a private area from outside
 func TestAGB4_NothingComesIntoAPrivateAreaFromOutside(t *testing.T) {
-	h := newHouse(t, config.PrivacyLocal, 0)
+	h := newHouse(t, config.PrivacyLocal, nil)
 	// Given a known person with a running plan from the kitchen
 	h.person = "anna"
 	h.say(t, "sat-kueche", "k1", "Merk dir das Wort Erdbeere.")

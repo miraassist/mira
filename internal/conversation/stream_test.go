@@ -19,12 +19,10 @@ import (
 	"github.com/miraassist/mira/internal/tools"
 )
 
-// pieces collects what a turn hands on while it is written, with the time
-// the first piece came.
+// pieces collects what a turn hands on while it is written.
 type pieces struct {
-	mu    sync.Mutex
-	got   []string
-	first time.Time
+	mu  sync.Mutex
+	got []string
 	// order is the text and the tool calls as they came: "call:name",
 	// "done:name" for a tool.
 	order []string
@@ -40,9 +38,6 @@ func (p *pieces) add(piece conversation.Piece) {
 			p.order = append(p.order, "call:"+tool.Name)
 		}
 		return
-	}
-	if p.first.IsZero() {
-		p.first = time.Now()
 	}
 	p.got = append(p.got, piece.Text)
 	p.order = append(p.order, piece.Text)
@@ -72,9 +67,8 @@ func (p *pieces) text() string {
 	return strings.Join(p.got, "")
 }
 
-// streamed runs a voice turn with a sink and says how long after the first
-// piece the turn ended.
-func streamed(t *testing.T, e *conversation.Engine, text string) (conversation.Response, *pieces, time.Duration) {
+// streamed runs a voice turn with a sink.
+func streamed(t *testing.T, e *conversation.Engine, text string) (conversation.Response, *pieces) {
 	t.Helper()
 	p := &pieces{}
 	resp, err := e.Handle(context.Background(), conversation.Request{Channel: config.ChannelVoice, ConversationID: "v1",
@@ -82,10 +76,44 @@ func streamed(t *testing.T, e *conversation.Engine, text string) (conversation.R
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.first.IsZero() {
+	if len(p.got) == 0 {
 		t.Fatalf("nothing was handed on; answer %q", resp.Text)
 	}
-	return resp, p, time.Since(p.first)
+	return resp, p
+}
+
+// streamedGated is streamed for a model that hands its pieces out through
+// gate: the first piece comes free, the others only once the first was
+// handed on. A turn that waited for more than the first piece would hang
+// (go test's timeout names it).
+func streamedGated(t *testing.T, e *conversation.Engine, text string, gate chan struct{}) (conversation.Response, *pieces) {
+	t.Helper()
+	p := &pieces{}
+	first := make(chan struct{})
+	var once sync.Once
+	sink := func(piece conversation.Piece) {
+		p.add(piece)
+		if piece.Tool == nil {
+			once.Do(func() { close(first) })
+		}
+	}
+	type result struct {
+		resp conversation.Response
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		resp, err := e.Handle(context.Background(), conversation.Request{Channel: config.ChannelVoice, ConversationID: "v1",
+			DeviceID: "sat-kueche", Text: text, Language: "de", Stream: sink})
+		done <- result{resp, err}
+	}()
+	<-first // handed on while the model still holds every other piece
+	close(gate)
+	r := <-done
+	if r.err != nil {
+		t.Fatal(r.err)
+	}
+	return r.resp, p
 }
 
 const story = "Es war einmal ein Leuchtturmwärter, der jeden Abend die Treppe hinaufstieg. "
@@ -93,13 +121,15 @@ const story = "Es war einmal ein Leuchtturmwärter, der jeden Abend die Treppe h
 // ST-02: after a tool round the answer is handed on in pieces before the
 // model has finished.
 func TestST02_AfterAToolRoundTheAnswerIsHandedOnInPieces(t *testing.T) {
+	const answer = "In der Küche sind es 21,5 Grad, und das Küchenlicht ist aus."
+	gate := make(chan struct{})
 	h := newHarness(t,
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
-		fakellm.Step{Content: "In der Küche sind es 21,5 Grad, und das Küchenlicht ist aus.", PieceDelay: 60 * time.Millisecond},
+		fakellm.Step{Content: answer, PieceGate: gate},
 	)
-	resp, p, after := streamed(t, h.engine, "Wie warm ist es in der Küche?")
-	if after < 200*time.Millisecond || len(p.got) < 5 {
-		t.Fatalf("first piece only %v before the end, %d pieces", after, len(p.got))
+	resp, p := streamedGated(t, h.engine, "Wie warm ist es in der Küche?", gate)
+	if len(p.got) < 5 {
+		t.Fatalf("%d pieces handed on", len(p.got))
 	}
 	if p.text() != resp.Text {
 		t.Fatalf("handed on %q, answer %q", p.text(), resp.Text)
@@ -108,10 +138,11 @@ func TestST02_AfterAToolRoundTheAnswerIsHandedOnInPieces(t *testing.T) {
 
 // ST-03: an answer without a tool call is handed on in pieces too.
 func TestST03_AnAnswerWithoutAToolCallIsHandedOnInPiecesToo(t *testing.T) {
-	h := newHarness(t, fakellm.Step{Content: story + story, PieceDelay: 30 * time.Millisecond})
-	resp, p, after := streamed(t, h.engine, "Erzähl mir eine Geschichte.")
-	if after < 200*time.Millisecond || strings.TrimSpace(p.text()) != resp.Text || resp.ToolRounds != 0 {
-		t.Fatalf("after %v, handed on %q, answer %q", after, p.text(), resp.Text)
+	gate := make(chan struct{})
+	h := newHarness(t, fakellm.Step{Content: story + story, PieceGate: gate})
+	resp, p := streamedGated(t, h.engine, "Erzähl mir eine Geschichte.", gate)
+	if strings.TrimSpace(p.text()) != resp.Text || resp.ToolRounds != 0 {
+		t.Fatalf("handed on %q, answer %q", p.text(), resp.Text)
 	}
 }
 
@@ -119,7 +150,7 @@ func TestST03_AnAnswerWithoutAToolCallIsHandedOnInPiecesToo(t *testing.T) {
 func TestST04_ThinkingIsNeverSpoken(t *testing.T) {
 	h := newHarness(t, fakellm.Step{Content: "<think>geheim</think>Hallo Welt.",
 		Pieces: []string{"<thi", "nk>gehe", "im</th", "ink>Hallo ", "Welt."}})
-	resp, p, _ := streamed(t, h.engine, "Hallo")
+	resp, p := streamed(t, h.engine, "Hallo")
 	if strings.Contains(p.text(), "geheim") || strings.Contains(p.text(), "think") || p.text() != "Hallo Welt." {
 		t.Fatalf("handed on %q", p.text())
 	}
@@ -135,7 +166,7 @@ func TestStreamedTextBeforeToolsAndTheAnswerAreSentences(t *testing.T) {
 		fakellm.Step{Content: "Ich schaue nach.", ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
 		fakellm.Step{Content: "Das Küchenlicht ist aus."},
 	)
-	_, p, _ := streamed(t, h.engine, "Ist das Küchenlicht an?")
+	_, p := streamed(t, h.engine, "Ist das Küchenlicht an?")
 	if p.text() != "Ich schaue nach. Das Küchenlicht ist aus." {
 		t.Fatalf("handed on %q", p.text())
 	}
@@ -178,7 +209,7 @@ func TestST06_AModelThatFailsAfterTheFirstPieceGetsNoFallback(t *testing.T) {
 	})
 	smart.Push(fakellm.Step{Content: story, BreakAfter: 3})
 	main.Push(fakellm.Step{Content: "Hallo von main."})
-	r, p, _ := streamed(t, e, "Erzähl mir eine Geschichte.")
+	r, p := streamed(t, e, "Erzähl mir eine Geschichte.")
 	if r.Text != "Es war einmal Da ist etwas schiefgegangen." || p.text() != r.Text || r.FallbackFrom != "" {
 		t.Fatalf("answer %q, handed on %q, fallback from %q", r.Text, p.text(), r.FallbackFrom)
 	}
@@ -211,7 +242,7 @@ func TestST13_AModelThatSpeaksBeforeItsToolsIsHandedOnFirst(t *testing.T) {
 		fakellm.Step{Content: "Ich schaue im Kalender nach. ", ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
 		fakellm.Step{Content: "Morgen hast du keine Termine."},
 	)
-	_, p, _ := streamed(t, h.engine, "Was steht morgen an?")
+	_, p := streamed(t, h.engine, "Was steht morgen an?")
 	want := []string{"Ich schaue im Kalender nach. ", "call:ha__GetLiveContext", "done:ha__GetLiveContext", "Morgen hast du keine Termine."}
 	if got := p.merged(); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("order %q", got)
@@ -223,16 +254,36 @@ func TestST13_AModelThatSpeaksBeforeItsToolsIsHandedOnFirst(t *testing.T) {
 // keeps what was said, and the log says how far it got
 // (docs/spec/streaming.md, ways to interrupt).
 func TestST17_AnAnswerEndedWhileSpokenIsLoggedWithWhatWasSaid(t *testing.T) {
-	h := newHarness(t, fakellm.Step{Content: story + story + story, PieceDelay: 50 * time.Millisecond})
+	gate := make(chan struct{})
+	h := newHarness(t, fakellm.Step{Content: story + story + story, PieceGate: gate})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	// The model hands the next piece out once the last one was handed on;
+	// at the third the caller ends the turn.
+	want := make(chan struct{}, 1)
+	go func() {
+		for {
+			select {
+			case <-want:
+			case <-ctx.Done():
+				return
+			}
+			select {
+			case gate <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 	p := &pieces{}
 	_, err := h.engine.Handle(ctx, conversation.Request{Channel: config.ChannelVoice, ConversationID: "v1",
 		Text: "Erzähl mir eine Geschichte.", Language: "de", Stream: func(piece conversation.Piece) {
 			p.add(piece)
 			if len(p.got) == 3 {
 				cancel()
+				return
 			}
+			want <- struct{}{}
 		}})
 	if err != nil {
 		t.Fatal(err)
@@ -266,10 +317,11 @@ func TestST17_AnAnswerEndedWhileSpokenIsLoggedWithWhatWasSaid(t *testing.T) {
 // ST-18: a turn ended before its first piece is no error: one info line
 // with nothing spoken, and the run cancelled.
 func TestST18_ATurnEndedBeforeAnythingWasSaidIsNoError(t *testing.T) {
-	h := newHarness(t, fakellm.Step{Content: story, Delay: 2 * time.Second})
+	taken := make(chan struct{})
+	h := newHarness(t, fakellm.Step{Content: story, Taken: taken, Hold: make(chan struct{})})
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(200 * time.Millisecond)
+		<-taken // the model has the request and holds its answer
 		cancel()
 	}()
 	_, err := h.engine.Handle(ctx, conversation.Request{Channel: config.ChannelVoice, ConversationID: "v1",
@@ -326,7 +378,7 @@ func TestST15_ARoundWithTextAndAToolIsAnAnswer(t *testing.T) {
 		fakellm.Step{Content: "Richtig! Nächste Frage: Wofür steht RAM?", ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
 		fakellm.Step{Content: ""},
 	)
-	_, p, _ := streamed(t, h.engine, "Central Processing Unit")
+	_, p := streamed(t, h.engine, "Central Processing Unit")
 	if strings.Contains(p.text(), "nicht ganz fertig") {
 		t.Errorf("handed on %q", p.text())
 	}
@@ -339,7 +391,7 @@ func TestST16_AQuestionBeforeAToolOrAFillerKeepsTheSatelliteListening(t *testing
 		fakellm.Step{Content: "Richtig! Wie viele Beine hat eine Spinne?", ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
 		fakellm.Step{Content: "Ich warte auf deine Antwort."},
 	)
-	resp, _, _ := streamed(t, h.engine, "Ich denke der Blauwal.")
+	resp, _ := streamed(t, h.engine, "Ich denke der Blauwal.")
 	if !resp.ContinueConversation {
 		t.Error("the satellite does not listen after the question")
 	}

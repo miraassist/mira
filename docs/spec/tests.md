@@ -102,10 +102,15 @@ func NewFake(now time.Time) *Fake // a test's clock
      each round, as for MCP servers, and the attempts of a call wait on the clock; a test drives them with `Drive`
      while it waits for the delivery. The wait for the calls to stop on Close and a cancel's deadline stay real time.
      The fake remote agent's "stored" signal replaces polling for a completed task.
+   - **conversation** (2026-11-23): the fake LLM holds an answer on `Hold` and hands a stream's pieces out through
+     `PieceGate` instead of `Delay`/`PieceDelay`, and closes a step's `Taken` when a request takes it; a streaming test
+     hands the pieces after the first out only once the first was handed on; a turn that
+     waits for the turn before it in its session says so in a debug line, the signal of the test that turns of a
+     session run one after the other; an agent called as a tool runs on the test's clock in its runtime.
 
-   Open: conversation (fakellm: gate instead of `Delay`/`PieceDelay`), matter, programs, setup, zigbee, llm
-   (Retry-After), speakerid (timeout), hooks (file watch), waiting, clip, voicemail, heard, cmd/mira (a ready signal
-   of `runAgent`, `fakeha.Await`), and the other packages whose tests still sleep or poll.
+   Open: matter, programs, setup, zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch), waiting, clip,
+   voicemail, heard, cmd/mira (a ready signal of `runAgent`, `fakeha.Await`), and the other packages whose tests
+   still sleep or poll.
 
 4. **Absence after a positive signal** (rule 6): the "handled" traces the code lacks, each with its log line.
 5. **Python:** `settle()` and `later()` wait on an `asyncio.Event` of the mocked call; `later()` moves the frozen clock.

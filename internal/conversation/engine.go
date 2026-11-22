@@ -345,7 +345,7 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	// answer, once its history is free again.
 	var held []tools.HeldSummary
 	defer func() { e.writeHeld(context.WithoutCancel(ctx), held) }()
-	defer e.sessions.lock(key)()
+	defer e.sessions.lock(key, e.log)()
 	pre.seq = e.lastSeq(ctx, key)
 
 	ctx, span := e.tel.Tracer.Start(ctx, "invoke_agent mira", trace.WithSpanKind(trace.SpanKindInternal))
@@ -1044,7 +1044,7 @@ func stripThinking(s string) string {
 // is still recorded (docs/spec/telegram-history.md, decision 6).
 func (e *Engine) ResetSession(ctx context.Context, ch config.Channel, conversationID string) error {
 	key := SessionKey(ch, conversationID)
-	defer e.sessions.lock(key)()
+	defer e.sessions.lock(key, e.log)()
 	if ch == config.ChannelTelegram {
 		if err := e.store.ClearSession(ctx, key); err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
@@ -1065,8 +1065,9 @@ type sessionLock struct {
 	users int
 }
 
-// lock waits until no other turn of the session runs; unlock frees it.
-func (s *sessionLocks) lock(key string) (unlock func()) {
+// lock waits until no other turn of the session runs; unlock frees it. A
+// turn that waits says so in the log.
+func (s *sessionLocks) lock(key string, log *slog.Logger) (unlock func()) {
 	s.mu.Lock()
 	l, ok := s.held[key]
 	if !ok {
@@ -1075,7 +1076,10 @@ func (s *sessionLocks) lock(key string) (unlock func()) {
 	}
 	l.users++
 	s.mu.Unlock()
-	l.Lock()
+	if !l.TryLock() {
+		log.Debug("a turn waits for the turn before it in its session", "session", key)
+		l.Lock()
+	}
 	return func() {
 		l.Unlock()
 		s.mu.Lock()

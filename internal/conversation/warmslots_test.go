@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/store"
@@ -20,17 +19,6 @@ func warmHarness(t *testing.T, script ...fakellm.Step) *harness {
 		m.WarmSlots = true
 		c.Models[config.MainModel] = m
 	}, script...)
-}
-
-// waitFor waits up to two seconds for cond.
-func waitFor(t *testing.T, what string, cond func() bool) {
-	t.Helper()
-	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if cond() {
-			return
-		}
-	}
-	t.Fatalf("waited in vain for %s", what)
 }
 
 // readings are the requests that read a prompt into a slot.
@@ -75,7 +63,7 @@ func TestWS01_ATurnAfterAChangeRunsOnThePreviousPromptInTheWarmSlot(t *testing.T
 	}
 
 	// WS-02: the new prompt is read into slot 1 while the model is free.
-	waitFor(t, "the reading", func() bool { return strings.Contains(h.logs.String(), `msg="slot warmed"`) })
+	<-h.logs.Await(`msg="slot warmed"`)
 	rd := readings(h)
 	if len(rd) != 1 || rd[0].Slot != 1 || !mentions(rd[0], "Kühlschrank") {
 		t.Fatalf("readings %d, slot %d", len(rd), rd[0].Slot)
@@ -93,20 +81,21 @@ func TestWS02_TheNewPromptIsReadIntoTheOtherSlot(t *testing.T) {
 
 // WS-03: a turn stops a running reading, which starts again afterwards.
 func TestWS03_ATurnStopsARunningReading(t *testing.T) {
+	taken := make(chan struct{})
 	h := warmHarness(t,
 		fakellm.Step{Content: "ok"}, fakellm.Step{Content: "ok"},
-		fakellm.Step{Content: "ok", Delay: 1500 * time.Millisecond}, // the first reading
+		fakellm.Step{Content: "ok", Taken: taken, Hold: make(chan struct{})}, // the first reading, held
 	)
 	h.say(t, config.ChannelVoice, "v1", "Hallo")
 	h.store.SetProfile(context.Background(), store.OwnerHouse, "- Im Keller steht ein Kühlschrank")
 	h.say(t, config.ChannelVoice, "v1", "Wie geht es?")
-	waitFor(t, "the first reading", func() bool { return len(readings(h)) == 1 })
+	<-taken // the first reading is in the model
 
 	h.say(t, config.ChannelVoice, "v1", "Noch da?")
 	if r := lastTurn(h); r.Slot != 0 || mentions(r, "Kühlschrank") {
 		t.Fatalf("turn during the reading: slot %d, new prompt %v", r.Slot, mentions(r, "Kühlschrank"))
 	}
-	waitFor(t, "the reading done", func() bool { return strings.Contains(h.logs.String(), `msg="slot warmed"`) })
+	<-h.logs.Await(`msg="slot warmed"`) // the reading started again and done
 	if n := len(readings(h)); n != 2 {
 		t.Fatalf("%d readings", n)
 	}
@@ -122,7 +111,7 @@ func TestWS04_ANewerChangeReplacesOneNotYetRead(t *testing.T) {
 	h.store.SetProfile(context.Background(), store.OwnerHouse, "- Im Keller steht ein Kühlschrank")
 	h.store.SetProfile(context.Background(), store.OwnerHouse, "- Im Keller steht eine Waschmaschine")
 	h.say(t, config.ChannelVoice, "v1", "Wie geht es?")
-	waitFor(t, "the reading", func() bool { return strings.Contains(h.logs.String(), `msg="slot warmed"`) })
+	<-h.logs.Await(`msg="slot warmed"`)
 	rd := readings(h)
 	if len(rd) != 1 || !mentions(rd[0], "Waschmaschine") || mentions(rd[0], "Kühlschrank") {
 		t.Fatalf("%d readings", len(rd))
@@ -134,7 +123,7 @@ func TestWS04_ANewerChangeReplacesOneNotYetRead(t *testing.T) {
 func TestWarmSlotsReadAtTheStartBeforeAnyTurn(t *testing.T) {
 	h := warmHarness(t)
 	h.engine.WarmupAll(context.Background(), "startup")
-	waitFor(t, "the reading", func() bool { return strings.Contains(h.logs.String(), `msg="slot warmed"`) })
+	<-h.logs.Await(`msg="slot warmed"`)
 	// Its start is logged too, for debugging a reading that takes long.
 	if !strings.Contains(h.logs.String(), `msg="reading the prompt into a slot"`) {
 		t.Error("the start of the reading is not logged")

@@ -8,13 +8,13 @@
 package fakellm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/miraassist/mira/internal/llm"
 )
@@ -28,11 +28,18 @@ type Step struct {
 	// instead of a completion.
 	Status int
 	Body   string
-	Delay  time.Duration
+	// Taken, when set, is closed once a request takes this step: the
+	// signal that the request arrived.
+	Taken chan struct{}
+	// Hold, when set, keeps the answer until the test closes it (or the
+	// request is given up).
+	Hold chan struct{}
 	// Pieces, for a streamed request, is how Content is sent; empty splits
-	// it after each space. PieceDelay comes between two pieces.
-	Pieces     []string
-	PieceDelay time.Duration
+	// it after each space. PieceGate, when set, is received from before
+	// every piece but the first: the test hands the pieces out (one send
+	// each, or a close for all). A request given up meanwhile ends there.
+	Pieces    []string
+	PieceGate chan struct{}
 	// BreakAfter, for a streamed request, ends the stream after that many
 	// pieces, as a server that fails in the middle of an answer.
 	BreakAfter int
@@ -156,8 +163,15 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	if step.Answer != nil {
 		step.Content = step.Answer(req)
 	}
-	if step.Delay > 0 {
-		time.Sleep(step.Delay)
+	if step.Taken != nil {
+		close(step.Taken)
+	}
+	if step.Hold != nil {
+		select {
+		case <-step.Hold:
+		case <-r.Context().Done():
+			return
+		}
 	}
 	if step.Status != 0 {
 		body := step.Body
@@ -202,7 +216,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	if req.Stream {
-		s.stream(w, step, resp)
+		s.stream(r.Context(), w, step, resp)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -212,7 +226,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 // stream sends a completion as llama.cpp does (tried 2026-11-03): the text in
 // pieces, each tool call's arguments split in two, the finish reason, then
 // the usage and timings in a chunk of their own.
-func (s *Server) stream(w http.ResponseWriter, step Step, resp llm.ChatResponse) {
+func (s *Server) stream(ctx context.Context, w http.ResponseWriter, step Step, resp llm.ChatResponse) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	flusher, _ := w.(http.Flusher)
 	send := func(v any) {
@@ -232,8 +246,12 @@ func (s *Server) stream(w http.ResponseWriter, step Step, resp llm.ChatResponse)
 		pieces = strings.SplitAfter(step.Content, " ")
 	}
 	for i, p := range pieces {
-		if i > 0 && step.PieceDelay > 0 {
-			time.Sleep(step.PieceDelay)
+		if i > 0 && step.PieceGate != nil {
+			select {
+			case <-step.PieceGate:
+			case <-ctx.Done():
+				return
+			}
 		}
 		if step.BreakAfter > 0 && i == step.BreakAfter {
 			return

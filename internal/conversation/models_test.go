@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/agent"
+	fakeclock "github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/hooks"
@@ -37,6 +38,13 @@ func twoModelsRouted(t *testing.T, agents string) (*conversation.Engine, *fakell
 
 // twoModelsDelivering hands the finished asynchronous runs to deliver.
 func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Deliverer, change ...func(*config.Config)) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
+	t.Helper()
+	return twoModelsOn(t, nil, agentsYAML, deliver, change...)
+}
+
+// twoModelsOn is twoModelsDelivering with the agents' runtime on clk (nil
+// for the real one).
+func twoModelsOn(t *testing.T, clk fakeclock.Clock, agentsYAML string, deliver agent.Deliverer, change ...func(*config.Config)) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
 	t.Helper()
 	main, smart := fakellm.New(), fakellm.New()
 	t.Cleanup(main.Close)
@@ -90,7 +98,7 @@ func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Delivere
 		Background: func(ctx context.Context, cc agent.CallContext, instructions, input string) (agent.Built, error) {
 			return engine.BackgroundContext(ctx, cc, instructions, input)
 		},
-		Logger: quietLogger(),
+		Logger: quietLogger(), Clock: clk,
 	})
 	engine = conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
 		Config: cfg,
@@ -249,29 +257,31 @@ func TestAG99_AnAgentAsAToolAtASatelliteAnswersLate(t *testing.T) {
 	}
 	delivered := make(chan delivery, 1)
 	// Given a voice conversation that calls an agent as a tool
-	e, main, smart := twoModelsDelivering(t, "conversation.telegram: { model: smart }\ndelegate: { model: smart }",
+	clk := fakeclock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	e, main, smart := twoModelsOn(t, clk, "conversation.telegram: { model: smart }\ndelegate: { model: smart }",
 		func(_ context.Context, rec store.AgentRun, cc agent.CallContext) { delivered <- delivery{rec, cc} })
 	main.Push(
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d1", "denker", `{"input":"Plane die Woche."}`)}},
 		fakellm.Step{Content: "Ich melde mich, sobald der Plan steht."},
 	)
 	// When the agent is not done after 5 seconds
-	smart.Push(fakellm.Step{Content: "Montag Suppe, Dienstag Nudeln.", Delay: 400 * time.Millisecond})
-	r := handle(t, e, config.ChannelVoice, "Plan mir die Woche.")
+	hold := make(chan struct{})
+	smart.Push(fakellm.Step{Content: "Montag Suppe, Dienstag Nudeln.", Hold: hold})
+	answered := make(chan conversation.Response, 1)
+	go func() { answered <- handle(t, e, config.ChannelVoice, "Plan mir die Woche.") }()
+	<-clk.AwaitWaiters(2) // the run's time limit and the conversation's wait for it
+	clk.Advance(100 * time.Millisecond)
+	r := <-answered
+	close(hold)
 	// Then Mira tells the user she will come back
 	back := main.Last().Request.Messages
 	if got := back[len(back)-1]; got.Role != llm.RoleTool || !strings.Contains(got.Content, "Nachricht") || r.Text != "Ich melde mich, sobald der Plan steht." {
 		t.Fatalf("tool result %+v, answer %q", got, r.Text)
 	}
 	// And the run goes on and its result comes as a message to the room or the person
-	select {
-	case d := <-delivered:
-		if d.rec.Status != "done" || d.rec.Output != "Montag Suppe, Dienstag Nudeln." || d.cc.Mode.Delivery.Route != agent.ToMessage ||
-			d.cc.Mode.Delivery.Receiver != store.ReceiverHouse {
-			t.Errorf("delivered %+v, %+v", d.rec, d.cc.Mode.Delivery)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("the run was not delivered")
+	if d := <-delivered; d.rec.Status != "done" || d.rec.Output != "Montag Suppe, Dienstag Nudeln." || d.cc.Mode.Delivery.Route != agent.ToMessage ||
+		d.cc.Mode.Delivery.Receiver != store.ReceiverHouse {
+		t.Errorf("delivered %+v, %+v", d.rec, d.cc.Mode.Delivery)
 	}
 }
 
