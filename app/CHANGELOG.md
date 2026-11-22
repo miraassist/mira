@@ -3,6 +3,14 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.30.0
+
+- **An alarm at every satellite.** "Weck mich morgen um 6": Mira's wake sound grows louder until you say the wake
+  word, with the speaker at 90 % and back afterwards. "Nein, halb sieben" corrects it.
+- **Wake with music and light.** "… mit SWR3", "… mit meiner Morgen-Playlist", "… mit Queen" (playlists, albums and
+  artists through Music Assistant), "… und mach langsam das Licht an".
+- **"Welche Timer habe ich?"** names sleep timers and countdown timers.
+
 ## 0.29.0
 
 - **Music with Music Assistant.** "Nimm die Musik mit in die Küche", "Spiel das auch im Bad", "Spiel danach Bohemian
