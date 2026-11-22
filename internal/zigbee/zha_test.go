@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/miraassist/mira/internal/devices"
 	haws "github.com/miraassist/mira/internal/ha/ws"
@@ -107,13 +106,10 @@ func TestDV15_NothingJoinsOnZHA(t *testing.T) {
 	e := zhaEnv(t)
 	e.p.o.Seconds = 1
 	e.run(t, ToolStart, `{}`)
-	select {
-	case s := <-e.asked:
-		if s != e.p.t.nothingJoined {
-			t.Fatalf("said %q", s)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("Mira said nothing")
+	var s string
+	e.clk.Drive(func() { s = <-e.asked }) // the pairing time runs out
+	if s != e.p.t.nothingJoined {
+		t.Fatalf("said %q", s)
 	}
 }
 
@@ -130,11 +126,7 @@ func TestDV16_AKnownDeviceRejoinsOnZHA(t *testing.T) {
 	if s := e.said(t); s != fmt.Sprintf(e.p.t.known, "Klimasensor Küche", "Küche") {
 		t.Fatalf("said %q", s)
 	}
-	select {
-	case <-e.ended:
-	case <-time.After(time.Second):
-		t.Fatal("the thread is not done")
-	}
+	<-e.ended // the thread is done
 }
 
 func TestDV17_CancellingClosesZHAPairing(t *testing.T) {

@@ -19,6 +19,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/devices"
 	"github.com/miraassist/mira/internal/excerpt"
@@ -88,6 +89,9 @@ type Options struct {
 	Seconds   int
 	Wait      time.Duration
 	Interview time.Duration
+	// Clock is what the pairing time, Wait and Interview wait on; nil is
+	// the real one.
+	Clock clock.Clock
 }
 
 // Waiter shows a wait at a thread's satellite and stops it.
@@ -111,6 +115,7 @@ func New(o Options) *Pairing {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
+	o.Clock = clock.Or(o.Clock)
 	if o.Seconds == 0 {
 		o.Seconds = 180
 	}
@@ -295,7 +300,7 @@ func (p *Pairing) request(ctx context.Context, r *run, endpoint string, payload 
 	}, nil); err != nil {
 		return response{}, err
 	}
-	timer := time.NewTimer(p.o.Wait)
+	timer := p.o.Clock.NewTimer(p.o.Wait)
 	defer timer.Stop()
 	select {
 	case a := <-answer:
@@ -303,7 +308,7 @@ func (p *Pairing) request(ctx context.Context, r *run, endpoint string, payload 
 			return a, errors.New(a.Error)
 		}
 		return a, nil
-	case <-timer.C:
+	case <-timer.C():
 		return response{}, fmt.Errorf("no answer from Zigbee2MQTT within %s", p.o.Wait)
 	case <-ctx.Done():
 		return response{}, ctx.Err()
@@ -375,12 +380,12 @@ func (p *Pairing) subscribe(ctx context.Context, r *run) error {
 		return err
 	}
 	r.stopWatch = append(r.stopWatch, s)
-	timer := time.NewTimer(p.o.Wait)
+	timer := p.o.Clock.NewTimer(p.o.Wait)
 	defer timer.Stop()
 	select {
 	case <-ready:
 		return nil
-	case <-timer.C:
+	case <-timer.C():
 		return fmt.Errorf("no bridge info from Zigbee2MQTT within %s", p.o.Wait)
 	case <-ctx.Done():
 		return ctx.Err()
@@ -514,7 +519,7 @@ func (p *Pairing) watch(ctx context.Context, r *run) {
 					continue // the retained info from before pairing opened, or closed by Mira
 				}
 				if waiting {
-					safety = time.After(p.o.Interview)
+					safety = p.o.Clock.After(p.o.Interview)
 					continue
 				}
 				p.log.Info("zigbee pairing ended without a device", "thread", r.thread)

@@ -119,20 +119,20 @@ func (p *Pairing) startZHA(ctx context.Context, inv tools.Invocation) (string, e
 // watchZHA follows a pairing on ZHA until a device is there, the time is
 // over, or the thread ended.
 func (p *Pairing) watchZHA(ctx context.Context, r *zhaRun) {
-	over := time.NewTimer(time.Duration(p.o.Seconds) * time.Second)
+	over := p.o.Clock.NewTimer(time.Duration(p.o.Seconds) * time.Second)
 	defer over.Stop()
 	var safety <-chan time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-over.C:
+		case <-over.C():
 			r.mu.Lock()
 			r.open = false
 			waiting := len(r.joined) > 0
 			r.mu.Unlock()
 			if waiting {
-				safety = time.After(p.o.Interview)
+				safety = p.o.Clock.After(p.o.Interview)
 				continue
 			}
 			p.log.Info("zigbee pairing ended without a device", "thread", r.thread, "network", "zha")

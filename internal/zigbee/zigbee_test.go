@@ -1,7 +1,6 @@
 package zigbee
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,10 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/devices"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 	"github.com/miraassist/mira/internal/tools"
 )
 
@@ -240,7 +241,8 @@ type env struct {
 	notes   []string
 	ticked  []string
 	ended   chan string
-	logs    *bytes.Buffer
+	logs    *logcap.Lines
+	clk     *clock.Fake
 	devices map[string]haws.Device
 	core    *devices.Core
 	mu      sync.Mutex
@@ -248,14 +250,10 @@ type env struct {
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	e := &env{ha: newFakeHA(), asked: make(chan string, 8), ended: make(chan string, 4), logs: &bytes.Buffer{},
+	e := &env{ha: newFakeHA(), asked: make(chan string, 8), ended: make(chan string, 4), logs: &logcap.Lines{},
+		clk:     clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC)),
 		devices: map[string]haws.Device{bridgeID: {ID: bridgeID, Manufacturer: "Zigbee2MQTT", Model: "Bridge", Name: "Zigbee2MQTT Bridge"}}}
-	var logMu sync.Mutex
-	logger := slog.New(slog.NewTextHandler(writerFunc(func(b []byte) (int, error) {
-		logMu.Lock()
-		defer logMu.Unlock()
-		return e.logs.Write(b)
-	}), nil))
+	logger := slog.New(slog.NewTextHandler(e.logs, nil))
 	areaName := func(id string) string {
 		return map[string]string{"wohnzimmer": "Wohnzimmer", "kueche": "Küche"}[id]
 	}
@@ -277,7 +275,7 @@ func newEnv(t *testing.T) *env {
 		Tick:   tick,
 		End:    func(_ context.Context, th string) { e.ended <- th },
 	})
-	e.p = New(Options{Lang: i18n.DE, Logger: logger, HA: e.ha, Wait: time.Second, Interview: time.Second, Core: e.core,
+	e.p = New(Options{Lang: i18n.DE, Logger: logger, HA: e.ha, Wait: time.Second, Interview: time.Second, Core: e.core, Clock: e.clk,
 		Devices:    func() map[string]haws.Device { return e.devices },
 		DeviceArea: func() map[string]string { return map[string]string{"old": "kueche"} },
 		AreaKeys:   func() map[string]string { return map[string]string{"wohnzimmer": "wohnzimmer", "küche": "kueche"} },
@@ -305,10 +303,6 @@ func newEnv(t *testing.T) *env {
 	return e
 }
 
-type writerFunc func([]byte) (int, error)
-
-func (w writerFunc) Write(b []byte) (int, error) { return w(b) }
-
 var voice = tools.Invocation{Channel: config.ChannelVoice, DeviceID: "show", Area: "schlafzimmer"}
 
 func (e *env) run(t *testing.T, name string, args string) string {
@@ -330,13 +324,7 @@ func (e *env) run(t *testing.T, name string, args string) string {
 
 func (e *env) said(t *testing.T) string {
 	t.Helper()
-	select {
-	case s := <-e.asked:
-		return s
-	case <-time.After(3 * time.Second):
-		t.Fatal("Mira said nothing at the satellite")
-	}
-	return ""
+	return <-e.asked
 }
 
 // pairNew opens pairing and lets the temperature sensor join, its interview
@@ -519,11 +507,7 @@ func TestDV08_AKnownDevicePairedAgain(t *testing.T) {
 	if got := e.ha.permits(); len(got) != 2 || got[1] != 0 {
 		t.Fatalf("permit_join published = %v, want pairing closed", got)
 	}
-	select {
-	case <-e.ended:
-	case <-time.After(time.Second):
-		t.Fatal("the thread is not done")
-	}
+	<-e.ended // the thread is done
 }
 
 func TestDV11_AJoiningDeviceIsSaidOnce(t *testing.T) {
@@ -536,10 +520,11 @@ func TestDV11_AJoiningDeviceIsSaidOnce(t *testing.T) {
 	// The device leaves and joins again (reset once more): nothing new is said.
 	e.ha.bridgeEvent("device_leave", map[string]any{"friendly_name": ieee, "ieee_address": ieee})
 	e.ha.bridgeEvent("device_joined", map[string]any{"friendly_name": ieee, "ieee_address": ieee})
+	<-e.logs.AwaitN(2, "zigbee device joined") // the second join was handled
 	select {
 	case s := <-e.asked:
 		t.Fatalf("said again %q", s)
-	case <-time.After(300 * time.Millisecond):
+	default:
 	}
 	e.p.ThreadEnded(context.Background(), thread)
 }
