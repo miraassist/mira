@@ -226,16 +226,17 @@ func TestTextsComplete(t *testing.T) {
 	}
 }
 
-// The alarm clock finishes with a Home Assistant action and can take it
-// back; its days may stay empty.
-func TestWeckerFinishesWithAnAction(t *testing.T) {
+// The alarm clock is a thread whose finish is Mira's alarm at every
+// satellite (docs/spec/alarm.md) and which takes it back for a correction;
+// its days may stay empty.
+func TestWeckerFinishesWithMirasAlarm(t *testing.T) {
 	list, problems := Load([]string{"../../skills"}, map[string]map[string]any{"wecker": nil})
 	if len(problems) != 0 || len(list) != 1 || list[0].Target == nil {
 		t.Fatalf("load: %v %v", list, problems)
 	}
 	tg := list[0].Target
-	if tg.Finish.Name != FinishAction || tg.Finish.Action.Action != "esphome.{{ satellite.device }}_alarm_set" ||
-		tg.Undo == nil || tg.Confirm {
+	if tg.Finish.Name != FinishAction || tg.Finish.Action.Action != "alarm.set" ||
+		tg.Undo == nil || tg.Undo.Action != "alarm.delete_created" || tg.Confirm {
 		t.Errorf("target = %+v", tg)
 	}
 	if !tg.Fields[1].Optional || tg.Fields[0].Optional {

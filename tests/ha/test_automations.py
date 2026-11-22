@@ -235,7 +235,7 @@ async def test_labels_by_id_in_home_assistants_language(hass):
     ensure_labels(hass)
     assert labels.async_get_label(LABEL_CONFIRM).name == "Vorsicht"
     assert labels.async_get_label(LABEL_PRIVATE).name == "Mira: privater Bereich"
-    assert len(labels.labels) == 5  # Mira, nachfragen, einmalig, privater Bereich, nicht überwachen
+    assert len(labels.labels) == 6  # Mira, nachfragen, einmalig, Wecker, privater Bereich, nicht überwachen
 
 
 async def test_a_task_may_not_switch_what_is_labelled_confirm(hass):
@@ -381,6 +381,31 @@ async def test_HD23_the_label_marks_a_saved_automation_as_miras(hass, tmp_path, 
     await client.send_json_auto_id({"type": "mira/automation/label", "automation_id": "nicht_da"})
     msg = await client.receive_json()
     assert not msg["success"] and msg["error"]["code"] == "not_found"
+
+
+async def test_an_alarm_is_labelled_and_listed_by_its_label(hass, tmp_path, aioclient_mock, entry, hass_ws_client):
+    """docs/spec/alarm.md: the service labels its alarm "alarm" and lists
+    Mira's automations by that label; the tasks' list stays without it."""
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.mira.labels import LABEL_ALARM
+
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    household, mira = await editor_house(hass, tmp_path)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": "mira/automation/label", "automation_id": "abendlicht", "label": "alarm"})
+    assert (await client.receive_json())["success"]
+    assert LABEL_ALARM in er.async_get(hass).async_get(household).labels
+
+    await client.send_json_auto_id({"type": "mira/automation/list", "label": "alarm"})
+    listed = (await client.receive_json())["result"]["automations"]
+    assert [a["entity_id"] for a in listed] == [household] and listed[0]["config"]["id"] == "abendlicht"
+    await client.send_json_auto_id({"type": "mira/automation/list"})
+    assert [a["entity_id"] for a in (await client.receive_json())["result"]["automations"]] == [mira]
+    await client.send_json_auto_id({"type": "mira/automation/list", "label": "nope"})
+    assert not (await client.receive_json())["success"]
 
 
 async def test_AE04_the_list_with_all_names_every_task(hass, tmp_path, aioclient_mock, entry, hass_ws_client):

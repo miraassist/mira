@@ -90,7 +90,7 @@ func TestActionFinishSetsAndUndoes(t *testing.T) {
 		t.Errorf("data = %v", d)
 	}
 	out, err = m.Undo(ctx, "area:schlafzimmer")
-	if err != nil || !strings.HasPrefix(out, "Zurückgenommen") {
+	if err != nil || !strings.HasPrefix(out, "Zurückgenommen") || !strings.Contains(out, "time=06:00") {
 		t.Fatalf("undo: %q %v", out, err)
 	}
 	if ha.calls[1] != "esphome.show_alarm_delete" || ha.data[1]["time"] != "06:00" {

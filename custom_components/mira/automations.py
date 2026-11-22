@@ -53,7 +53,7 @@ from homeassistant.helpers.target import TargetSelection, async_extract_referenc
 from homeassistant.util.yaml import load_yaml
 
 from .const import DOMAIN
-from .labels import LABEL_CONFIRM, LABEL_ONCE, LABEL_TASKS, ensure_label
+from .labels import AUTOMATION_LABELS, LABEL_CONFIRM, LABEL_TASKS, ensure_label
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -509,19 +509,20 @@ async def _ws_validate(hass: HomeAssistant, connection: websocket_api.ActiveConn
     {
         vol.Required("type"): "mira/automation/label",
         vol.Required("automation_id"): str,
-        vol.Optional("label", default="tasks"): vol.In(["tasks", "once"]),
+        vol.Optional("label", default="tasks"): vol.In(list(AUTOMATION_LABELS)),
     }
 )
 @websocket_api.require_admin
 @callback
 def _ws_label(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """Label an automation the service just saved as Mira's task ("Mira") or
-    timer ("Mira: einmalig"), found by its id in the entity registry."""
+    """Label an automation the service just saved as Mira's task ("Mira"),
+    timer ("Mira: einmalig") or alarm ("Mira: Wecker"), found by its id in the
+    entity registry."""
     entity_id = er.async_get(hass).async_get_entity_id("automation", "automation", msg["automation_id"])
     if entity_id is None:
         connection.send_error(msg["id"], "not_found", f"no automation {msg['automation_id']} is loaded")
         return
-    _label(hass, entity_id, LABEL_TASKS if msg["label"] == "tasks" else LABEL_ONCE)
+    _label(hass, entity_id, AUTOMATION_LABELS[msg["label"]])
     connection.send_result(msg["id"], {"entity_id": entity_id})
 
 
@@ -541,7 +542,12 @@ async def _ws_get(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): "mira/automation/list", vol.Optional("all", default=False): bool}
+    {
+        vol.Required("type"): "mira/automation/list",
+        vol.Optional("all", default=False): bool,
+        # Mira's automations with another of her labels (docs/spec/alarm.md).
+        vol.Optional("label", default="tasks"): vol.In(list(AUTOMATION_LABELS)),
+    }
 )
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -549,7 +555,7 @@ async def _ws_list(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
     if msg["all"]:
         connection.send_result(msg["id"], {"automations": await list_all(hass)})
         return
-    connection.send_result(msg["id"], {"automations": await list_tasks(hass)})
+    connection.send_result(msg["id"], {"automations": await list_tasks(hass, AUTOMATION_LABELS[msg["label"]])})
 
 
 @callback

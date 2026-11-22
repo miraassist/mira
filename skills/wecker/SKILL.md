@@ -1,6 +1,6 @@
 ---
 name: wecker
-description: Einen Wecker stellen, wenn der Nutzer geweckt werden will („Weck mich morgen um 6“, „Stell einen Wecker“). Er klingelt an dem Satelliten, an dem gefragt wurde, wenn das Gerät Wecker kann (z. B. Echo Show mit TECHO5).
+description: Einen Wecker stellen, wenn der Nutzer geweckt werden will („Weck mich morgen um 6“, „Stell werktags einen Wecker um halb sieben“). Er klingelt an dem Satelliten, an dem gefragt wurde, mit Miras Weckton, bis der Nutzer das Aktivierungswort sagt. Zeigen und löschen („Welche Wecker habe ich?“, „Lösch den Wecker“) geht mit dem Werkzeug alarm.
 license: MIT
 metadata:
   mira:
@@ -14,20 +14,25 @@ metadata:
           description: Wiederholung, z. B. weekdays oder mon,wed; leer für einmal (zum nächsten Mal dieser Uhrzeit)
           optional: true
       finish:
-        action: esphome.{{ satellite.device }}_alarm_set
+        action: alarm.set
         data:
           time: "{{ time }}"
           days: "{{ days }}"
-          label: Mira
+          satellite: "{{ satellite }}"
+          area: "{{ area }}"
+          person: "{{ person }}"
       undo:
-        action: esphome.{{ satellite.device }}_alarm_delete
+        action: alarm.delete_created
         data:
           time: "{{ time }}"
-          label: ""
+          days: "{{ days }}"
+          area: "{{ area }}"
+          person: "{{ person }}"
 ---
 # Wecker stellen
 
 - Steht die übliche Zeit der Person in dem, was Mira weiß („steht werktags um 6 auf“), und sagt sie „zur üblichen Zeit“, nimm sie. Sonst frag kurz: „Wann denn?“
 - „Morgen“ oder „heute Abend“ ist einmal: days leer lassen. „Werktags“ ist weekdays, einzelne Tage wie mon,wed.
 - Nicht nachfragen, ob es passt: stellen und danach genau sagen, was eingestellt ist, mit Uhrzeit und Tag („Wecker steht: morgen, 6 Uhr.“).
-- Korrigiert der Nutzer gleich danach („Nein, halb sieben“), nimm den Wecker mit thread_undo zurück und stell ihn mit dem Richtigen neu.
+- Korrigiert der Nutzer gleich danach („Nein, halb sieben“), nimm den Wecker mit thread_undo zurück und stell ihn mit dem Richtigen neu; was er nicht ändert (etwa werktags), bleibt.
+- Kommt die Bitte nicht von einem Satelliten (Telegram, App), gibt es keinen Wecker: sag, dass das nur an einem Satelliten geht, in dem Raum, wo er klingeln soll.

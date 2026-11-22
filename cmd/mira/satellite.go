@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -89,4 +90,21 @@ func (a *app) watchOne(ctx context.Context, entity string, changed func(state st
 	mu.Unlock()
 	check()
 	return ww.Stop, nil
+}
+
+// supportedFeatures is an entity's supported_features, read once; for an
+// alarm, whether the satellite's speaker can set its volume and announce
+// (docs/spec/alarm.md).
+func (a *app) supportedFeatures(ctx context.Context, entity string) (int, error) {
+	states, err := a.ha.GetStates(ctx, haws.StateFilter{EntityIDs: []string{entity}})
+	if err != nil {
+		return 0, err
+	}
+	for _, s := range states {
+		if s.EntityID == entity {
+			f, _ := s.Attributes["supported_features"].(float64)
+			return int(f), nil
+		}
+	}
+	return 0, fmt.Errorf("home assistant has no state of %s", entity)
 }

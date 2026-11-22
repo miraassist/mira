@@ -232,6 +232,24 @@ func renderAction(a skills.Action, vars map[string]string) (done, error) {
 	return d, nil
 }
 
+// describeFields are a thread's filled fields, for the model that starts it
+// anew after taking it back: what the user does not change stays
+// (docs/spec/alarm.md, decision 17: "Nein, halb sieben" keeps "werktags").
+func describeFields(fields map[string]string) string {
+	keys := make([]string, 0, len(fields))
+	for k, v := range fields {
+		if strings.TrimSpace(v) != "" && !notNeeded(v) {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+"="+fields[k])
+	}
+	return strings.Join(parts, ", ")
+}
+
 func describeData(data map[string]any) string {
 	keys := make([]string, 0, len(data))
 	for k := range data {
@@ -278,7 +296,7 @@ func (m *Manager) Undo(ctx context.Context, place string) (string, error) {
 		// through (docs/spec/thread-history.md, step 1).
 		m.endHow(ctx, th, store.ThreadCancelled, howUndone)
 		m.log.Info("thread action undone", "thread", th.ID, "action", d.Undo.Action)
-		return fmt.Sprintf(t.undone, th.Request), nil
+		return fmt.Sprintf(t.undone, th.Request, describeFields(th.Fields)), nil
 	}
 	return t.nothingToUndo, nil
 }

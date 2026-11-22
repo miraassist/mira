@@ -21,6 +21,7 @@ import (
 	"github.com/miraassist/mira/internal/a2a"
 	"github.com/miraassist/mira/internal/access"
 	"github.com/miraassist/mira/internal/agent"
+	"github.com/miraassist/mira/internal/alarm"
 	"github.com/miraassist/mira/internal/announce"
 	"github.com/miraassist/mira/internal/backup"
 	"github.com/miraassist/mira/internal/calendar"
@@ -101,6 +102,7 @@ type app struct {
 	// timers are the sleep timers; set after the connection to Home
 	// Assistant starts, whose every (re)connect has them looked at again.
 	timers atomic.Pointer[timer.Timers]
+	alarms atomic.Pointer[alarm.Alarms]
 	// phoneWatch keeps Mira FRITZ!Box's two sensors while watchPhone runs.
 	phoneMu    sync.Mutex
 	phoneWatch *haws.StateWatch
@@ -602,6 +604,36 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.timers.Store(timers)
 	internal = append(internal, timers.Tools()...)
 	a.goRun(ctx, "timers", timers.Run)
+	// Mira's alarm at any satellite: an automation in Home Assistant
+	// (docs/spec/alarm.md); a once-alarm is deleted after it rang.
+	alarms := alarm.New(alarm.Options{
+		Lang: a.lang, HA: a.ha, Own: a.store, Logger: a.log,
+		Watch: func(ctx context.Context, entities []string, changed func()) (func(), error) {
+			w, err := a.ha.WatchStates(ctx, haws.StateFilter{EntityIDs: entities}, changed)
+			if err != nil {
+				return nil, err
+			}
+			return w.Stop, nil
+		},
+		Speaker:  func(sat string) string { return a.speakerOf(ctx, a.entityDevice(sat)) },
+		Features: a.supportedFeatures,
+		SoundURL: func(ctx context.Context, name string) string {
+			return strings.TrimRight(a.haAddress(ctx), "/") + satellite.SoundPath + name + ".mp3"
+		},
+		AreaName: func(id string) string {
+			if name := snapshot().AreaNames[id]; name != "" {
+				return name
+			}
+			return id
+		},
+		Forbidden: func() map[string]any {
+			domains, entities := a.hooks.Forbidden(snapshot())
+			return map[string]any{"domains": nonEmpty(domains), "entities": nonEmpty(entities)}
+		},
+	})
+	a.alarms.Store(alarms)
+	internal = append(internal, alarms.Tools()...)
+	a.goRun(ctx, "alarms", alarms.Run)
 	// Radio on the room's speaker (docs/spec/radio.md), only without Music
 	// Assistant players, which then play radio as music
 	// (docs/spec/music-players.md, part 4).
@@ -908,6 +940,9 @@ func (a *app) startHA(ctx context.Context) error {
 			a.structure.Invalidate()
 			if t := a.timers.Load(); t != nil {
 				t.Poke()
+			}
+			if al := a.alarms.Load(); al != nil {
+				al.Poke()
 			}
 			a.started.up(ctx, true, false)
 			// Home Assistant's MCP server is down while it restarts: a

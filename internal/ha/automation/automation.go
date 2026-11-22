@@ -29,9 +29,10 @@ type HA interface {
 // timer ("Mira: einmalig"); Keep labels nothing, for a household task
 // changed by Mira, which keeps its own.
 const (
-	LabelTask = "tasks"
-	LabelOnce = "once"
-	Keep      = ""
+	LabelTask  = "tasks"
+	LabelOnce  = "once"
+	LabelAlarm = "alarm"
+	Keep       = ""
 )
 
 // Own is Mira's note of the automations she created (the store's table
@@ -46,8 +47,9 @@ type Own interface {
 
 // The kinds an own automation is noted with.
 const (
-	KindTask = "task"
-	KindOnce = "once"
+	KindTask  = "task"
+	KindOnce  = "once"
+	KindAlarm = "alarm"
 )
 
 // ErrNotOwn: the automation is not one Mira created; it is not deleted.
@@ -69,8 +71,11 @@ func Save(ctx context.Context, ha HA, own Own, log *slog.Logger, id string, conf
 	}
 	if label != Keep {
 		kind := KindTask
-		if label == LabelOnce {
+		switch label {
+		case LabelOnce:
 			kind = KindOnce
+		case LabelAlarm:
+			kind = KindAlarm
 		}
 		if err := own.RecordOwnAutomation(ctx, id, kind); err != nil {
 			// docs/spec/hacs-default.md, 4: saved all the same; Mira cannot

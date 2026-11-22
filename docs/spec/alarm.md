@@ -1,6 +1,7 @@
 # Alarm – spec
 
-Status 2026-11-22: step 1 (the trial on the test HA) done, step 2 (the wake sound) built; steps 3 to 5 open. Scenarios: [alarm.feature](alarm.feature).
+Status 2026-11-22: steps 1 to 3 done (the trial, the wake sound, setting, listing and deleting); steps 4 (radio and light)
+and 5 (the guide) open. Scenarios: [alarm.feature](alarm.feature).
 
 ## Goal
 
@@ -46,18 +47,22 @@ Departures, with the reason:
 | 13 | An alarm that could not ring | The automation reports it, and the person gets a message |
 | 14 | Asked without a satellite (Telegram, the companion app) | Nothing is set; Mira says that she sets an alarm only at a satellite, in the room where it is to ring. Not chosen: asking for the room (more logic) |
 | 15 | Deleting an alarm while it rings | The volume goes back as after a reaction: the tool does not delete a ringing alarm at once but fires the event `mira_alarm_cancel` with the automation's id; the run stops the round (`media_stop`), sets the volume back and ends; then the tool deletes it |
+| 16 | How the skill sets it | The skill `wecker` stays a thread (fields `time`, `days`), as before: its finish is the core building block `alarm.set`, its undo `alarm.delete_created`, so "Nein, halb sieben" takes the alarm back with `thread_undo` ([Skill actions](skill-actions.md), Correcting instead of starting over). Each voice turn is a new conversation; only the thread carries the alarm just set into the next turn. The tool `alarm` only lists and deletes, so there is one way to set an alarm. Not chosen (tried 2026-11-22): the tool setting it, which made "Nein, halb sieben" a second alarm |
+| 17 | What the model keeps when it corrects | The answer of `thread_undo` names the fields of the thread taken back ("time=06:00, days=weekdays"), for every skill with an undo; what the user does not change stays. Seen 2026-11-22: with the request alone, "werktags" was lost |
+| 18 | The same alarm twice | `alarm.set` sets no second alarm with the same time and days for the same person in the same room, as a TECHO5's `alarm_set` turns on the one it has. Seen 2026-11-22: the model started the thread twice in one turn |
 
 ## What it does
 
 ### Setting
 
-"Weck mich morgen um 6" at a satellite: the tool `alarm` with `time`, `days` (empty: once), and optionally
-`station` (radio) and `light` (on, slowly).
+"Weck mich morgen um 6" at a satellite: the thread of the skill `wecker` with `time`, `days` (empty: once), and,
+with step 4, `station` (radio) and `light` (on, slowly); its finish `alarm.set` gets them with the place (satellite,
+area, person) (decision 16).
 
 1. Mira finds the satellite of the turn, its area and its speaker (the `media_player` of the satellite's device).
    Without a satellite (Telegram, a companion app): nothing is set, the tool says so (decision 14).
-2. Mira builds the automation (below) and saves it through the integration (`mira/alarm/build`, as
-   `mira/once/build`, admins only), labelled `mira_alarm`, the person and the area in its variables.
+2. Mira builds the automation (below), has the integration check it (`mira/automation/validate`, admins only) and
+   saves it, labelled `mira_alarm`, the person and the area in its variables.
 3. Mira says what is set: time, day, room, and what it wakes with ("Wecker steht: morgen, 6 Uhr, mit SWR3.").
 
 What it costs: one integration call to build and check, one to save, one reload of automations; with a station, one
@@ -214,8 +219,7 @@ ended within half a second); then it deletes the automation.
 
 | Where | What fails | What happens | Who learns of it |
 |---|---|---|---|
-| Setting | the satellite has no `ANNOUNCE` | nothing is set | the user: "Hier kann ich keinen Wecker stellen." |
-| Setting | the satellite has no speaker whose volume can be set | nothing is set (decision 9) | the user: "Hier kann ich keinen Wecker stellen." |
+| Setting | the satellite's device has no speaker, or one that cannot set its volume or play an announcement (`supported_features` without `VOLUME_SET` or `MEDIA_ANNOUNCE`) | nothing is set (decision 9) | the user: "Hier kann ich keinen Wecker stellen." |
 | Setting | the integration is missing or refuses (`NotAllowed`) | nothing is set | the user ("Den Wecker konnte ich nicht stellen"), the log with the refusal |
 | Setting | the station is not found | nothing is set; Mira asks for the station | the user, as `radio_play` |
 | Setting | saving or reloading fails | nothing is set | the user and the log, with Home Assistant's answer |
@@ -231,9 +235,10 @@ ended within half a second); then it deletes the automation.
    the state table. Failure: a row that does not hold changes this spec before anything is built.
 2. **The wake sound** in the binary: `wake_rise`, `wake_loop`, the script that renders them next to them, a line in
    the sounds' licence file.
-3. **The tool `alarm`** (`set`, `list`, `delete`) and `mira/alarm/build` in the integration; the skill `wecker` calls
-   the tool instead of its skill action. The tool's description tells the model the fields and that the room is the
-   satellite's.
+3. **The building blocks `alarm.set` and `alarm.delete_created`** for the thread of the skill `wecker` (decision 16),
+   the tool `alarm` (`list`, `delete`), the automation built by the service and checked by the integration
+   (`mira/automation/validate`); the integration lists and labels by any of Mira's labels (`mira/automation/list`
+   and `mira/automation/label` with `label: alarm`), so it holds nothing of the alarm itself. Built 2026-11-22.
 4. **Radio and light** (decisions 10 and 11).
 5. **The guide** (both languages): "Weck mich" at every satellite, with radio and light; that an alarm set at a TECHO5
    itself is the device's own.

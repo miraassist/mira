@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/miraassist/mira/internal/alarm"
 	"github.com/miraassist/mira/internal/calendar"
 	"github.com/miraassist/mira/internal/todo"
 	"github.com/miraassist/mira/internal/trace"
@@ -18,9 +19,18 @@ type haActions struct{ a *app }
 // core is a building block of the core a skill's action may name where Home
 // Assistant has no action or Mira checks before it (docs/spec/skill-actions.md):
 // the finish and the undo of termin (docs/spec/calendar.md), the finish of
-// todo (docs/spec/todo-due.md).
+// todo (docs/spec/todo-due.md), the finish and the undo of wecker
+// (docs/spec/alarm.md).
 func (h haActions) core(action string) func(context.Context, map[string]any) error {
 	switch action {
+	case alarm.ActionSet:
+		if al := h.a.alarms.Load(); al != nil {
+			return al.SetAction
+		}
+	case alarm.ActionDeleteCreated:
+		if al := h.a.alarms.Load(); al != nil {
+			return al.DeleteCreated
+		}
 	case "calendar.delete_created":
 		if h.a.calendar != nil {
 			return h.a.calendar.DeleteCreated

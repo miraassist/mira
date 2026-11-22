@@ -19,6 +19,11 @@ LABEL_CONFIRM = "mira_confirm"
 # "Mira: einmalig": an automation that runs once and is then removed by the
 # integration (once.py). Not a task, so it is not in the task list.
 LABEL_ONCE = "mira_once"
+# "Mira: Wecker": Mira's alarms (docs/spec/alarm.md). Not a task.
+LABEL_ALARM = "mira_alarm"
+# The labels the service puts on the automations it saves, and lists them by,
+# by the word it names them with (mira/automation/label and list).
+AUTOMATION_LABELS = {"tasks": LABEL_TASKS, "once": LABEL_ONCE, "alarm": LABEL_ALARM}
 # "Mira: privater Bereich": an area whose conversations, threads and plans
 # stay there, even for a known person. The service reads it from the area
 # registry itself.
@@ -52,6 +57,15 @@ _LABELS: dict[str, tuple[str, str, str, dict[str, tuple[str, str]]]] = {
         {
             "de": ("Mira: einmalig", "Läuft einmal und räumt sich dann auf (Schlaf-Timer)."),
             "en": ("Mira: once", "Runs once and then removes itself (sleep timer)."),
+        },
+    ),
+    LABEL_ALARM: (
+        "mira_alarm",
+        "mdi:alarm",
+        "blue",
+        {
+            "de": ("Mira: Wecker", "Ein Wecker, den Mira gestellt hat."),
+            "en": ("Mira: alarm", "An alarm Mira set."),
         },
     ),
     LABEL_PRIVATE: (
