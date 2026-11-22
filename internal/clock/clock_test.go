@@ -163,3 +163,29 @@ func TestCK10_DriveLetsEveryWaitOfTheCodeRunOut(t *testing.T) {
 		t.Errorf("woke %v", woke)
 	}
 }
+
+func TestCK11_AWaitOfZeroFiresAtOnce(t *testing.T) {
+	f := NewFake(ten)
+	if at, ok := fired(f.After(0)); !ok || !at.Equal(ten) {
+		t.Errorf("After(0) fired %v at %s", ok, at)
+	}
+	ran := make(chan struct{})
+	f.AfterFunc(-time.Second, func() { close(ran) })
+	<-ran
+	if f.Waiters() != 0 {
+		t.Errorf("waiters %d", f.Waiters())
+	}
+}
+
+func TestCK12_TheClockNeverGoesBack(t *testing.T) {
+	f := NewFake(ten)
+	defer func() {
+		if recover() == nil {
+			t.Error("Set before now did not panic")
+		}
+		if !f.Now().Equal(ten) {
+			t.Errorf("now %s", f.Now())
+		}
+	}()
+	f.Set(ten.Add(-time.Minute))
+}

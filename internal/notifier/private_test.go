@@ -22,7 +22,7 @@ func private(receiver string) func(*store.Message) {
 func TestPS01_APrivateMessageGoesOutOverTheChannelsAtTheTick(t *testing.T) {
 	e := newEnv(t, nil)
 	e.message("posts", 1, private("ben"))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent["notify.ben"]) != 1 {
 		t.Fatalf("sent = %v, telegram = %v", sent, e.tg.sent)
 	}
@@ -40,7 +40,7 @@ func TestPS01_APrivateMessageGoesOutOverTheChannelsAtTheTick(t *testing.T) {
 func TestPS02_APrivateMessageIsNeverSpoken(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Notifier.ConfidentialVoice = config.ConfidentialVoiceWhenAlone })
 	e.message("posts", 2, private("ben"))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	ctx := context.Background()
 	if w, err := e.n.waiting(ctx, "bad"); err != nil || len(w) != 0 {
 		t.Fatalf("a private message counts as waiting: %v %v", w, err)
@@ -81,7 +81,7 @@ func TestAPrivateMessageOfTheHouseGoesToEveryPersonWithAChannel(t *testing.T) {
 		c.Persons["martin"] = config.Person{Entity: "person.martin"}
 	})
 	e.message("fenster", 2, private(store.ReceiverHouse))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent["notify.ben"]) != 1 || len(e.tg.sent["notify.anna"]) != 1 {
 		t.Fatalf("sent = %v, channels = %v", sent, e.tg.sent)
 	}
@@ -109,7 +109,7 @@ func TestPS09_APrivateMessageToATelegramChatKeepsItsMarkdownAndParses(t *testing
 	}
 	e.message("ben-list", 1, func(n *store.Message) { private("ben")(n); text(n) })
 	e.message("anna-list", 1, func(n *store.Message) { private("anna")(n); text(n) })
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	e.tick()
 	// Then the Telegram chat gets the "_" of the address and the name escaped and "_kursiv_" as it is
 	tg := strings.Join(e.tg.sent["notify.telegram_ben"], "\n")
@@ -133,7 +133,7 @@ func TestPS10_AMessageTelegramCannotParseIsNotTriedAgain(t *testing.T) {
 		Message: "Can't parse entities: can't find end of the entity starting at byte offset 221"}}
 	e.message("posts", 1, private("ben"))
 	// When the private delivery runs
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	e.tick()
 	// Then the message is failed at once, after one attempt, with a log line
 	if st := e.state("posts"); st != store.MessageFailed || e.tg.tries["notify.ben"] != 1 {

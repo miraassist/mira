@@ -14,7 +14,7 @@ import (
 func (e *env) thread(id, place string) {
 	e.t.Helper()
 	if err := e.st.PutThread(context.Background(), &store.Thread{ID: id, Target: "termin", Place: place,
-		State: store.ThreadCollecting, ExpiresAt: e.now.Add(72 * 3600e9)}); err != nil {
+		State: store.ThreadCollecting, ExpiresAt: e.clk.Now().Add(72 * 3600e9)}); err != nil {
 		e.t.Fatal(err)
 	}
 }

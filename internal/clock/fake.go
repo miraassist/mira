@@ -1,6 +1,7 @@
 package clock
 
 import (
+	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -36,14 +37,25 @@ func (f *Fake) Until(t time.Time) time.Duration { return t.Sub(f.Now()) }
 
 func (f *Fake) After(d time.Duration) <-chan time.Time { return f.NewTimer(d).C() }
 
+// NewTimer is a timer of d; one of d <= 0 fires at once, as time's does.
 func (f *Fake) NewTimer(d time.Duration) Timer {
 	t := &fakeTimer{f: f, c: make(chan time.Time, 1)}
+	if d <= 0 {
+		t.c <- f.Now()
+		return t
+	}
 	f.arm(t, d)
 	return t
 }
 
+// AfterFunc runs fn after d; with d <= 0 at once in its own goroutine, as
+// time's does.
 func (f *Fake) AfterFunc(d time.Duration, fn func()) Timer {
 	t := &fakeTimer{f: f, fn: fn}
+	if d <= 0 {
+		go fn()
+		return t
+	}
 	f.arm(t, d)
 	return t
 }
@@ -67,14 +79,17 @@ func (f *Fake) Advance(d time.Duration) {
 	f.Set(target)
 }
 
-// Set moves the clock to t and fires what is due; a t before now is ignored.
+// Set moves the clock to t and fires what is due. A t before now panics:
+// the clock never goes back, and a test that moves it back is wrong.
 func (f *Fake) Set(t time.Time) {
+	f.mu.Lock()
+	if now := f.now; t.Before(now) {
+		f.mu.Unlock()
+		panic(fmt.Sprintf("clock: Set(%s) before now %s", t.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)))
+	}
+	f.mu.Unlock()
 	for {
 		f.mu.Lock()
-		if t.Before(f.now) {
-			f.mu.Unlock()
-			return
-		}
 		next := f.earliest()
 		if next == nil || next.when.After(t) {
 			f.now = t

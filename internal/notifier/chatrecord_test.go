@@ -49,7 +49,7 @@ func TestTC08_ADeliveryToAChatIsRecordedInTheChatsHistory(t *testing.T) {
 	e := newEnv(t, nil)
 	f := withChat(t, e, true)
 	e.message("posts", 1, private("ben"))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	if sent := e.tick(); len(sent) != 1 {
 		t.Fatalf("sent = %v", sent)
 	}
@@ -74,7 +74,7 @@ func TestTC09_ADeliveryToAnotherChannelIsNotRecorded(t *testing.T) {
 	e := newEnv(t, nil)
 	f := withChat(t, e, false)
 	e.message("posts", 1, private("ben"))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	if sent := e.tick(); len(sent) != 1 {
 		t.Fatalf("sent = %v", sent)
 	}
@@ -89,7 +89,7 @@ func TestTC10_AFailedRecordLeavesTheDeliveryDelivered(t *testing.T) {
 	f := withChat(t, e, true)
 	f.fail = errors.New("disk full")
 	e.message("posts", 1, private("ben"))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	e.tick()
 	if st := e.state("posts"); st != store.MessageDelivered {
 		t.Errorf("state = %q, want delivered", st)
@@ -107,7 +107,7 @@ func TestTC11_AFailedSendWritesNoRecord(t *testing.T) {
 	f := withChat(t, e, true)
 	e.tg.fail = map[string]error{"notify.ben": errors.New("telegram down")}
 	e.message("posts", 1, private("ben"))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	e.tick()
 	if len(f.got) != 0 {
 		t.Errorf("records: %+v", f.got)

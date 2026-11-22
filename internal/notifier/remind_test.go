@@ -23,13 +23,13 @@ func (e *env) reminder(id string, due time.Time, area, receiver string) {
 // quiet hours (it is 03:00 in the env): the user chose the time.
 func TestReminderIsSpokenInItsRoomAtItsTime(t *testing.T) {
 	e := newEnv(t, nil)
-	e.reminder("r1", e.now.Add(time.Minute), "kueche", store.ReceiverHouse)
+	e.reminder("r1", e.clk.Now().Add(time.Minute), "kueche", store.ReceiverHouse)
 
 	e.n.DueMessages(context.Background())
 	if len(e.ha.servicesCalled()) != 0 {
 		t.Fatal("delivered before its time")
 	}
-	e.now = e.now.Add(2 * time.Minute)
+	e.clk.Advance(2 * time.Minute)
 	e.n.DueMessages(context.Background())
 	called := e.ha.servicesCalled()
 	if len(called) != 1 || !strings.HasPrefix(called[0], "assist_satellite.") {
@@ -55,9 +55,9 @@ func TestReminderIsSpokenInItsRoomAtItsTime(t *testing.T) {
 // Without a room, or with quiet mode on, the reminder goes privately.
 func TestReminderWithoutRoomGoesPrivately(t *testing.T) {
 	e := newEnv(t, nil)
-	e.reminder("r1", e.now, "", "ben")
+	e.reminder("r1", e.clk.Now(), "", "ben")
 	e.st.SetBool(context.Background(), store.KeyQuietMode, true)
-	e.reminder("r2", e.now, "bad", store.ReceiverHouse)
+	e.reminder("r2", e.clk.Now(), "bad", store.ReceiverHouse)
 
 	e.n.DueMessages(context.Background())
 	if len(e.ha.servicesCalled()) != 0 {
@@ -75,7 +75,7 @@ func TestTellWaitsForIdleSatellite(t *testing.T) {
 	sat := e.n.primary("kueche")
 	e.ha.set(sat, "responding", nil)
 	go func() {
-		time.Sleep(50 * time.Millisecond)
+		<-e.ha.awaitWaiting(sat)
 		if len(e.ha.servicesCalled()) != 0 {
 			t.Error("spoke over the busy satellite")
 		}
@@ -127,28 +127,26 @@ func TestFB09_AStartConversationThatRunsOutOfTimeCountsAsSpokenOnlyWhenTheSatell
 // announcement waits for the speaker, then a breath.
 func TestTellLetsTheSatelliteFinishSpeaking(t *testing.T) {
 	e := newEnv(t, nil)
-	e.n.speakPause = 50 * time.Millisecond
+	e.n.speakPause = 1500 * time.Millisecond
 	e.ha.set("media_player.kueche", "playing", nil)
-	done := make(chan time.Time, 1)
+	done := make(chan struct{})
 	go func() {
 		e.n.Tell(context.Background(), store.Message{ID: "p1", Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "p1",
 			Importance: 2, Receiver: store.ReceiverHouse, Spoken: "Mein Vorschlag."}, "kueche")
-		done <- time.Now()
+		close(done)
 	}()
-	time.Sleep(100 * time.Millisecond)
+	<-e.ha.awaitWaiting("media_player.kueche")
 	if len(e.ha.servicesCalled()) != 0 {
 		t.Fatal("announced while the speaker still played")
 	}
-	stopped := time.Now()
 	e.ha.set("media_player.kueche", "idle", nil)
-	select {
-	case at := <-done:
-		if at.Sub(stopped) < 50*time.Millisecond {
-			t.Error("no breath after the speaker stopped")
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("not announced after the speaker stopped")
+	<-e.ha.awaitReturned("media_player.kueche", 1)
+	<-e.clk.AwaitWaiters(1) // the breath after the speaker stopped
+	if len(e.ha.servicesCalled()) != 0 {
+		t.Fatal("no breath after the speaker stopped")
 	}
+	e.clk.Advance(e.n.speakPause)
+	<-done
 	if len(e.ha.servicesCalled()) != 1 {
 		t.Errorf("services: %v", e.ha.servicesCalled())
 	}
@@ -158,24 +156,23 @@ func TestTellLetsTheSatelliteFinishSpeaking(t *testing.T) {
 // loop goes on meanwhile, and one being delivered is not started twice.
 func TestDueRemindersDoNotBlockTheLoop(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	sat := e.n.primary("kueche")
 	e.ha.set(sat, "responding", nil) // busy: the reminder must wait
 	e.reminder("r1", at("07:59"), "kueche", "ben")
 	ctx := context.Background()
 	returned := make(chan struct{})
 	go func() { e.n.dueInBackground(ctx); e.n.dueInBackground(ctx); close(returned) }()
-	select {
-	case <-returned:
-	case <-time.After(time.Second):
-		t.Fatal("the loop waits for the busy satellite")
+	<-returned // the loop does not wait for the busy satellite (else go test's timeout names it)
+	e.n.mu.Lock()
+	started := len(e.n.delivering)
+	e.n.mu.Unlock()
+	if started != 1 {
+		t.Errorf("%d deliveries started", started)
 	}
+	<-e.ha.awaitWaiting(sat)
 	e.ha.set(sat, "idle", nil)
-	deadline := time.Now().Add(3 * time.Second)
-	for e.state("r1") != store.MessageDelivered && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-	time.Sleep(100 * time.Millisecond)
+	<-e.ha.awaitCall(func(c call) bool { return c.Domain == "assist_satellite" })
 	if called := e.ha.servicesCalled(); len(called) != 1 {
 		t.Errorf("services %v: delivered %d times", called, len(called))
 	}
@@ -208,10 +205,11 @@ func TestFB11_AMessageForABusySatelliteWaitsUntilItIsIdle(t *testing.T) {
 		done <- e.n.Tell(context.Background(), store.Message{ID: "p1", Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "p1",
 			Importance: 2, Receiver: "ben", Spoken: "Mein Vorschlag."}, "kueche")
 	}()
+	<-e.ha.awaitWaiting(sat)
 	select {
 	case err := <-done:
 		t.Fatalf("delivered while the satellite was busy: %v, %v", err, e.ha.servicesCalled())
-	case <-time.After(200 * time.Millisecond):
+	default:
 	}
 	e.ha.set(sat, "idle", map[string]any{"supported_features": float64(1)})
 	if err := <-done; err != nil {

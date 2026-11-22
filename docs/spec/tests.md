@@ -1,6 +1,6 @@
 # Tests without time – spec
 
-Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads built. Scenarios:
+Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads and the notifier built. Scenarios:
 [tests.feature](tests.feature). The inventory behind it (private): `docs/test-review.local.md`.
 
 ## Goal
@@ -43,7 +43,8 @@ func NewFake(now time.Time) *Fake // a test's clock
 - **The fake clock** stands still until the test moves it:
   - `Advance(d)` moves it by `d` and fires every timer and ticker that is due, in the order of their times; a ticker
     fires once for each period it passes. An `AfterFunc` runs inside `Advance`, so when `Advance` returns, it has run.
-  - `Set(t)` moves it to `t` (never back).
+  - `Set(t)` moves it to `t`; a `t` before now panics (CK-12): the clock never goes back, and a test that moves it
+    back is wrong (it hid such tests while `Set` ignored it).
   - `AdvanceToNext()` moves it to the earliest pending timer and fires it: for a test that drives code through its
     waits one by one, without knowing their lengths.
   - `Drive(fn)` runs `fn` and lets each wait of the code run out while `fn` runs (moving to the next timer whenever the
@@ -72,8 +73,9 @@ func NewFake(now time.Time) *Fake // a test's clock
    green `check.sh --release` before each commit: threads (InlineWait, AgentWait, the expiry ticker; built 2026-11-22:
    `Options.Clock` is a `clock.Clock`, the fake finisher holds on a gate, a turn whose wait runs out is driven with
    `Drive`; users of threads outside the package that pass no clock still wait in real time until their package is
-   converted), notifier (`speakPause`,
-   `speakingStart`, waits for states), ha/ws (backoff, `WaitState`), ha/structure (debounce), mcp (retry ticker),
+   converted), notifier (`speakPause`, `speakingStart`, waits for states; built 2026-11-22: `Options.Clock` is a
+   `clock.Clock`; the fake Home Assistant's `WaitState` runs out on the clock and reports a wait begun, a wait returned
+   and each call; the fake trigger subscription reports what it subscribed), ha/ws (backoff, `WaitState`), ha/structure (debounce), mcp (retry ticker),
    devices (Gather, EntryWait), agent (attempt timeout, run time), a2a (card retry), conversation (fakellm: gate instead
    of `Delay`/`PieceDelay`), matter, programs, setup, zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch),
    waiting, clip, voicemail, heard, cmd/mira (a ready signal of `runAgent`, `fakeha.Await`).

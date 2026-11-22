@@ -17,25 +17,20 @@ func indicateEnv(t *testing.T) *env {
 		c.Notifier.MorningTrigger.Areas = []string{"bad"} // the kitchen does not announce on entry, it shows
 		c.Notifier.Indicators = map[string]config.Entities{"kueche": {"light.ring"}}
 	})
-	e.now = at("08:00") // after quiet hours
-	// The fake satellite never speaks: the ring is restored at once.
-	e.n.speakingStart = 20 * time.Millisecond
+	e.clk.Set(at("08:00")) // after quiet hours
 	return e
 }
 
-// waitSpoken waits until no indicator glows for an announcement.
-func (e *env) waitSpoken() {
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		e.n.mu.Lock()
-		n := len(e.n.speakingIn)
-		e.n.mu.Unlock()
-		if n == 0 {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	e.t.Fatal("indicator still glowing for an announcement")
+// neverSpeaks lets the wait for the satellite to start speaking run out: the
+// fake satellite never speaks.
+func (e *env) neverSpeaks(sat string) {
+	<-e.ha.awaitWaiting(sat)
+	e.clk.Advance(e.n.speakingStart)
+}
+
+// isLight matches the calls to lights, with the service when one is given.
+func isLight(service string) func(call) bool {
+	return func(c call) bool { return c.Domain == "light" && (service == "" || c.Service == service) }
 }
 
 func (e *env) lightCalls() []call {
@@ -99,7 +94,7 @@ func TestIndicateShowsInsteadOfSpeaking(t *testing.T) {
 // anyway.
 func TestIndicateAtNightAndUrgent(t *testing.T) {
 	e := indicateEnv(t)
-	e.now = at("02:00")
+	e.clk.Set(at("02:00").Add(24 * time.Hour)) // the next night
 	e.message("n1", 1, nil)
 	e.tick()
 	if lights := e.lightCalls(); len(lights) != 1 || lights[0].Service != "turn_on" {
@@ -110,9 +105,15 @@ func TestIndicateAtNightAndUrgent(t *testing.T) {
 	if e.state("leak") != store.MessageDelivered {
 		t.Error("urgent message waited for the question")
 	}
+	// The urgent announcement's glow ends: the ring shows the waiting message again.
+	before := len(e.lightCalls())
+	e.neverSpeaks(e.n.primary("kueche"))
+	<-e.ha.awaitCalls(before+1, isLight(""))
+	if lights := e.lightCalls(); len(lights) != before+1 || lights[before].Service != "turn_on" {
+		t.Errorf("ring after the announcement: %+v", lights)
+	}
 	// Expiry turns the ring off.
-	e.waitSpoken() // the urgent announcement's glow ends
-	e.now = e.now.Add(49 * time.Hour)
+	e.clk.Advance(49 * time.Hour)
 	e.tick()
 	if lights := e.lightCalls(); lights[len(lights)-1].Service != "turn_off" {
 		t.Errorf("ring on after expiry: %+v", lights)
@@ -151,7 +152,7 @@ func TestAfterwordFollowsAnAnswer(t *testing.T) {
 		t.Errorf("said twice: %q", got)
 	}
 	e.message("n2", 1, nil)
-	e.now = at("01:00")
+	e.clk.Set(at("01:00").Add(24 * time.Hour)) // the next night
 	if got := e.n.Afterword(context.Background(), "kueche", ""); got != "" {
 		t.Errorf("news at night: %q", got)
 	}
@@ -167,24 +168,17 @@ func TestRingGlowsWhileAnnouncing(t *testing.T) {
 		Importance: 2, Receiver: store.ReceiverHouse, Spoken: "Mein Vorschlag."}, "kueche"); err != nil {
 		t.Fatal(err)
 	}
+	// The satellite speaks: the glow waits for its end.
+	<-e.ha.awaitWaiting(sat)
+	blocked := e.ha.blocks(sat)
 	e.ha.set(sat, "responding", nil)
-	time.Sleep(50 * time.Millisecond)
+	<-e.ha.awaitBlocked(sat, blocked+1)
 	lights := e.lightCalls()
 	if len(lights) != 1 || lights[0].Service != "turn_on" || lights[0].Data["effect"] != "None" {
 		t.Fatalf("ring not lit steadily, or switched while speaking: %+v", lights)
 	}
 	e.ha.set(sat, "listening", nil)
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		l := e.lightCalls()
-		if last := l[len(l)-1]; last.Service == "turn_off" {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("ring not off when the text ended: %+v", l)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	<-e.ha.awaitCall(isLight("turn_off")) // the ring goes off when the text ended
 }
 
 // Without an indicator light, a satellite whose device offers an overlay
@@ -193,7 +187,7 @@ func TestRingGlowsWhileAnnouncing(t *testing.T) {
 func TestScreenOverlayShowsWaitingMessages(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
 	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	overlays := func() []call {
 		var out []call
 		for _, c := range e.ha.calls {
@@ -230,7 +224,7 @@ func TestScreenOverlayShowsWaitingMessages(t *testing.T) {
 func TestOwnMessageHold(t *testing.T) {
 	e := indicateEnv(t)
 	e.message("n1", 1, func(n *store.Message) {
-		n.OriginArea, n.CreatedAt = "kueche", e.now
+		n.OriginArea, n.CreatedAt = "kueche", e.clk.Now()
 		n.Spoken = "Der Müll muss raus"
 	})
 	e.tick()
@@ -246,13 +240,13 @@ func TestOwnMessageHold(t *testing.T) {
 		t.Errorf("read out in the sender's room: %+v", r)
 	}
 	// Another room hears it at once; a message left there is held back there.
-	e.message("n2", 1, func(n *store.Message) { n.OriginArea, n.CreatedAt = "bad", e.now })
+	e.message("n2", 1, func(n *store.Message) { n.OriginArea, n.CreatedAt = "bad", e.clk.Now() })
 	if out := e.presence("bad"); len(out.Announced) != 1 || out.Announced[0] != "n1" {
 		t.Errorf("announced on entry in the bathroom: %+v", out)
 	}
 
-	e.message("n3", 1, func(n *store.Message) { n.OriginArea, n.CreatedAt = "kueche", e.now })
-	e.now = e.now.Add(11 * time.Minute)
+	e.message("n3", 1, func(n *store.Message) { n.OriginArea, n.CreatedAt = "kueche", e.clk.Now() })
+	e.clk.Advance(11 * time.Minute)
 	e.tick()
 	if lights := e.lightCalls(); len(lights) == 0 || lights[len(lights)-1].Service != "turn_on" {
 		t.Errorf("no ring after the hold: %+v", lights)
@@ -266,7 +260,7 @@ func TestOwnMessageHold(t *testing.T) {
 func TestOwnMessageHoldOff(t *testing.T) {
 	e := indicateEnv(t)
 	e.n.cfg.OwnMessageHold = 0
-	e.message("n1", 1, func(n *store.Message) { n.OriginArea, n.CreatedAt = "kueche", e.now })
+	e.message("n1", 1, func(n *store.Message) { n.OriginArea, n.CreatedAt = "kueche", e.clk.Now() })
 	e.tick()
 	if lights := e.lightCalls(); len(lights) != 1 {
 		t.Errorf("ring: %+v", lights)
@@ -312,7 +306,7 @@ func TestAB12_TheScreenCountsBoth(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
 	e.n.phone = func(context.Context) (PhoneNews, error) { return news, nil }
 	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	e.n.SyncIndicators(context.Background())
 	e.n.SyncIndicators(context.Background()) // nothing new: no overlay again
 	var got []call
@@ -333,7 +327,7 @@ func TestAB35_ThePlayingSatelliteGetsNoNewHintUntilItEnds(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
 	e.n.phone = func(context.Context) (PhoneNews, error) { return news, nil }
 	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify", "assist_satellite.bad": "esphome.bad_notify"}
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	ctx := context.Background()
 	e.n.SyncIndicators(ctx)
 	shown := func(action string) []string {
@@ -365,7 +359,7 @@ func TestAB37_AHintWaitsWhileTheSatelliteIsInAConversation(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
 	e.n.phone = func(context.Context) (PhoneNews, error) { return news, nil }
 	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	sat := e.n.primary("kueche")
 	e.ha.set(sat, "listening", nil)
 	e.n.SyncIndicators(context.Background())
@@ -384,10 +378,7 @@ func TestAB37_AHintWaitsWhileTheSatelliteIsInAConversation(t *testing.T) {
 		t.Fatalf("a hint over the listening satellite: %d", n)
 	}
 	e.ha.set(sat, "idle", nil)
-	deadline := time.Now().Add(2 * time.Second)
-	for overlays() == 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
+	<-e.ha.awaitCall(func(c call) bool { return c.Domain == "esphome" })
 	if n := overlays(); n != 1 {
 		t.Errorf("hint once idle: %d", n)
 	}
@@ -410,7 +401,7 @@ func TestAB41_AScreenHintIsTakenDownWhenEverythingWasHeard(t *testing.T) {
 	news := PhoneNews{Messages: 1}
 	e := phoneEnv(t, &news)
 	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	ctx := context.Background()
 	e.message("n1", 1, nil)
 	e.n.SyncIndicators(ctx)
@@ -443,7 +434,7 @@ func TestAB42_FirmwareWithoutTheClearAction(t *testing.T) {
 	news := PhoneNews{Messages: 1}
 	e := phoneEnv(t, &news)
 	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	ctx := context.Background()
 	e.n.SyncIndicators(ctx)
 	logs := e.logs()

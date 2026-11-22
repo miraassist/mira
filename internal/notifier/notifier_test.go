@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/miraassist/mira/internal/clock"
 	"log/slog"
 	"regexp"
 	"slices"
@@ -49,6 +50,87 @@ type fakeHA struct {
 	// platforms are the integrations of entities, as the entity registry
 	// has them; an entity not there is not found.
 	platforms map[string]string
+	// clk is the test's clock: a WaitState's limit runs out on it.
+	clk *clock.Fake
+	// blocked counts, per entity, how often a WaitState went to wait on it;
+	// waiting is how many wait on it now; returned how many WaitStates on it
+	// returned. Tests await them and the calls through await.
+	blocked, waiting, returned map[string]int
+	watchers                   []watcher
+}
+
+// watcher is a test waiting for the fake to reach a state.
+type watcher struct {
+	ok func() bool
+	ch chan struct{}
+}
+
+// await returns a channel closed once ok holds of the fake (at once when it
+// does); ok runs under f.mu.
+func (f *fakeHA) await(ok func() bool) <-chan struct{} {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ch := make(chan struct{})
+	if ok() {
+		close(ch)
+		return ch
+	}
+	f.watchers = append(f.watchers, watcher{ok, ch})
+	return ch
+}
+
+// notify closes the channels of the watchers whose state was reached. The
+// caller holds f.mu.
+func (f *fakeHA) notify() {
+	keep := f.watchers[:0]
+	for _, w := range f.watchers {
+		if w.ok() {
+			close(w.ch)
+		} else {
+			keep = append(keep, w)
+		}
+	}
+	f.watchers = keep
+}
+
+// awaitWaiting is closed once a WaitState waits on the entity.
+func (f *fakeHA) awaitWaiting(entity string) <-chan struct{} {
+	return f.await(func() bool { return f.waiting[entity] > 0 })
+}
+
+// awaitBlocked is closed once WaitStates went to wait on the entity n times.
+func (f *fakeHA) awaitBlocked(entity string, n int) <-chan struct{} {
+	return f.await(func() bool { return f.blocked[entity] >= n })
+}
+
+// awaitReturned is closed once n WaitStates on the entity returned.
+func (f *fakeHA) awaitReturned(entity string, n int) <-chan struct{} {
+	return f.await(func() bool { return f.returned[entity] >= n })
+}
+
+// blocks is how often WaitStates went to wait on the entity so far.
+func (f *fakeHA) blocks(entity string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.blocked[entity]
+}
+
+// awaitCall is closed once a call that match accepts was made.
+func (f *fakeHA) awaitCall(match func(call) bool) <-chan struct{} {
+	return f.await(func() bool { return slices.ContainsFunc(f.calls, match) })
+}
+
+// awaitCalls is closed once n calls that match accepts were made.
+func (f *fakeHA) awaitCalls(n int, match func(call) bool) <-chan struct{} {
+	return f.await(func() bool {
+		got := 0
+		for _, c := range f.calls {
+			if match(c) {
+				got++
+			}
+		}
+		return got >= n
+	})
 }
 
 func (f *fakeHA) EntityEntry(_ context.Context, id string) (haws.Entity, error) {
@@ -93,6 +175,7 @@ func (f *fakeHA) CallService(_ context.Context, domain, service string, data map
 		return nil
 	}
 	f.calls = append(f.calls, call{domain, service, data, target})
+	f.notify()
 	return f.callErr
 }
 
@@ -139,9 +222,18 @@ func (f *fakeHA) set(entity, state string, attrs map[string]any) {
 	f.mu.Unlock()
 }
 
-// WaitState is Home Assistant's subscription, faked: every set wakes it.
+// WaitState is Home Assistant's subscription, faked: every set wakes it;
+// its limit runs out on the test's clock.
 func (f *fakeHA) WaitState(ctx context.Context, entity string, limit time.Duration, ok func(string) bool) bool {
-	deadline := time.After(limit)
+	timer := f.clk.NewTimer(limit)
+	defer func() {
+		timer.Stop() // before the signal: the limit is no longer a waiter of the clock
+		f.mu.Lock()
+		f.returned[entity]++
+		f.notify()
+		f.mu.Unlock()
+	}()
+	deadline := timer.C()
 	for {
 		f.mu.Lock()
 		state := f.states[entity].State
@@ -149,15 +241,27 @@ func (f *fakeHA) WaitState(ctx context.Context, entity string, limit time.Durati
 			f.changed = make(chan struct{})
 		}
 		changed := f.changed
+		accepted := ok(state)
+		if !accepted {
+			f.blocked[entity]++
+			f.waiting[entity]++
+			f.notify()
+		}
 		f.mu.Unlock()
-		if ok(state) {
+		if accepted {
 			return true
 		}
+		var woke bool
 		select {
 		case <-changed:
+			woke = true
 		case <-deadline:
-			return false
 		case <-ctx.Done():
+		}
+		f.mu.Lock()
+		f.waiting[entity]--
+		f.mu.Unlock()
+		if !woke {
 			return false
 		}
 	}
@@ -195,7 +299,7 @@ type env struct {
 	st  *store.Store
 	ha  *fakeHA
 	tg  *fakePrivate
-	now time.Time
+	clk *clock.Fake
 	t   *testing.T
 	log *syncBuffer
 }
@@ -237,14 +341,14 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	if mutate != nil {
 		mutate(&cfg)
 	}
-	e := &env{log: &syncBuffer{}, cfg: cfg, t: t, now: at("03:00"), tg: &fakePrivate{sent: map[string][]string{}}}
-	e.ha = &fakeHA{states: map[string]haws.State{}, private: e.tg}
+	e := &env{log: &syncBuffer{}, cfg: cfg, t: t, clk: clock.NewFake(at("03:00")), tg: &fakePrivate{sent: map[string][]string{}}}
+	e.ha = &fakeHA{states: map[string]haws.State{}, private: e.tg, clk: e.clk, blocked: map[string]int{}, waiting: map[string]int{}, returned: map[string]int{}}
 	e.ha.set("assist_satellite.bad", "idle", map[string]any{"supported_features": float64(3)})
 	e.ha.set("assist_satellite.kueche", "idle", map[string]any{"supported_features": float64(1)})
 	e.ha.set("person.ben", "home", nil)
 
 	var err error
-	e.st, err = store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: func() time.Time { return e.now }})
+	e.st, err = store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: e.clk.Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +356,7 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	// The registries as Mira keeps them: the fake's devices and entities.
 	entities, _ := e.ha.Entities(context.Background())
 	snap := structure.Build(structure.Registry{Entities: entities})
-	e.n = New(Options{Config: cfg, Store: e.st, HA: e.ha, Clock: func() time.Time { return e.now },
+	e.n = New(Options{Config: cfg, Store: e.st, HA: e.ha, Clock: e.clk,
 		Location: time.UTC, Logger: slog.New(slog.NewTextHandler(e.log, nil)),
 		Structure: func() structure.Snapshot { return snap }, Composer: echoComposer})
 	e.n.speakPause = 0
@@ -285,7 +389,7 @@ var echoMessage = regexp.MustCompile(`^- (?:Nachricht|Message) \[([^\]]+)\]`)
 func (e *env) message(id string, importance int, mutate func(*store.Message)) {
 	e.t.Helper()
 	n := store.Message{ID: id, Source: store.SourceHATrigger, Importance: importance,
-		Spoken: "Hinweis " + id, Details: "Details " + id, ExpiresAt: e.now.Add(48 * time.Hour)}
+		Spoken: "Hinweis " + id, Details: "Details " + id, ExpiresAt: e.clk.Now().Add(48 * time.Hour)}
 	if mutate != nil {
 		mutate(&n)
 	}
@@ -332,7 +436,7 @@ func TestNightFaultIsAnnouncedOnceOnFirstMorningMotion(t *testing.T) {
 	if out := e.presence("bad"); out.Skipped != "quiet hours" {
 		t.Fatalf("03:00 motion: %+v", out)
 	}
-	e.now = at("06:45")
+	e.clk.Set(at("06:45"))
 	var asked string
 	e.n.composer = func(ctx context.Context, instruction string, schema json.RawMessage) (string, error) {
 		asked = instruction
@@ -361,7 +465,7 @@ func TestNightFaultIsAnnouncedOnceOnFirstMorningMotion(t *testing.T) {
 	}
 
 	// More motion right after, here and next door: nothing more to say.
-	e.now = at("06:46")
+	e.clk.Set(at("06:46"))
 	if out := e.presence("bad"); len(out.Announced) != 0 {
 		t.Fatalf("second motion announced again: %+v", out)
 	}
@@ -381,7 +485,7 @@ func TestPresenceRules(t *testing.T) {
 		want    string // Skipped reason, or "announce"
 		service string
 	}{
-		{"quiet hours wrap midnight", func(e *env) { e.now = at("23:10") }, "bad", "quiet hours", ""},
+		{"quiet hours wrap midnight", func(e *env) { e.clk.Set(at("23:10")) }, "bad", "quiet hours", ""},
 		{"quiet mode", func(e *env) { e.st.SetBool(context.Background(), store.KeyQuietMode, true) }, "bad", "quiet mode", ""},
 		{"unknown area", nil, "keller", "no announcing on entry", ""},
 		{"nothing pending", func(e *env) { e.st.SetMessageState(context.Background(), "n1", store.MessageAcked) }, "bad", "nothing pending", ""},
@@ -392,9 +496,6 @@ func TestPresenceRules(t *testing.T) {
 		{"start_conversation when supported", nil, "bad", "announce", "assist_satellite.start_conversation"},
 		{"announce when not", nil, "kueche", "announce", "assist_satellite.announce"},
 		{"expired message", func(e *env) {
-			e.now = at("12:00")
-			e.st.ExpireMessages(context.Background())
-			e.now = at("07:00")
 			e.st.SetMessageState(context.Background(), "n1", store.MessageExpired)
 		}, "bad", "nothing pending", ""},
 	}
@@ -402,7 +503,7 @@ func TestPresenceRules(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			e := newEnv(t, nil)
 			e.message("n1", 2, nil)
-			e.now = at("07:00")
+			e.clk.Set(at("07:00"))
 			if c.setup != nil {
 				c.setup(e)
 			}
@@ -425,10 +526,10 @@ func TestPresenceRules(t *testing.T) {
 
 func TestCooldownPerArea(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("07:00")
+	e.clk.Set(at("07:00"))
 	e.message("a", 2, nil)
 	e.presence("bad")
-	e.now = at("07:10")
+	e.clk.Set(at("07:10"))
 	e.message("b", 2, nil)
 	if out := e.presence("bad"); out.Skipped != "cooldown" {
 		t.Fatalf("within cooldown: %+v", out)
@@ -436,7 +537,7 @@ func TestCooldownPerArea(t *testing.T) {
 	if out := e.presence("kueche"); len(out.Announced) != 1 {
 		t.Fatalf("other area has no cooldown: %+v", out)
 	}
-	e.now = at("07:31")
+	e.clk.Set(at("07:31"))
 	e.message("c", 2, nil)
 	if out := e.presence("bad"); len(out.Announced) != 1 || out.Announced[0] != "c" {
 		t.Fatalf("after cooldown: %+v", out)
@@ -453,7 +554,7 @@ func TestBundlingTakesTheMostImportantThree(t *testing.T) {
 	e.message("n3", 2, reply)
 	e.message("n4", 1, reply)
 	e.message("n5", 2, reply)
-	e.now = at("12:00")
+	e.clk.Set(at("12:00"))
 	out := e.presence("bad")
 	if got := strings.Join(out.Announced, ","); got != "n2,n3,n5" {
 		t.Fatalf("announced %s", got)
@@ -473,7 +574,7 @@ func TestMediaPlayerSatelliteUsesTTS(t *testing.T) {
 		c.Notifier.TTSEntity = "tts.piper"
 	})
 	e.message("n1", 2, nil)
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	e.presence("bad")
 	c := e.ha.calls[0]
 	if c.Domain+"."+c.Service != "tts.speak" || c.Target.EntityID[0] != "tts.piper" || c.Data["media_player_entity_id"] != "media_player.echo_bad" {
@@ -503,7 +604,7 @@ func TestConfidentialMessages(t *testing.T) {
 			})
 			e.ha.set("person.anna", c.anna, nil)
 			e.message("secret", 2, func(n *store.Message) { confidential(n); n.Receiver = "ben" })
-			e.now = at("08:00")
+			e.clk.Set(at("08:00"))
 			out := e.presence("bad")
 			spoken := len(out.Announced) == 1
 			if spoken != c.wantVoice {
@@ -522,7 +623,7 @@ func TestConfidentialNeverGoesOutOnTickWithoutWaitingForMotion(t *testing.T) {
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("sent during quiet hours: %v", sent)
 	}
-	e.now = at("06:31")
+	e.clk.Set(at("06:31"))
 	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent["notify.ben"]) != 1 {
 		t.Fatalf("sent = %v, telegram = %v", sent, e.tg.sent)
 	}
@@ -537,7 +638,7 @@ func TestPersonalMessageForUntrackedRecipientIsSpoken(t *testing.T) {
 	})
 	e.ha.set("person.anna", "unknown", nil)
 	e.message("for-anna", 1, func(n *store.Message) { n.Receiver = "anna" })
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	if out := e.presence("bad"); len(out.Announced) != 1 {
 		t.Fatalf("a person without tracker is not known to be away: %+v", out)
 	}
@@ -549,13 +650,13 @@ func TestPersonalMessageWaitsWhileRecipientIsAway(t *testing.T) {
 	})
 	e.ha.set("person.anna", "not_home", nil)
 	e.message("for-anna", 1, func(n *store.Message) { n.Receiver = "anna" })
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	out := e.presence("bad")
 	if len(out.Announced)+len(out.Private) != 0 {
 		t.Fatalf("delivered while anna is away: %+v", out)
 	}
 	e.ha.set("person.anna", "home", nil)
-	e.now = at("08:40")
+	e.clk.Set(at("08:40"))
 	if out := e.presence("bad"); len(out.Announced) != 1 {
 		t.Fatalf("not delivered once anna is home: %+v", out)
 	}
@@ -565,11 +666,11 @@ func TestEscalation(t *testing.T) {
 	e := newEnv(t, nil)
 	e.message("important", 2, nil)
 	e.message("minor", 1, nil)
-	e.now = at("08:59")
+	e.clk.Set(at("08:59"))
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("escalated before 09:00: %v", sent)
 	}
-	e.now = at("09:00")
+	e.clk.Set(at("09:00"))
 	sent := e.tick()
 	if len(sent) != 1 || sent[0] != "important" || len(e.tg.sent["notify.ben"]) != 1 {
 		t.Fatalf("escalation = %v, telegram %v", sent, e.tg.sent)
@@ -585,13 +686,13 @@ func TestEscalation(t *testing.T) {
 
 func TestEscalationGivesDaytimeMessagesAGracePeriod(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("14:00")
+	e.clk.Set(at("14:00"))
 	e.message("afternoon", 2, nil)
-	e.now = at("14:10")
+	e.clk.Set(at("14:10"))
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("escalated within grace: %v", sent)
 	}
-	e.now = at("14:31")
+	e.clk.Set(at("14:31"))
 	if sent := e.tick(); len(sent) != 1 {
 		t.Fatalf("not escalated after grace: %v", sent)
 	}
@@ -607,7 +708,7 @@ func TestPrivateGoesToTheFirstWorkingChannel(t *testing.T) {
 	})
 	e.ha.set("notify.telegram_ben", "unknown", nil)
 	e.message("n", 2, nil)
-	e.now = at("09:30")
+	e.clk.Set(at("09:30"))
 	e.tick()
 	if got := e.tg.sent["notify.telegram_ben"]; len(got) != 1 || len(e.tg.sent["notify.mobile_app_phone"]) != 0 {
 		t.Fatalf("sent = %v", e.tg.sent)
@@ -616,7 +717,7 @@ func TestPrivateGoesToTheFirstWorkingChannel(t *testing.T) {
 	// Without persons there is no private channel; the message waits.
 	e2 := newEnv(t, func(c *config.Config) { c.Persons = nil })
 	e2.message("n", 2, nil)
-	e2.now = at("09:30")
+	e2.clk.Set(at("09:30"))
 	e2.tick()
 	if len(e2.tg.sent) != 0 {
 		t.Fatalf("sent without persons: %v", e2.tg.sent)
@@ -639,7 +740,7 @@ func TestComposeWithoutAModelFails(t *testing.T) {
 // error, not the fixed form.
 func TestComposeWithModel(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("15:00")
+	e.clk.Set(at("15:00"))
 	var asked string
 	answer := `{"text":"Die Waschmaschine ist seit eins fertig, und morgen kommt der Wertstoff.","ids":["a","b"]}`
 	e.n.composer = func(_ context.Context, instruction string, _ json.RawMessage) (string, error) {
@@ -705,7 +806,7 @@ func TestUrgentRuleCanBeTurnedOff(t *testing.T) {
 func TestTheReplyFindsTheAnnouncementAndDoesNotWait(t *testing.T) {
 	e := newEnv(t, nil)
 	e.message("inverter", 2, func(n *store.Message) { n.Spoken = "Der Wechselrichter meldet einen Fehler" })
-	e.now = at("06:45")
+	e.clk.Set(at("06:45"))
 	e.ha.listening = make(chan struct{})
 	done := make(chan Outcome, 1)
 	go func() { done <- e.presence("bad") }()
@@ -715,11 +816,7 @@ func TestTheReplyFindsTheAnnouncementAndDoesNotWait(t *testing.T) {
 	}
 	afterword := make(chan string, 1)
 	go func() { afterword <- e.n.Afterword(context.Background(), "bad", "") }()
-	select {
-	case <-afterword:
-	case <-time.After(time.Second):
-		t.Fatal("the reply waits for the notifier")
-	}
+	<-afterword // the reply does not wait for the notifier (else go test's timeout names it)
 	e.ha.listening <- struct{}{}
 	if out := <-done; len(out.Announced) != 1 || e.state("inverter") != store.MessageDelivered {
 		t.Errorf("outcome %+v, state %s", out, e.state("inverter"))

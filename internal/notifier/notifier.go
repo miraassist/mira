@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/miraassist/mira/internal/clock"
 	"log/slog"
 	"sort"
 	"strings"
@@ -55,7 +56,9 @@ type Options struct {
 	// there, never read from a registry per delivery. Nil in tests that need
 	// neither.
 	Structure func() structure.Snapshot
-	Clock     func() time.Time
+	// Clock is what the notifier's waits wait on and what says now; nil is
+	// the real clock (docs/spec/tests.md).
+	Clock     clock.Clock
 	Location  *time.Location
 	Logger    *slog.Logger
 	Telemetry *telemetry.Provider
@@ -115,7 +118,7 @@ type Notifier struct {
 	persons     map[string]config.Person
 	store       *store.Store
 	ha          HA
-	clock       func() time.Time
+	clock       clock.Clock
 	loc         *time.Location
 	log         *slog.Logger
 	tel         *telemetry.Provider
@@ -140,9 +143,7 @@ type Notifier struct {
 }
 
 func New(opts Options) *Notifier {
-	if opts.Clock == nil {
-		opts.Clock = time.Now
-	}
+	opts.Clock = clock.Or(opts.Clock)
 	if opts.Location == nil {
 		opts.Location = time.Local
 	}
@@ -210,7 +211,7 @@ func (n *Notifier) OnPresenceAt(ctx context.Context, area, sat string) (Outcome,
 		n.syncIndicators(ctx)
 		return Outcome{Skipped: "no announcing on entry"}, nil
 	}
-	now := n.clock()
+	now := n.clock.Now()
 	if quiet, err := n.store.GetBool(ctx, store.KeyQuietMode, false); err != nil {
 		return Outcome{}, err
 	} else if quiet {
@@ -281,7 +282,7 @@ func (n *Notifier) Tick(ctx context.Context) ([]string, error) {
 	if _, err := n.store.ExpireMessages(ctx); err != nil {
 		return nil, err
 	}
-	now := n.clock()
+	now := n.clock.Now()
 	sent, err := n.deliverUrgent(ctx)
 	if err != nil {
 		return sent, err
@@ -337,7 +338,7 @@ func (n *Notifier) deliverUrgent(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	var sent []string
-	now := n.clock()
+	now := n.clock.Now()
 	for _, nt := range pending {
 		if nt.Importance < urgent.MinImportance {
 			continue
@@ -837,7 +838,7 @@ var privatePolicy = retry.Policy{Attempts: 10, First: time.Minute, Growth: retry
 // retryable, failed when it is fatal or the attempts are used up. It reports
 // whether the message was delivered.
 func (n *Notifier) deliverPrivate(ctx context.Context, nt store.Message) bool {
-	now := n.clock()
+	now := n.clock.Now()
 	if !nt.RetryAt.IsZero() && now.Before(nt.RetryAt) {
 		return false
 	}

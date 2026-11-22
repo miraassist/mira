@@ -66,3 +66,15 @@ Feature: CK A clock for tests
     Given code that waits 1 minute, then 1 hour on a fake clock
     When the test drives it
     Then it went on at 1 minute and at 1 hour 1 minute, without real time
+
+  @step1
+  Scenario: CK-11 A wait of zero fires at once
+    Given a fake clock
+    When After(0) or an AfterFunc of a negative wait is made
+    Then it fires at once, as the time package's does, without a pending timer
+
+  @step1
+  Scenario: CK-12 The clock never goes back
+    Given a fake clock
+    When a test sets it to a time before now
+    Then Set panics naming both times, and the clock stays where it was

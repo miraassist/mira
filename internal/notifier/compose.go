@@ -57,7 +57,7 @@ func (n *Notifier) composeAs(ctx context.Context, messages []store.Message, afte
 	if n.composer == nil {
 		return "", &ComposeError{Say: t.failedModel, Err: errors.New("no model to word the announcement")}
 	}
-	now := n.clock().In(n.loc)
+	now := n.clock.Now().In(n.loc)
 	instruction := n.composeInstruction(ctx, messages, now)
 	if afterword {
 		instruction += t.composeAfterword
@@ -167,7 +167,7 @@ func (n *Notifier) goodMorning(now time.Time) bool {
 func (n *Notifier) when(ctx context.Context, at, now time.Time) string {
 	t := textsFor(n.langOf(ctx))
 	at = at.In(n.loc)
-	clock := clock(n.langOf(ctx), at)
+	clock := spokenClock(n.langOf(ctx), at)
 	switch day := dayDiff(at, now); {
 	case day == 0 && at.Hour() < 6 && now.Hour() >= 6:
 		return fmt.Sprintf(t.whenNight, clock)
@@ -186,8 +186,8 @@ func dayDiff(at, now time.Time) int {
 	return int(b.Sub(a).Hours() / 24)
 }
 
-// clock says a time the way it is spoken: "3:13", or "3:13 AM" in English.
-func clock(l i18n.Lang, at time.Time) string {
+// spokenClock says a time the way it is spoken: "3:13", or "3:13 AM" in English.
+func spokenClock(l i18n.Lang, at time.Time) string {
 	if l == i18n.EN {
 		return at.Format("3:04 PM")
 	}

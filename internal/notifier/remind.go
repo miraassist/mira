@@ -41,7 +41,7 @@ func (n *Notifier) Tell(ctx context.Context, nt store.Message, areaID string) er
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if nt.ExpiresAt.IsZero() {
-		nt.ExpiresAt = n.clock().Add(12 * time.Hour)
+		nt.ExpiresAt = n.clock.Now().Add(12 * time.Hour)
 	}
 	nt, _, err := n.store.PutMessage(ctx, nt)
 	if err != nil {
@@ -110,7 +110,7 @@ func (n *Notifier) dueInBackground(ctx context.Context) {
 }
 
 func (n *Notifier) due(ctx context.Context) []store.Message {
-	due, err := n.store.ScheduledMessages(ctx, n.clock())
+	due, err := n.store.ScheduledMessages(ctx, n.clock.Now())
 	if err != nil && ctx.Err() == nil {
 		n.log.Error("could not read scheduled messages", "error", err)
 	}
@@ -120,14 +120,14 @@ func (n *Notifier) due(ctx context.Context) []store.Message {
 func (n *Notifier) remindOne(ctx context.Context, m store.Message) {
 	if err := n.Remind(ctx, m); err != nil {
 		failed := m.Attempts + 1
-		next, stop := reminderPolicy.Next(n.clock(), failed, err)
+		next, stop := reminderPolicy.Next(n.clock.Now(), failed, err)
 		if _, ferr := n.store.DeliveryFailed(ctx, m.ID, next); ferr != nil {
 			n.log.Error("could not keep the failed delivery of a scheduled message", "message", m.ID, "error", ferr)
 		}
 		switch {
 		case stop == nil:
 			n.log.Warn("scheduled message delivery failed, trying again", "message", m.ID, "attempt", failed,
-				"of", reminderPolicy.Attempts, "wait", next.Sub(n.clock()).String(), "error", err)
+				"of", reminderPolicy.Attempts, "wait", next.Sub(n.clock.Now()).String(), "error", err)
 		case retry.Retryable(err):
 			n.log.Error("scheduled message delivery given up", "message", m.ID, "attempts", failed, "error", err)
 		default:
@@ -166,7 +166,7 @@ func (n *Notifier) waitIdle(ctx context.Context, sat string) {
 	}
 	select {
 	case <-ctx.Done():
-	case <-time.After(n.speakPause):
+	case <-n.clock.After(n.speakPause):
 	}
 }
 

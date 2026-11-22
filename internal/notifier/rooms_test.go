@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/miraassist/mira/internal/config"
 	haws "github.com/miraassist/mira/internal/ha/ws"
@@ -23,8 +22,7 @@ func roomsEnv(t *testing.T) *env {
 		c.Notifier.Indicators = map[string]config.Entities{"bad": {"light.bad_ring", "light.essen_ring"}}
 	})
 	e.ha.set("assist_satellite.essen", "idle", map[string]any{"supported_features": float64(3)})
-	e.now = at("08:00") // after quiet hours
-	e.n.speakingStart = 20 * time.Millisecond
+	e.clk.Set(at("08:00")) // after quiet hours
 	return e
 }
 
@@ -41,34 +39,40 @@ func (e *env) spokenAt() []string {
 	return out
 }
 
-// fakeTriggers is the trigger subscription, faked: Fire runs the handler of
-// the sensor's trigger.
+// fakeTriggers is the trigger subscription, faked: fire runs the handler of
+// the sensor's trigger once the notifier subscribed it.
 type fakeTriggers struct {
-	mu       sync.Mutex
-	handlers map[string]haws.EventHandler
+	mu         sync.Mutex
+	handlers   map[string]haws.EventHandler
+	subscribed map[string]chan struct{}
+}
+
+func (f *fakeTriggers) ready(sensor string) chan struct{} {
+	if f.subscribed[sensor] == nil {
+		f.subscribed[sensor] = make(chan struct{})
+	}
+	return f.subscribed[sensor]
 }
 
 func (f *fakeTriggers) SubscribeTrigger(_ context.Context, trigger map[string]any, h haws.EventHandler) (func(), error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.handlers[trigger["entity_id"].(string)] = h
+	sensor := trigger["entity_id"].(string)
+	f.handlers[sensor] = h
+	close(f.ready(sensor))
 	return func() {}, nil
 }
 
-func (f *fakeTriggers) fire(t *testing.T, sensor string) {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		f.mu.Lock()
-		h := f.handlers[sensor]
-		f.mu.Unlock()
-		if h != nil {
-			h(haws.Event{})
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("nothing watches %s", sensor)
+// fire waits until the sensor's trigger is subscribed, then runs it.
+func (f *fakeTriggers) fire(sensor string) {
+	f.mu.Lock()
+	ready := f.ready(sensor)
+	f.mu.Unlock()
+	<-ready
+	f.mu.Lock()
+	h := f.handlers[sensor]
+	f.mu.Unlock()
+	h(haws.Event{})
 }
 
 // motion runs the notifier, fires a sensor and waits for what is spoken.
@@ -76,14 +80,11 @@ func (e *env) motion(sensor string) []string {
 	e.t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	sub := &fakeTriggers{handlers: map[string]haws.EventHandler{}}
+	sub := &fakeTriggers{handlers: map[string]haws.EventHandler{}, subscribed: map[string]chan struct{}{}}
 	done := make(chan struct{})
 	go func() { e.n.Run(ctx, sub); close(done) }()
-	sub.fire(e.t, sensor)
-	deadline := time.Now().Add(2 * time.Second)
-	for len(e.spokenAt()) == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
+	sub.fire(sensor)
+	<-e.ha.awaitCall(func(c call) bool { return c.Domain == "assist_satellite" && c.Target != nil })
 	cancel()
 	<-done
 	return e.spokenAt()
@@ -108,7 +109,7 @@ func TestSR23_ASensorSetOnTwoSatellitesSpeaksAtThePrimary(t *testing.T) {
 func TestSR24_AReminderComesAtTheSatelliteItWasAskedAt(t *testing.T) {
 	e := roomsEnv(t)
 	if _, err := e.st.ScheduleMessage(context.Background(), store.Message{ID: "r1", Kind: store.KindReminder, Source: store.SourceReminder, Importance: 2,
-		DeliverAt: e.now, Spoken: "Tee", AreaID: "bad", OriginDevice: "dev-essen", Receiver: store.ReceiverHouse}); err != nil {
+		DeliverAt: e.clk.Now(), Spoken: "Tee", AreaID: "bad", OriginDevice: "dev-essen", Receiver: store.ReceiverHouse}); err != nil {
 		t.Fatal(err)
 	}
 	e.n.DueMessages(context.Background())
@@ -121,7 +122,7 @@ func TestSR25_AReminderFromASatelliteThatLeftTheRoomComesAtThePrimary(t *testing
 	e := roomsEnv(t)
 	// asked at the hallway satellite, which is no longer in the bath
 	if _, err := e.st.ScheduleMessage(context.Background(), store.Message{ID: "r1", Kind: store.KindReminder, Source: store.SourceReminder, Importance: 2,
-		DeliverAt: e.now, Spoken: "Tee", AreaID: "bad", OriginDevice: "dev-flur", Receiver: store.ReceiverHouse}); err != nil {
+		DeliverAt: e.clk.Now(), Spoken: "Tee", AreaID: "bad", OriginDevice: "dev-flur", Receiver: store.ReceiverHouse}); err != nil {
 		t.Fatal(err)
 	}
 	e.n.DueMessages(context.Background())

@@ -23,14 +23,14 @@ func (e *env) foundDevice(thread, name string) {
 	ctx := context.Background()
 	th := &store.Thread{ID: thread, Target: "geraet-einbinden", Place: store.ReceiverHouse, State: "collecting",
 		Request: name, Content: json.RawMessage(`{"plan":"# Neues Gerät\n- [ ] Einbinden\n- [ ] Raum\n- [ ] Name"}`),
-		ExpiresAt: e.now.Add(24 * time.Hour)}
+		ExpiresAt: e.clk.Now().Add(24 * time.Hour)}
 	if err := e.st.PutThread(ctx, th); err != nil {
 		e.t.Fatal(err)
 	}
 	if _, _, err := e.st.PutMessage(ctx, store.Message{ID: "m-" + thread, Kind: store.KindDevice, Source: store.SourceDevices,
 		DedupeKey: "devices:" + thread, Importance: 2, Receiver: store.ReceiverHouse,
 		Spoken: "Neues Gerät gefunden: " + name, Details: "device:id-" + thread + ": " + name + " (Tuya Smoke Detector)",
-		ThreadID: thread, ExpiresAt: e.now.Add(24 * time.Hour)}); err != nil {
+		ThreadID: thread, ExpiresAt: e.clk.Now().Add(24 * time.Hour)}); err != nil {
 		e.t.Fatal(err)
 	}
 }
@@ -52,7 +52,7 @@ func (e *env) withAnsage(asked *[]string) {
 
 func TestMS37_AFoundDevicesAnnouncementOffersToAddIt(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("12:00")
+	e.clk.Set(at("12:00"))
 	var asked []string
 	e.withAnsage(&asked)
 	// Given a device message with one found device and its thread
@@ -80,7 +80,7 @@ func TestMS37_AFoundDevicesAnnouncementOffersToAddIt(t *testing.T) {
 
 func TestMS38_SeveralFoundDevicesAreOfferedAllOrOneByOne(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("12:00")
+	e.clk.Set(at("12:00"))
 	var asked []string
 	e.withAnsage(&asked)
 	// Given a device message with three found devices, each with its thread
@@ -107,7 +107,7 @@ func TestMS38_SeveralFoundDevicesAreOfferedAllOrOneByOne(t *testing.T) {
 
 func TestMS39_ASingleSimpleEntryIsWordedToo(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("12:00")
+	e.clk.Set(at("12:00"))
 	var asked []string
 	e.withAnsage(&asked)
 	// Given a simple message with one entry
@@ -134,7 +134,7 @@ func TestMS40_AFailedWordingSaysTheSentenceOfAFailedModel(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := newEnv(t, nil)
-			e.now = at("12:00")
+			e.clk.Set(at("12:00"))
 			var asked []string
 			e.withAnsage(&asked)
 			// Given a device message waits
@@ -170,7 +170,7 @@ func TestMS40_AFailedWordingSaysTheSentenceOfAFailedModel(t *testing.T) {
 
 func TestMS41_AFailedWordingAtMessagesReadIsTheToolsError(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("12:00")
+	e.clk.Set(at("12:00"))
 	// Given a simple message with two entries waits
 	e.message("w", 2, func(m *store.Message) { m.Spoken = "Die Waschmaschine ist fertig" })
 	e.message("t", 2, func(m *store.Message) { m.Spoken = "Der Trockner ist fertig" })
@@ -190,7 +190,7 @@ func TestMS41_AFailedWordingAtMessagesReadIsTheToolsError(t *testing.T) {
 
 func TestMS42_AKindWithoutItsAnsageIsNotAnnounced(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("12:00")
+	e.clk.Set(at("12:00"))
 	var asked []string
 	e.withAnsage(&asked)
 	e.n.instruction = func(context.Context, string) (string, error) { return "", errors.New("no section Ansage") }
@@ -210,7 +210,7 @@ func TestMS42_AKindWithoutItsAnsageIsNotAnnounced(t *testing.T) {
 
 func TestMS43_SeveralKindsWithThreadsEachNamedThenWhichFirst(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("12:00")
+	e.clk.Set(at("12:00"))
 	var asked []string
 	e.withAnsage(&asked)
 	e.n.instruction = func(_ context.Context, kind string) (string, error) {
@@ -221,7 +221,7 @@ func TestMS43_SeveralKindsWithThreadsEachNamedThenWhichFirst(t *testing.T) {
 	e.foundDevice("th-1", "Rauchmelder DG")
 	e.foundDevice("th-2", "Bewegungsmelder")
 	th := &store.Thread{ID: "th-mail", Target: "termin", Place: "person:ben", State: "collecting", Request: "Elternbrief",
-		ExpiresAt: e.now.Add(24 * time.Hour)}
+		ExpiresAt: e.clk.Now().Add(24 * time.Hour)}
 	if err := e.st.PutThread(context.Background(), th); err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func TestMS43_SeveralKindsWithThreadsEachNamedThenWhichFirst(t *testing.T) {
 
 func TestMS44_TheAfterwordIsWordedByTheModel(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("12:00")
+	e.clk.Set(at("12:00"))
 	var asked []string
 	e.withAnsage(&asked)
 	// Given a device message waits in the room

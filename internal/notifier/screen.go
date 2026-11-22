@@ -171,7 +171,8 @@ func (n *Notifier) showWhenIdle(sat string) {
 	}
 	n.awaitingIdle[sat] = true
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), idleWait*10)
+		// The wait is bounded by its limit on the clock.
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		n.ha.WaitState(ctx, sat, idleWait*10, func(s string) bool { return !inConversation(s) })
 		n.mu.Lock()

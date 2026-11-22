@@ -82,7 +82,7 @@ func (n *Notifier) unheld(nt store.Message, area string) (store.Message, bool) {
 		if !nt.DeliverAt.IsZero() {
 			ref = nt.DeliverAt
 		}
-		return n.clock().Before(ref.Add(hold))
+		return n.clock.Now().Before(ref.Add(hold))
 	}
 	if len(nt.Entries) == 0 {
 		return nt, !held(nt.OriginArea, nt.CreatedAt)
@@ -244,7 +244,8 @@ func (n *Notifier) speaking(ctx context.Context, area, sat string) {
 	}
 	n.speakingIn[area] = true
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), n.speakingStart+idleWait)
+		// Each wait is bounded by its limit on the clock.
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		n.waitFor(ctx, sat, n.speakingStart, func(s string) bool { return s == "responding" })
 		n.waitFor(ctx, sat, idleWait, func(s string) bool { return s != "responding" })
@@ -448,7 +449,7 @@ func (n *Notifier) forReceiver(ctx context.Context, receiver string) ([]store.Me
 func (n *Notifier) Afterword(ctx context.Context, area, device string) string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if len(n.sats[area]) == 0 || n.inQuietHours(n.clock()) {
+	if len(n.sats[area]) == 0 || n.inQuietHours(n.clock.Now()) {
 		return ""
 	}
 	list, err := n.waiting(ctx, area)

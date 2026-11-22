@@ -29,12 +29,12 @@ func TestRY10_APersonWithoutAChannelIsGivenUpAtOnce(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Persons["anna"] = config.Person{Entity: "person.anna"} })
 	logs := e.logs()
 	e.message("posts", 1, private("anna"))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	e.tick()
 	if st := e.state("posts"); st != store.MessageFailed {
 		t.Fatalf("state = %q, want failed", st)
 	}
-	e.now = at("08:01")
+	e.clk.Set(at("08:01"))
 	e.tick()
 	out := logs.String()
 	if strings.Count(out, "level=ERROR") != 1 || !strings.Contains(out, "fatal=true") ||
@@ -50,7 +50,7 @@ func TestRY11_AChannelThatIsDownIsTriedAgainLaterNotEveryMinute(t *testing.T) {
 	start := at("08:00")
 	var tried []int
 	for m := 0; m < 10; m++ {
-		e.now = start.Add(time.Duration(m) * time.Minute)
+		e.clk.Set(start.Add(time.Duration(m) * time.Minute))
 		before := e.tg.tries["notify.ben"]
 		e.tick()
 		if e.tg.tries["notify.ben"] > before {
@@ -64,7 +64,7 @@ func TestRY11_AChannelThatIsDownIsTriedAgainLaterNotEveryMinute(t *testing.T) {
 		t.Errorf("state = %q, want pending", st)
 	}
 	e.tg.fail = nil
-	e.now = start.Add(15 * time.Minute)
+	e.clk.Set(start.Add(15 * time.Minute))
 	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent["notify.ben"]) != 1 {
 		t.Errorf("not delivered once the channel is up: %v %v", sent, e.tg.sent)
 	}
@@ -75,11 +75,14 @@ func TestRY12_After10AttemptsTheMessageIsGivenUp(t *testing.T) {
 	logs := e.logs()
 	e.tg.fail = map[string]error{"notify.ben": downChannel()}
 	e.message("posts", 1, private("ben"))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	for i := 0; i < 20 && e.state("posts") == store.MessagePending; i++ {
 		e.tick()
 		m, _ := e.st.GetMessage(context.Background(), "posts")
-		e.now = m.RetryAt // 1, 2, 4 … 256 min: 16:31 at the last, before quiet hours
+		if m.State != store.MessagePending {
+			break // given up: no time to try again
+		}
+		e.clk.Set(m.RetryAt) // 1, 2, 4 … 256 min: 16:31 at the last, before quiet hours
 	}
 	if st := e.state("posts"); st != store.MessageFailed || e.tg.tries["notify.ben"] != 10 {
 		t.Fatalf("state = %q after %d attempts", st, e.tg.tries["notify.ben"])
@@ -95,7 +98,7 @@ func TestRY13_HomeAssistantsNotFoundIsFatal(t *testing.T) {
 	e := newEnv(t, nil)
 	e.tg.fail = map[string]error{"notify.ben": &haws.Error{Command: "call_service", Code: "not_found", Message: "Action notify.ben not found."}}
 	e.message("posts", 1, private("ben"))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	e.tick()
 	if st := e.state("posts"); st != store.MessageFailed || e.tg.tries["notify.ben"] != 1 {
 		t.Fatalf("state = %q after %d attempts", st, e.tg.tries["notify.ben"])
@@ -106,7 +109,7 @@ func TestRY14_TheNextAttemptSurvivesARestart(t *testing.T) {
 	e := newEnv(t, nil)
 	e.tg.fail = map[string]error{"notify.ben": downChannel()}
 	e.message("posts", 1, private("ben"))
-	e.now = at("08:00")
+	e.clk.Set(at("08:00"))
 	e.tick()
 	e.tick()
 	e.tg.fail = nil
@@ -115,14 +118,14 @@ func TestRY14_TheNextAttemptSurvivesARestart(t *testing.T) {
 		t.Fatalf("kept: attempts %d, retry at %s, %v", m.Attempts, m.RetryAt, err)
 	}
 	// A new notifier on the same database: the time is kept, not reset.
-	e.n = New(Options{Config: e.cfg, Store: e.st, HA: e.ha, Clock: func() time.Time { return e.now },
+	e.n = New(Options{Config: e.cfg, Store: e.st, HA: e.ha, Clock: e.clk,
 		Location: time.UTC, Logger: slog.Default(), Structure: e.n.structure})
 	e.n.speakPause = 0
-	e.now = at("08:00").Add(30 * time.Second)
+	e.clk.Set(at("08:00").Add(30 * time.Second))
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("tried before its time: %v", sent)
 	}
-	e.now = at("08:01")
+	e.clk.Set(at("08:01"))
 	if sent := e.tick(); len(sent) != 1 {
 		t.Errorf("not tried at its time: %v", sent)
 	}
@@ -133,7 +136,7 @@ func TestRY14_TheNextAttemptSurvivesARestart(t *testing.T) {
 func TestRY20_AReminderThatCannotBeDeliveredForGoodFailsAtOnce(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Persons["anna"] = config.Person{Entity: "person.anna"} })
 	logs := e.logs()
-	e.reminder("r1", e.now, "", "anna")
+	e.reminder("r1", e.clk.Now(), "", "anna")
 	e.n.DueMessages(context.Background())
 	if st := e.state("r1"); st != store.MessageFailed {
 		t.Fatalf("state = %q, want failed", st)
@@ -146,14 +149,14 @@ func TestRY20_AReminderThatCannotBeDeliveredForGoodFailsAtOnce(t *testing.T) {
 func TestRY21_AReminderIsTriedAgainAfter15_30_45s(t *testing.T) {
 	e := newEnv(t, nil)
 	e.tg.fail = map[string]error{"notify.ben": downChannel()}
-	e.reminder("r1", e.now, "", "ben")
+	e.reminder("r1", e.clk.Now(), "", "ben")
 	var waits []time.Duration
 	for i := 0; i < 10 && e.state("r1") != store.MessageFailed; i++ {
 		e.n.DueMessages(context.Background())
 		m, _ := e.st.GetMessage(context.Background(), "r1")
 		if m.State == store.MessageScheduled {
-			waits = append(waits, m.DeliverAt.Sub(e.now))
-			e.now = m.DeliverAt
+			waits = append(waits, m.DeliverAt.Sub(e.clk.Now()))
+			e.clk.Set(m.DeliverAt)
 		}
 	}
 	want := []time.Duration{15 * time.Second, 30 * time.Second, 45 * time.Second, 60 * time.Second}

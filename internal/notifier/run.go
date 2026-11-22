@@ -43,11 +43,11 @@ func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
 		}
 	}
 
-	tick := time.NewTicker(time.Minute)
+	tick := n.clock.NewTicker(time.Minute)
 	defer tick.Stop()
 	// Reminders are checked more often: "in five minutes" should not come
 	// a minute late.
-	remind := time.NewTicker(15 * time.Second)
+	remind := n.clock.NewTicker(15 * time.Second)
 	defer remind.Stop()
 	n.DueMessages(ctx)
 	for {
@@ -65,9 +65,9 @@ func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
 			default:
 				n.log.Debug("presence ignored", "area", area, "reason", out.Skipped)
 			}
-		case <-remind.C:
+		case <-remind.C():
 			n.dueInBackground(ctx)
-		case <-tick.C:
+		case <-tick.C():
 			if _, err := n.Tick(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("notifier tick failed", "error", err)
 			}
