@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/miraassist/mira/internal/clock"
 )
 
 // Timeout bounds one question: a service that is down or slow costs a turn
@@ -29,6 +31,9 @@ const within = 10
 type Client struct {
 	base, token string
 	http        *http.Client
+	// clock is what Match's Timeout waits on; nil is the real one (tests
+	// set a fake one).
+	clock clock.Clock
 }
 
 // New returns a client for the service's API (e.g. http://host:10311) with
@@ -110,7 +115,7 @@ func (c *Client) Match(ctx context.Context, text string) ([]Utterance, error) {
 	if c == nil || strings.TrimSpace(text) == "" {
 		return nil, nil
 	}
-	ctx, cancel := context.WithTimeout(ctx, Timeout)
+	ctx, cancel := clock.WithTimeout(ctx, c.clock, Timeout)
 	defer cancel()
 	q := url.Values{"text": {text}, "within": {fmt.Sprint(within)}}
 	var found []Utterance

@@ -6,10 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/miraassist/mira/internal/clock"
 )
 
-// serve answers /api/match with body and records the text asked for.
-func serve(t *testing.T, body string, delay time.Duration) (*Client, *string) {
+// serve answers /api/match with body and records the text asked for; a
+// service that holds never answers.
+func serve(t *testing.T, body string, holds bool) (*Client, *string) {
 	t.Helper()
 	var asked string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -18,9 +21,8 @@ func serve(t *testing.T, body string, delay time.Duration) (*Client, *string) {
 			return
 		}
 		asked = r.URL.Query().Get("text")
-		select {
-		case <-time.After(delay):
-		case <-r.Context().Done():
+		if holds {
+			<-r.Context().Done()
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -31,7 +33,7 @@ func serve(t *testing.T, body string, delay time.Duration) (*Client, *string) {
 }
 
 func TestMatch(t *testing.T) {
-	client, asked := serve(t, `[{"person": "anna", "score": 0.81, "second": "ben", "second_score": 0.4, "seconds": 2.1}]`, 0)
+	client, asked := serve(t, `[{"person": "anna", "score": 0.81, "second": "ben", "second_score": 0.4, "seconds": 2.1}]`, false)
 	found, err := client.Match(context.Background(), "Mach das Licht an")
 	if err != nil || len(found) != 1 || found[0] != (Utterance{"anna", 0.81, "ben", 0.4}) {
 		t.Fatalf("got %+v, %v", found, err)
@@ -73,13 +75,16 @@ func TestDecide(t *testing.T) {
 // A service that does not answer in time costs the turn the timeout and no
 // more.
 func TestMatchTimesOut(t *testing.T) {
-	client, _ := serve(t, `[]`, 2*time.Second)
-	start := time.Now()
-	if _, err := client.Match(context.Background(), "Hallo"); err == nil {
+	client, _ := serve(t, `[]`, true)
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	client.clock = clk
+	var err error
+	clk.Drive(func() { _, err = client.Match(context.Background(), "Hallo") })
+	if err == nil {
 		t.Fatal("no error")
 	}
-	if took := time.Since(start); took > Timeout+200*time.Millisecond {
-		t.Errorf("took %v", took)
+	if waited := clk.Since(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC)); waited != Timeout {
+		t.Errorf("waited %v", waited)
 	}
 }
 
