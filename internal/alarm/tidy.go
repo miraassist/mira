@@ -69,7 +69,7 @@ func (c *controller) tidy(ctx context.Context) ([]string, bool) {
 	c.noIntegration = false
 	var keep []string
 	for _, al := range alarms {
-		if al.Ran && len(al.Days) == 0 && al.Running == 0 {
+		if c.rang(al) {
 			err := automation.Delete(ctx, c.o.HA, c.o.Own, c.log, al.ID)
 			switch {
 			case err == nil:

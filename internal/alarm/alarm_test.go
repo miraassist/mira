@@ -131,6 +131,7 @@ const (
 )
 
 type env struct {
+	now     time.Time
 	tool    tools.InternalTool
 	alarms  *Alarms
 	ha      *fakeHA
@@ -140,10 +141,27 @@ type env struct {
 }
 
 func setup() *env {
-	e := &env{ha: newHA(), own: &fakeOwn{ids: map[string]string{}}}
+	e := &env{now: now, ha: newHA(), own: &fakeOwn{ids: map[string]string{}}}
 	n := 0
 	e.alarms = New(Options{
-		Lang: i18n.DE, HA: e.ha, Own: e.own, Clock: func() time.Time { return now }, Location: time.UTC,
+		Lang: i18n.DE, HA: e.ha, Own: e.own, Clock: func() time.Time { return e.now }, Location: time.UTC,
+		Lights: func(area string) []string {
+			return map[string][]string{"schlafzimmer": {"light.bett", "light.decke"}}[area]
+		},
+		Station: func(_ context.Context, area, speaker, name string) (*Station, []string, error) {
+			switch strings.ToLower(name) {
+			case "swr3":
+				if area == "schlafzimmer" {
+					return &Station{Player: "media_player.schlafzimmer_ma", ContentID: "library://radio/1", ContentType: "music", Title: "SWR3"}, nil, nil
+				}
+				return &Station{Player: speaker, ContentID: "media-source://radio_browser/swr3", ContentType: "audio/mpeg", Title: "SWR3"}, nil, nil
+			case "swr":
+				return nil, []string{"SWR1", "SWR3"}, nil
+			case "kaputt":
+				return nil, nil, errors.New("radio browser unreachable")
+			}
+			return nil, nil, nil
+		},
 		Speaker: func(sat string) string {
 			return map[string]string{show: "media_player.show_speaker", echo: "media_player.echo_speaker"}[sat]
 		},
@@ -185,8 +203,12 @@ var anna = tools.Invocation{Person: "anna", Area: "schlafzimmer"}
 
 // set is the thread's finish: alarm.set with the fields and the place.
 func (e *env) set(person, area, satellite, at, days string) error {
+	return e.setWith(person, area, satellite, at, days, "", "")
+}
+
+func (e *env) setWith(person, area, satellite, at, days, station, light string) error {
 	return e.alarms.SetAction(context.Background(), map[string]any{"person": person, "area": area,
-		"satellite": satellite, "time": at, "days": days})
+		"satellite": satellite, "time": at, "days": days, "station": station, "light": light})
 }
 
 func (e *env) setAnna(t *testing.T, at, days string) {
@@ -320,12 +342,14 @@ func TestWK09_AOnceAlarmIsDeletedAfterItRang(t *testing.T) {
 	e.setAnna(t, "07:00", "daily")
 	once, daily := "mira_alarm0001", "mira_alarm0002"
 	e.ha.ran[once], e.ha.ran[daily] = true, true
+	e.now = now.Add(8 * time.Hour) // Monday 06:05: the once-alarm's time has passed
 	ids, ok := e.alarms.c.tidy(context.Background())
 	if !ok || !slices.Equal(e.ha.deleted, []string{once}) || !slices.Equal(ids, []string{"automation." + daily}) {
 		t.Errorf("deleted %v, kept %v", e.ha.deleted, ids)
 	}
 	// Still ringing: not yet.
-	e.setAnna(t, "08:00", "")
+	e.setAnna(t, "06:04", "") // set at 06:05: tomorrow, so first today's moment passes
+	e.now = now.Add(32 * time.Hour)
 	e.ha.ran["mira_alarm0003"], e.ha.running["mira_alarm0003"] = true, 1
 	e.alarms.c.tidy(context.Background())
 	if slices.Contains(e.ha.deleted, "mira_alarm0003") {
@@ -451,6 +475,79 @@ func TestTheSameAlarmTwiceIsOne(t *testing.T) {
 	e.setAnna(t, "06:30", "weekdays")
 	if len(e.ha.saved) != 2 {
 		t.Errorf("saved %d alarms", len(e.ha.saved))
+	}
+}
+
+func TestWK11_AnAlarmWithAStationPlaysTheStationInsteadOfTheWakeSound(t *testing.T) {
+	e := setup()
+	if err := e.setWith("anna", "schlafzimmer", show, "06:00", "", "SWR3", ""); err != nil {
+		t.Fatal(err)
+	}
+	_, c := e.only(t)
+	acts := strings.Join(actions(c), "\n")
+	if !strings.Contains(acts, `"media_content_id":"library://radio/1"`) || !strings.Contains(acts, `{"entity_id":"media_player.schlafzimmer_ma"}`) ||
+		strings.Contains(acts, "wake_rise") {
+		t.Errorf("radio actions:\n%s", acts)
+	}
+	if !strings.Contains(acts, `is_state('media_player.schlafzimmer_ma', 'playing')`) || !strings.Contains(acts, "mira.send_message") {
+		t.Errorf("no message when it does not play:\n%s", acts)
+	}
+	if c["variables"].(map[string]any)["mira_station"] != "SWR3" {
+		t.Errorf("variables %v", c["variables"])
+	}
+	// Several stations: asked, nothing set; a search that fails: said.
+	for name, want := range map[string]string{"SWR": "SWR1; SWR3", "kaputt": "Sendersuche geht gerade nicht", "Nirgendwo": "nicht gefunden"} {
+		err := e.setWith("anna", "schlafzimmer", show, "07:00", "", name, "")
+		if err == nil || !strings.Contains(err.Error(), want) || len(e.ha.saved) != 1 {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+func TestWK12_AnAlarmWithLightTurnsTheAreasLightsOnSlowly(t *testing.T) {
+	e := setup()
+	if err := e.setWith("anna", "schlafzimmer", show, "06:00", "weekdays", "", "ja"); err != nil {
+		t.Fatal(err)
+	}
+	_, c := e.only(t)
+	trig, _ := json.Marshal(c["triggers"])
+	acts := strings.Join(actions(c), "\n")
+	if !strings.Contains(string(trig), `{"at":"05:50:00","id":"light","trigger":"time"}`) ||
+		!strings.Contains(acts, `"action":"light.turn_on","data":{"brightness_pct":100,"transition":600},"target":{"entity_id":["light.bett","light.decke"]}`) ||
+		!strings.Contains(acts, "wake_rise") {
+		t.Errorf("triggers %s\nactions %s", trig, acts)
+	}
+	// Not before midnight; a room without light: asked.
+	if got := lightAt("00:05"); got != "00:00" {
+		t.Errorf("light at %s", got)
+	}
+	if err := e.setWith("ben", "kinderzimmer", show, "07:00", "", "", "ja"); err == nil || !strings.Contains(err.Error(), "kein Licht") {
+		t.Errorf("no light: %v", err)
+	}
+}
+
+// A once-alarm rings on its day only; the light's run before it is no ring,
+// and one whose time passed while Home Assistant was off is over.
+func TestAOnceAlarmRingsOnItsDay(t *testing.T) {
+	e := setup()
+	e.setAnna(t, "06:00", "")
+	_, c := e.only(t)
+	cond, _ := json.Marshal(c["conditions"])
+	if !strings.Contains(string(cond), "== '2026-10-19'") {
+		t.Errorf("conditions %s", cond)
+	}
+	al := Alarm{Time: "06:00", Date: "2026-10-19", Ran: true}
+	e.now = time.Date(2026, 10, 19, 5, 51, 0, 0, time.UTC) // after the light, before the ring
+	if e.alarms.c.rang(al) {
+		t.Error("over after the light")
+	}
+	e.now = time.Date(2026, 10, 19, 6, 0, 30, 0, time.UTC)
+	if !e.alarms.c.rang(al) || e.alarms.c.rang(Alarm{Time: "06:00", Date: "2026-10-19"}) {
+		t.Error("rung or not yet over")
+	}
+	e.now = time.Date(2026, 10, 19, 6, 1, 0, 0, time.UTC)
+	if !e.alarms.c.rang(Alarm{Time: "06:00", Date: "2026-10-19"}) {
+		t.Error("one that never rang is not over")
 	}
 }
 

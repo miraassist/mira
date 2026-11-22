@@ -2,12 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/alarm"
+	"github.com/miraassist/mira/internal/excerpt"
 	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/radio"
 )
 
 // speakerOf is the media player of a satellite's device, where Mira plays
@@ -107,4 +113,62 @@ func (a *app) supportedFeatures(ctx context.Context, entity string) (int, error)
 		}
 	}
 	return 0, fmt.Errorf("home assistant has no state of %s", entity)
+}
+
+// alarmStation finds the station an alarm wakes with, when it is set
+// (docs/spec/alarm.md, decision 10): where the area has an exposed Music
+// Assistant player, Music Assistant's search on it, its stations (an address
+// with "://radio/"); else Radio Browser, as radio_play, on the satellite's
+// speaker. A name with a space is searched once more without it, as
+// radio_play does. Cost: one search, two for a name with a space and no hit.
+func (a *app) alarmStation(ctx context.Context, area, speaker, name string) (*alarm.Station, []string, error) {
+	snap := a.structure.Snapshot()
+	var players []string
+	for id := range snap.MusicPlayers {
+		if snap.EntityArea[id] == area {
+			players = append(players, id)
+		}
+	}
+	sort.Strings(players)
+	search := radio.Search(a.ha)
+	player := speaker
+	if len(players) > 0 {
+		player = players[0]
+		search = func(ctx context.Context, query string) ([]radio.Station, error) {
+			raw, err := a.ha.CallServiceResponse(ctx, "media_player", "search_media",
+				map[string]any{"entity_id": player, "search_query": query})
+			if err != nil {
+				return nil, err
+			}
+			var res map[string]struct {
+				Result []struct {
+					Title       string `json:"title"`
+					ContentID   string `json:"media_content_id"`
+					ContentType string `json:"media_content_type"`
+				} `json:"result"`
+			}
+			if err := json.Unmarshal(raw, &res); err != nil {
+				return nil, fmt.Errorf("search_media answered %q: %w", excerpt.Bytes(raw), err)
+			}
+			var out []radio.Station
+			for _, r := range res[player].Result {
+				if strings.Contains(r.ContentID, "://radio/") {
+					out = append(out, radio.Station{Title: r.Title, ContentID: r.ContentID, ContentType: r.ContentType})
+				}
+			}
+			return out, nil
+		}
+	}
+	stations, err := search(ctx, name)
+	if joined := strings.Join(strings.Fields(name), ""); err == nil && len(stations) == 0 && joined != strings.TrimSpace(name) {
+		stations, err = search(ctx, joined)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	st, titles := radio.Pick(stations, name)
+	if st == nil {
+		return nil, titles, nil
+	}
+	return &alarm.Station{Player: player, ContentID: st.ContentID, ContentType: st.ContentType, Title: st.Title}, nil, nil
 }

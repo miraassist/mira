@@ -63,6 +63,12 @@ type Options struct {
 	Location *time.Location
 	// Speaker is the media_player of a satellite's device; "" if it has none.
 	Speaker func(satellite string) string
+	// Lights are the exposed lights in an area.
+	Lights func(area string) []string
+	// Station finds a station for an alarm in an area: on the area's Music
+	// Assistant player where there is one, else on the speaker. nil and the
+	// names found when none is meant for sure; an error when searching fails.
+	Station func(ctx context.Context, area, speaker, name string) (*Station, []string, error)
 	// Features are a media player's supported_features.
 	Features func(ctx context.Context, entity string) (int, error)
 	// SoundURL is where a satellite fetches one of Mira's sounds.
@@ -88,6 +94,9 @@ type Alarm struct {
 	Title    string   `json:"title"`
 	Time     string   `json:"time"`
 	Days     []string `json:"days"`
+	Date     string   `json:"date"` // a once-alarm's day
+	Station  string   `json:"station"`
+	Light    bool     `json:"light"`
 	Owner    string   `json:"owner"`
 	Area     string   `json:"area"`
 	Ran      bool     `json:"ran"`
@@ -179,7 +188,8 @@ func (r *Refusal) Error() string { return r.Text }
 // the thread fills it in (satellite, area, person).
 func (s *Alarms) SetAction(ctx context.Context, data map[string]any) error {
 	str := func(k string) string { v, _ := data[k].(string); return strings.TrimSpace(v) }
-	return s.c.set(ctx, str("person"), str("area"), str("satellite"), str("time"), str("days"))
+	return s.c.set(ctx, request{person: str("person"), area: str("area"), satellite: str("satellite"),
+		time: str("time"), days: str("days"), station: str("station"), light: wants(str("light"))})
 }
 
 // DeleteCreated is the building block alarm.delete_created: the newest alarm
@@ -220,18 +230,33 @@ func clockOf(s string) (string, bool) {
 	return fmt.Sprintf("%02s:%s", m[1], m[2]), true
 }
 
-func (c *controller) set(ctx context.Context, person, area, satellite, at, when string) error {
+// request is what the thread of wecker hands alarm.set.
+type request struct {
+	person, area, satellite, time, days, station string
+	light                                        bool
+}
+
+// wants reads the field light: set for yes, empty or a "-" (not needed) for no.
+func wants(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "", "-", "no", "nein", "false", "off", "aus":
+		return false
+	}
+	return !strings.HasPrefix(strings.TrimSpace(s), "-")
+}
+
+func (c *controller) set(ctx context.Context, r request) error {
+	person, area, satellite := r.person, r.area, r.satellite
 	if satellite == "" {
 		return &Refusal{c.t.noSatellite}
 	}
-	raw := at
-	at, ok := clockOf(at)
+	at, ok := clockOf(r.time)
 	if !ok {
-		return &Refusal{fmt.Sprintf(c.t.badTime, raw)}
+		return &Refusal{fmt.Sprintf(c.t.badTime, r.time)}
 	}
-	on, ok := parseDays(when)
+	on, ok := parseDays(r.days)
 	if !ok {
-		return &Refusal{fmt.Sprintf(c.t.badDays, when)}
+		return &Refusal{fmt.Sprintf(c.t.badDays, r.days)}
 	}
 	speaker := c.o.Speaker(satellite)
 	if speaker == "" {
@@ -267,13 +292,36 @@ func (c *controller) set(ctx context.Context, person, area, satellite, at, when 
 	if len(mine) >= maxPerOwnerArea {
 		return &Refusal{fmt.Sprintf(c.t.tooMany, maxPerOwnerArea)}
 	}
-	id := c.o.NewID()
-	config := build(spec{
-		ID: id, Title: fmt.Sprintf(c.t.title, room), Time: at, Days: on, Owner: person, Area: area,
+	sp := spec{
+		ID: c.o.NewID(), Title: fmt.Sprintf(c.t.title, room), Time: at, Days: on, Owner: person, Area: area,
 		Satellite: satellite, Speaker: speaker,
 		RiseURL: c.o.SoundURL(ctx, "wake_rise"), LoopURL: c.o.SoundURL(ctx, "wake_loop"),
 		FailedText: fmt.Sprintf(c.t.couldNotRing, c.when(at, on), room),
-	})
+	}
+	if len(on) == 0 {
+		sp.Date = c.next(at).Format("2006-01-02")
+	}
+	if r.light {
+		if sp.Lights = c.o.Lights(area); len(sp.Lights) == 0 {
+			return &Refusal{fmt.Sprintf(c.t.noLight, room)}
+		}
+		sp.LightAt = lightAt(at)
+	}
+	if name := strings.TrimSpace(r.station); name != "" && !strings.HasPrefix(name, "-") {
+		st, titles, err := c.o.Station(ctx, area, speaker, name)
+		switch {
+		case err != nil:
+			c.log.Warn("could not search the station for an alarm; no alarm set", "station", name, "error", err)
+			return &Refusal{fmt.Sprintf(c.t.stationUnavailable, name)}
+		case st == nil && len(titles) == 0:
+			return &Refusal{fmt.Sprintf(c.t.noStation, name)}
+		case st == nil:
+			return &Refusal{fmt.Sprintf(c.t.severalStations, name, strings.Join(titles, "; "))}
+		}
+		sp.Station = st
+	}
+	id := sp.ID
+	config := build(sp)
 	answer, err := c.o.HA.Call(ctx, map[string]any{"type": "mira/automation/validate", "config": config, "forbidden": c.forbidden()})
 	if err != nil {
 		c.log.Warn("the integration did not check the alarm; no alarm set", "time", at, "days", on, "error", err)
@@ -290,7 +338,8 @@ func (c *controller) set(ctx context.Context, person, area, satellite, at, when 
 	if err := automation.Save(ctx, c.o.HA, c.o.Own, c.log, id, config, automation.LabelAlarm); err != nil {
 		return &Refusal{c.failed(err)}
 	}
-	c.log.Info("alarm set", "automation", id, "time", at, "days", on, "area", area, "satellite", satellite)
+	c.log.Info("alarm set", "automation", id, "time", at, "days", on, "date", sp.Date, "area", area, "satellite", satellite,
+		"station", sp.Station != nil, "light", len(sp.Lights) > 0)
 	c.Poke()
 	return nil
 }
@@ -308,17 +357,36 @@ func (c *controller) when(at string, on []string) string {
 		}
 		return fmt.Sprintf(c.t.repeats, strings.Join(names, ", "), at)
 	}
-	now := c.o.Clock().In(c.o.Location)
-	h, m := 0, 0
-	fmt.Sscanf(at, "%d:%d", &h, &m)
-	next := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, c.o.Location)
+	next := c.next(at)
 	day := c.t.today
-	if !next.After(now) {
-		next = next.AddDate(0, 0, 1)
+	if now := c.o.Clock().In(c.o.Location); next.Day() != now.Day() {
 		day = c.t.tomorrow
 	}
 	wd := (int(next.Weekday()) + 6) % 7
 	return fmt.Sprintf(c.t.once, day, c.dayName(wd), next.Day(), int(next.Month()), at)
+}
+
+// next is the next time the clock shows at: today, or tomorrow when it has
+// passed.
+func (c *controller) next(at string) time.Time {
+	now := c.o.Clock().In(c.o.Location)
+	h, m := 0, 0
+	fmt.Sscanf(at, "%d:%d", &h, &m)
+	next := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, c.o.Location)
+	if !next.After(now) {
+		next = next.AddDate(0, 0, 1)
+	}
+	return next
+}
+
+// lightAt is when the light starts: lightLead minutes before the alarm, but
+// not before midnight, so that it falls on the alarm's day (its weekday
+// condition, a once-alarm's date).
+func lightAt(at string) string {
+	h, m := 0, 0
+	fmt.Sscanf(at, "%d:%d", &h, &m)
+	start := max(h*60+m-lightLead, 0)
+	return fmt.Sprintf("%02d:%02d", start/60, start%60)
 }
 
 // parseDays reads days: empty or "once" is a once-alarm (nil); "daily",
@@ -370,7 +438,7 @@ func (c *controller) list(ctx context.Context, inv tools.Invocation) (string, er
 	}
 	var b strings.Builder
 	for _, al := range mine {
-		fmt.Fprintf(&b, "- "+c.t.listLine+"\n", al.ID, c.when(al.Time, al.Days), c.o.AreaName(al.Area))
+		fmt.Fprintf(&b, "- "+c.t.listLine+"%s\n", al.ID, c.when(al.Time, al.Days), c.o.AreaName(al.Area), c.with(al))
 	}
 	return strings.TrimRight(b.String(), "\n"), nil
 }
@@ -463,6 +531,18 @@ func (c *controller) cancel(ctx context.Context, al Alarm) {
 	}
 }
 
+// with names what an alarm wakes with besides the wake sound: ", mit SWR3, mit Licht".
+func (c *controller) with(al Alarm) string {
+	out := ""
+	if al.Station != "" {
+		out += ", " + fmt.Sprintf(c.t.withStation, al.Station)
+	}
+	if al.Light {
+		out += ", " + c.t.withLight
+	}
+	return out
+}
+
 // still says whether an alarm is still there after deleting it failed: a
 // cancelled once-alarm has rung, and the tidy loop may delete it first
 // (seen 2026-11-22: Home Assistant answered "Resource not found"). If the
@@ -481,6 +561,27 @@ func (c *controller) still(ctx context.Context, id string) bool {
 	return false
 }
 
+// rang says whether a once-alarm is over: its time has passed and no run of
+// it is running (the light's run before it is no ring). One that never ran
+// (Home Assistant was off: decision 12, it does not ring later) is over a
+// minute after its time.
+func (c *controller) rang(al Alarm) bool {
+	if len(al.Days) > 0 || al.Running > 0 {
+		return false
+	}
+	if al.Date == "" {
+		return al.Ran
+	}
+	at, err := time.ParseInLocation("2006-01-02 15:04", al.Date+" "+al.Time, c.o.Location)
+	if err != nil {
+		return false
+	}
+	if !al.Ran {
+		at = at.Add(time.Minute)
+	}
+	return !c.o.Clock().Before(at)
+}
+
 // mine are the alarms of the person (anonymous: of the room), by time.
 func (c *controller) mine(ctx context.Context, inv tools.Invocation) ([]Alarm, error) {
 	all, err := c.all(ctx)
@@ -489,7 +590,7 @@ func (c *controller) mine(ctx context.Context, inv tools.Invocation) ([]Alarm, e
 	}
 	var out []Alarm
 	for _, al := range all {
-		if al.Ran && len(al.Days) == 0 && al.Running == 0 {
+		if c.rang(al) {
 			continue // a once-alarm that rang, about to be deleted
 		}
 		if al.Owner == inv.Person && (inv.Person != "" || al.Area == inv.Area) {
@@ -533,7 +634,8 @@ func (c *controller) all(ctx context.Context) ([]Alarm, error) {
 			on = strings.Split(v["mira_days"], ",")
 		}
 		out = append(out, Alarm{ID: a.ID, EntityID: a.EntityID, Title: cmp.Or(v["mira_title"], a.Config.Alias),
-			Time: v["mira_time"], Days: on, Owner: v["mira_owner"], Area: v["mira_area"],
+			Time: v["mira_time"], Days: on, Date: v["mira_date"], Station: v["mira_station"], Light: v["mira_light"] == "on",
+			Owner: v["mira_owner"], Area: v["mira_area"],
 			Ran: a.LastTriggered != "", Running: a.Current})
 	}
 	return out, nil

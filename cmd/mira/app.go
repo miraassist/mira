@@ -617,6 +617,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 		Speaker:  func(sat string) string { return a.speakerOf(ctx, a.entityDevice(sat)) },
 		Features: a.supportedFeatures,
+		Lights:   func(area string) []string { return exposedIn(snapshot(), area, "light.") },
+		Station:  a.alarmStation,
 		SoundURL: func(ctx context.Context, name string) string {
 			return strings.TrimRight(a.haAddress(ctx), "/") + satellite.SoundPath + name + ".mp3"
 		},

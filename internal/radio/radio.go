@@ -174,6 +174,9 @@ func Tool(o Options) tools.InternalTool {
 	}
 }
 
+// Pick is pick for the alarm's station (docs/spec/alarm.md).
+func Pick(stations []Station, query string) (*Station, []string) { return pick(stations, query) }
+
 // pick chooses the station that was meant: the one whose name equals the
 // query (spaces, case and punctuation aside), the most popular first; a
 // single hit is taken as it is. With several different ones it returns nil

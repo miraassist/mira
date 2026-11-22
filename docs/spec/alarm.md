@@ -1,7 +1,7 @@
 # Alarm – spec
 
-Status 2026-11-22: steps 1 to 3 done (the trial, the wake sound, setting, listing and deleting); steps 4 (radio and light)
-and 5 (the guide) open. Scenarios: [alarm.feature](alarm.feature).
+Status 2026-11-22: steps 1 to 4 done (the trial, the wake sound, setting, listing and deleting, radio and light); step 5
+(the guide) open. Scenarios: [alarm.feature](alarm.feature).
 
 ## Goal
 
@@ -172,12 +172,22 @@ actions:
   (decision 9).
 - **The round that is playing** plays to its end on the Show after the wake word (seen 2026-11-22 with `announce`);
   "Stopp" as a command stops it.
-- **Radio** instead of the wake sound: the station plays on the room's player (Music Assistant's where there is one,
-  as [Music with Music Assistant](music-players.md), part 4; else the satellite's speaker, as `radio_play`), without
-  rounds: it plays until it is stopped (decision 10). The volume is set on that player and not set back (no end to
-  wait for).
-- **Light** (decision 11): the lead (`light_lead`, ten minutes) is a constant of the code, not a setting.
-- **Once** (`mira_days` empty): after it rang, the service deletes it as it deletes a finished `mira_once`.
+- **Radio** instead of the wake sound (decision 10, step 4): the station is searched once, when the alarm is set, and
+  written into the automation. Where the area has an exposed Music Assistant player, Music Assistant's search on it
+  (`media_player.search_media`, its stations are the hits with `://radio/` in their address) and that player plays
+  it; else Radio Browser as `radio_play` does, on the satellite's speaker. A name with a space is searched once more
+  without it; the station whose name equals the one asked for is taken, a single hit as it is, else Mira asks
+  (several) or says it found none. At the time: the player reachable (else decision 13), its volume to 90 %,
+  `play_media`, then the run waits up to 30 s for the player to play (a safety net; the signal is its state) and
+  sends the message of decision 13 if it does not. No rounds: it plays until it is stopped; the volume is not set
+  back, as there is no end to wait for.
+- **Light** (decision 11, step 4): the exposed lights of the area; a second time trigger `light` ten minutes before
+  the alarm (`lightLead`, a constant of the code, not a setting; never before midnight, so it falls on the alarm's
+  day) turns them on with `brightness_pct: 100` and a `transition` up to the alarm time. A room without an exposed
+  light: nothing is set, and Mira asks whether the alarm should ring without light.
+- **Once** (`mira_days` empty): its condition is its date (`mira_date`, the next day the time comes), not "never
+  triggered", since the light's run comes before the ring. The service deletes it once its time has passed and no
+  run of it is running; one that never ran (Home Assistant was off, decision 12) a minute after its time.
 - **Home Assistant off at the time** (decision 12): only the time trigger; an alarm whose time passed while Home
   Assistant was off does not ring.
 - **An alarm that could not ring** (decision 13): the speaker unreachable at the time (above), or a round that never
@@ -203,7 +213,7 @@ step 3.
 | 7 | No reaction for 10 minutes | the loop's `until` | — | the run | 2026-11-22, fake Show, with 40 s for the trial: it ends after the round in which the time passed |
 | 8 | Mira's answer to the reaction is over | the turn | satellite `idle` after `listening` | `wait_for_trigger` | 2026-11-22, Show (`idle` 2.5 s after `listening`) and fake Show |
 | 9 | The volume goes back | rows 7 or 8 | the speaker's `volume_level` as read at the start | not needed | 2026-11-22, Show (0.4) and fake Show (0.2) |
-| 10 | Radio starts | time trigger | the player `playing` | not needed | 2026-11-22, Show's Music Assistant player: `music_assistant.play_media` with `SWR3`, `media_type: radio` found `library://radio/1`, `playing` at 0.9 at once |
+| 10 | Radio starts | time trigger | the player `playing` | `wait_template`, 30 s | 2026-11-22, Show's Music Assistant player: `music_assistant.play_media` with `SWR3` found `library://radio/1`, `playing` at 0.9 at once; fake Show (Radio Browser on its speaker): `playing` at 0.9 two seconds after the time |
 | 11 | Light rises | time trigger `light` | the lights' brightness | not needed | 2026-11-22, fake light: `turn_on` with `transition: 600` taken, on; the rise not seen (the fake light has no brightness) |
 | 12 | The speaker unreachable at the time | time trigger | speaker `unknown` / `unavailable` | the run's check before ringing | 2026-11-22, fake Show with a speaker that does not exist: the message came to Mira, nothing rang |
 | 13 | The same at a satellite that is not a TECHO5 | — | rows 1 to 9 | — | not checked (no such satellite in the test HA; assumption) |
@@ -222,6 +232,8 @@ ended within half a second); then it deletes the automation.
 | Setting | the satellite's device has no speaker, or one that cannot set its volume or play an announcement (`supported_features` without `VOLUME_SET` or `MEDIA_ANNOUNCE`) | nothing is set (decision 9) | the user: "Hier kann ich keinen Wecker stellen." |
 | Setting | the integration is missing or refuses (`NotAllowed`) | nothing is set | the user ("Den Wecker konnte ich nicht stellen"), the log with the refusal |
 | Setting | the station is not found | nothing is set; Mira asks for the station | the user, as `radio_play` |
+| Setting | several stations fit, or searching fails | nothing is set; Mira names up to five and asks, or asks whether the wake sound will do | the user; a failed search also the log |
+| Setting | light asked for, but the room has no exposed light | nothing is set | the user: Mira asks whether it should ring without light |
 | Setting | saving or reloading fails | nothing is set | the user and the log, with Home Assistant's answer |
 | Ringing | the speaker is unreachable at the time | nothing rings; the run ends | the person, by a message (decision 13); the automation's trace |
 | Ringing | the sound cannot be fetched (internal address wrong) | the speaker does not go to `playing` | the person, by a message, once step 1 shows how the run sees it |
@@ -239,6 +251,7 @@ ended within half a second); then it deletes the automation.
    the tool `alarm` (`list`, `delete`), the automation built by the service and checked by the integration
    (`mira/automation/validate`); the integration lists and labels by any of Mira's labels (`mira/automation/list`
    and `mira/automation/label` with `label: alarm`), so it holds nothing of the alarm itself. Built 2026-11-22.
-4. **Radio and light** (decisions 10 and 11).
+4. **Radio and light** (decisions 10 and 11): the thread's fields `station` and `light`, the search when it is set, the
+   light trigger, the once-alarm's date. Built 2026-11-22.
 5. **The guide** (both languages): "Weck mich" at every satellite, with radio and light; that an alarm set at a TECHO5
    itself is the device's own.
