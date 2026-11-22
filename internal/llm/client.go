@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/retry"
 	"github.com/miraassist/mira/internal/telemetry"
 )
@@ -82,6 +83,9 @@ type Options struct {
 	// Log gets a warning for every retry (docs/spec/fallbacks.md, FB-13);
 	// slog's default without one.
 	Log *slog.Logger
+	// Clock is what the waits between attempts wait on; nil is the real
+	// one. Timeout bounds a connection and stays real time.
+	Clock clock.Clock
 }
 
 type Client struct {
@@ -92,6 +96,7 @@ type Client struct {
 	retries int
 	tel     *telemetry.Provider
 	log     *slog.Logger
+	clock   clock.Clock
 
 	// last is how the model's calls went, for Mira's page.
 	mu   sync.Mutex
@@ -148,6 +153,7 @@ func New(opts Options) *Client {
 		retries: opts.MaxRetries,
 		tel:     opts.Telemetry,
 		log:     opts.Log,
+		clock:   clock.Or(opts.Clock),
 	}
 }
 
@@ -244,7 +250,7 @@ func (c *Client) do(ctx context.Context, req ChatRequest, onText func(string)) (
 
 	var began time.Time
 	var resp *ChatResponse
-	err = retry.DoBy(ctx, waitsFor(c.retries+1), func(ctx context.Context) error {
+	err = retry.DoBy(ctx, waitsFor(c.retries+1, c.clock), func(ctx context.Context) error {
 		// A streamed answer is retried only while nothing of it was passed
 		// on: what was said cannot be taken back.
 		passed := false
@@ -278,9 +284,9 @@ func (c *Client) do(ctx context.Context, req ChatRequest, onText func(string)) (
 // waitsFor chooses the waits by the error (docs/spec/retry.md, row 3): a
 // 429 asks to slow down, so 1 s, then 2 s, unless the server named its
 // wait; a 5xx or a failed connection 250 ms, then 500 ms.
-func waitsFor(attempts int) func(error) retry.Policy {
-	slow := retry.Policy{Attempts: attempts, First: time.Second, Max: 30 * time.Second, Growth: retry.Exponential}
-	quick := retry.Policy{Attempts: attempts, First: 250 * time.Millisecond, Max: 30 * time.Second, Growth: retry.Linear}
+func waitsFor(attempts int, clk clock.Clock) func(error) retry.Policy {
+	slow := retry.Policy{Attempts: attempts, First: time.Second, Max: 30 * time.Second, Growth: retry.Exponential, Clock: clk}
+	quick := retry.Policy{Attempts: attempts, First: 250 * time.Millisecond, Max: 30 * time.Second, Growth: retry.Linear, Clock: clk}
 	return func(err error) retry.Policy {
 		var e *Error
 		if errors.As(err, &e) && e.StatusCode == http.StatusTooManyRequests {

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 )
@@ -149,10 +150,13 @@ func TestRetriesConnectionFailuresButNotClientErrors(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := llm.New(llm.Options{BaseURL: srv.URL + "/v1", Model: "m", MaxRetries: 3})
-	if _, err := c.Chat(context.Background(), llm.ChatRequest{
-		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
-	}); err != nil {
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	c := llm.New(llm.Options{BaseURL: srv.URL + "/v1", Model: "m", MaxRetries: 3, Clock: clk})
+	var err error
+	clk.Drive(func() { // the waits between the attempts run out
+		_, err = c.Chat(context.Background(), llm.ChatRequest{Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}})
+	})
+	if err != nil {
 		t.Fatalf("Chat should have recovered after retries: %v", err)
 	}
 	if attempts != 3 {
@@ -165,8 +169,8 @@ func TestRetriesConnectionFailuresButNotClientErrors(t *testing.T) {
 		http.Error(w, `{"error":"bad tool schema"}`, http.StatusBadRequest)
 	}))
 	defer bad.Close()
-	c2 := llm.New(llm.Options{BaseURL: bad.URL + "/v1", Model: "m", MaxRetries: 3})
-	_, err := c2.Chat(context.Background(), llm.ChatRequest{
+	c2 := llm.New(llm.Options{BaseURL: bad.URL + "/v1", Model: "m", MaxRetries: 3, Clock: clk})
+	_, err = c2.Chat(context.Background(), llm.ChatRequest{
 		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err == nil {
@@ -411,9 +415,14 @@ func TestFB13_a_retried_model_call_is_in_the_log(t *testing.T) {
 	defer srv.Close()
 
 	var logged bytes.Buffer
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
 	c := llm.New(llm.Options{BaseURL: srv.URL + "/v1", Model: "gemini-x", MaxRetries: 2,
-		Log: slog.New(slog.NewTextHandler(&logged, nil))})
-	resp, err := c.Chat(context.Background(), llm.ChatRequest{Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}})
+		Log: slog.New(slog.NewTextHandler(&logged, nil)), Clock: clk})
+	var resp *llm.ChatResponse
+	var err error
+	clk.Drive(func() {
+		resp, err = c.Chat(context.Background(), llm.ChatRequest{Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}})
+	})
 	if err != nil || resp.Choices[0].Message.Content != "ok" {
 		t.Fatalf("answer %+v, error %v", resp, err)
 	}
