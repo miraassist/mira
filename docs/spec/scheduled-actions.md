@@ -3,6 +3,8 @@
 Status 2026-10-18: built in 0.6.45. Decided with the user: The state and the scheduler live in
 **Home Assistant**; reminders stay with Mira for now. One-off automations carry their own **label**; the
 **cleanup is done by the integration** (since 0.18 by the service: [HACS default catalog](hacs-default.md), 3).
+Since 2026-11-22 the service builds the automation and the integration only checks it (Creating, changing,
+cancelling).
 
 ## Target
 
@@ -118,15 +120,30 @@ editor is not meant for that. Extending and cancelling happen in the conversatio
 
 ## Creating, changing, cancelling
 
-The integration builds and checks, the service saves (since 0.18, [HACS default catalog](hacs-default.md), 3):
+The service builds, the integration checks, the service saves (since 2026-11-22, as the alarm: [Alarm](alarm.md),
+decision 16 and step 3; before, from 0.18, the integration built it with `mira/once/build`):
 
-- **`mira/once/build`** (admins only): checks (`check_actions`, rejecting when in doubt), sets variables, returns the
-  automation; the service saves it through Home Assistant's automation config API, reloads it and has it labelled.
-  Limit: **at most ten open timers per person and room**. No others, neither in time nor in duration.
+- **Building** (the service, `internal/timer`): the automation above from title, due time, owner, area, kind and
+  actions. Limit: **at most ten open timers per person and room**, counted by the service from the list. No others,
+  neither in time nor in duration. A due time in the past or no action: nothing is built, the tool says why.
+- **Checking**: `mira/automation/validate` (admins only, `check_actions`, rejecting when in doubt), as for a task; the
+  answer `valid: false` with its error ends it, the tool says the error and the log names it.
 - **Critical actions** (locks, alarm system, garage door, entities with the label "Mira: nachfragen") are
   **forbidden** in scheduled actions: A confirmation from this evening should open nothing at three in the night.
-- **`mira/once/list`** (admins only): filtered by label and variables. Cancelling: the service deletes through the API.
-- **Extending** rewrites `at`, the date condition and `mira_due`.
+- **Listing**: `mira/automation/list` with `label: once` (admins only), Mira's automations labelled "Mira: einmalig"
+  with their config; the service reads the variables. Cancelling: the service deletes through the API.
+- **Extending** rewrites `at`, the date condition and `mira_due`, under the same id; `validate` gets the id, so the
+  timer's unchanged actions are not checked again.
+
+### Where the state lives (2026-11-22, when the building moved to the service)
+
+| State | Where, how long | Before | Now |
+|---|---|---|---|
+| The timer (due time, person, room, kind, actions) | the automation in Home Assistant, labelled "Mira: einmalig", until it ran | built by `mira/once/build` | built by the service, checked by `mira/automation/validate` |
+| Extending | the same automation, the same id | `mira/once/build` with `automation_id` | `validate` with `automation_id` |
+| At most ten per person and room | the list | the integration | the service |
+| Listing, tidying up, taking over timers from before the service's note | the label | `mira/once/list` | `mira/automation/list` with `label: once` |
+| Flows across turns | none: listing, extending and cancelling read the timers from Home Assistant each time; no thread | — | the same |
 
 ## Tools in the service
 

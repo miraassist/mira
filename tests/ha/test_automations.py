@@ -355,8 +355,7 @@ async def test_HD22_reading_automation_data_needs_an_admin(
         {"type": "mira/automation/get", "entity_id": "automation.x"},
         {"type": "mira/automation/validate", "config": TASK},
         {"type": "mira/automation/label", "automation_id": "x"},
-        {"type": "mira/once/list"},
-        {"type": "mira/once/build", "title": "x", "due": "2099-01-01T10:00:00+01:00", "actions": [{}]},
+        {"type": "mira/automation/list", "label": "once"},
         {"type": "mira/agent/done", "call_id": "c", "agent": "a", "status": "done"},
     ):
         await other.send_json_auto_id(command)

@@ -1,6 +1,7 @@
 package timer
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -76,19 +77,17 @@ func (c *controller) sleepSet(ctx context.Context, inv tools.Invocation, minutes
 		return fmt.Sprintf(c.t.nothingToStop, name), nil
 	}
 	due := c.o.Clock().Add(time.Duration(minutes) * time.Minute)
-	msg := map[string]any{
-		"type": "mira/once/build", "title": fmt.Sprintf(c.t.title, name), "due": due.Format(time.RFC3339),
-		"owner": inv.Person, "area": area, "kind": kindSleep, "actions": actions, "forbidden": c.forbidden(),
-	}
+	o := once{Title: fmt.Sprintf(c.t.title, name), Due: due, Owner: inv.Person, Area: area, Kind: kindSleep, Actions: actions}
 	// A second sleep timer in the room replaces the first.
+	replace := ""
 	if open, err := c.open(ctx); err == nil {
 		for _, tm := range open {
 			if tm.Kind == kindSleep && tm.Owner == inv.Person && tm.Area == area {
-				msg["automation_id"] = tm.ID
+				replace = tm.ID
 			}
 		}
 	}
-	if err := c.save(ctx, msg); err != nil {
+	if err := c.save(ctx, o, replace); err != nil {
 		return c.failed(err), nil
 	}
 	format := c.t.set
@@ -127,10 +126,8 @@ func (c *controller) sleepExtend(ctx context.Context, inv tools.Invocation, add 
 		due = now // due but not yet run (Home Assistant was off)
 	}
 	due = due.Add(time.Duration(add) * time.Minute)
-	if err := c.save(ctx, map[string]any{
-		"type": "mira/once/build", "title": tm.Title, "due": due.Format(time.RFC3339), "owner": tm.Owner,
-		"area": tm.Area, "kind": tm.Kind, "actions": tm.Actions, "forbidden": c.forbidden(), "automation_id": tm.ID,
-	}); err != nil {
+	if err := c.save(ctx, once{Title: tm.Title, Due: due, Owner: tm.Owner, Area: tm.Area, Kind: tm.Kind,
+		Actions: tm.Actions}, tm.ID); err != nil {
 		return c.failed(err), nil
 	}
 	return fmt.Sprintf(c.t.extended, c.clock(due), c.minutesLeft(due)), nil
@@ -148,23 +145,59 @@ func (c *controller) sleepCancel(ctx context.Context, inv tools.Invocation, id s
 	return c.t.cancelled, nil
 }
 
-// save has the integration build and check the timer's automation, then
-// saves it through Home Assistant's automation config API with the label
-// "Mira: einmalig", and has it watched.
-func (c *controller) save(ctx context.Context, build map[string]any) error {
-	raw, err := c.o.HA.Call(ctx, build)
+// save builds the timer's automation, has the integration check it
+// (mira/automation/validate), saves it through Home Assistant's automation
+// config API with the label "Mira: einmalig", and has it watched. replace is
+// the id of the timer it replaces (extending, a second sleep timer in the
+// room); its unchanged actions are not checked again. Each refusal is logged
+// here with what was refused.
+func (c *controller) save(ctx context.Context, o once, replace string) error {
+	if !o.Due.After(c.o.Clock()) {
+		return fmt.Errorf("due %s is in the past", o.Due.Format(time.RFC3339))
+	}
+	if len(o.Actions) == 0 {
+		return errors.New("a timer needs at least one action")
+	}
+	open, err := c.open(ctx)
 	if err != nil {
 		return err
 	}
-	var built struct {
-		ID     string         `json:"id"`
-		Config map[string]any `json:"config"`
+	if replace == "" {
+		same := 0
+		for _, tm := range open {
+			if tm.Owner == o.Owner && tm.Area == o.Area {
+				same++
+			}
+		}
+		if same >= maxPerOwnerArea {
+			return fmt.Errorf("too many timers: at most %d per person and room", maxPerOwnerArea)
+		}
+	} else if !slices.ContainsFunc(open, func(tm Timer) bool { return tm.ID == replace }) {
+		return fmt.Errorf("no timer %s", replace)
 	}
-	if err := json.Unmarshal(raw, &built); err != nil || built.ID == "" {
-		c.log.Warn("the integration's answer to building a timer cannot be read", "answer", string(raw), "error", err)
-		return fmt.Errorf("unexpected answer of the integration: %s", raw)
+	o.ID = cmp.Or(replace, c.o.NewID())
+	config := buildOnce(o, c.o.Location)
+	check := map[string]any{"type": "mira/automation/validate", "config": config, "forbidden": c.forbidden()}
+	if replace != "" {
+		check["automation_id"] = replace
 	}
-	if err := automation.Save(ctx, c.o.HA, c.o.Own, c.log, built.ID, built.Config, automation.LabelOnce); err != nil {
+	raw, err := c.o.HA.Call(ctx, check)
+	if err != nil {
+		return err
+	}
+	var checked struct {
+		Valid bool   `json:"valid"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &checked); err != nil {
+		c.log.Warn("the integration's answer to checking a timer cannot be read", "answer", excerpt.Bytes(raw), "error", err)
+		return fmt.Errorf("unexpected answer of the integration: %s", excerpt.Bytes(raw))
+	}
+	if !checked.Valid {
+		c.log.Warn("the integration refused a timer's automation", "timer", o.Title, "error", checked.Error)
+		return errors.New(checked.Error)
+	}
+	if err := automation.Save(ctx, c.o.HA, c.o.Own, c.log, o.ID, config, automation.LabelOnce); err != nil {
 		return err
 	}
 	c.Poke()
@@ -240,19 +273,40 @@ func (c *controller) open(ctx context.Context) ([]Timer, error) {
 	return out, nil
 }
 
-// all are the one-time automations, those that ran too.
+// all are the one-time automations, those that ran too: Mira's automations
+// labelled "Mira: einmalig" with a due time, as their variables say.
 func (c *controller) all(ctx context.Context) ([]Timer, error) {
-	raw, err := c.o.HA.Call(ctx, map[string]any{"type": "mira/once/list"})
+	raw, err := c.o.HA.Call(ctx, map[string]any{"type": "mira/automation/list", "label": automation.LabelOnce})
 	if err != nil {
 		return nil, err
 	}
 	var res struct {
-		Timers []Timer `json:"timers"`
+		Automations []struct {
+			ID            string `json:"id"`
+			EntityID      string `json:"entity_id"`
+			Current       int    `json:"current"`
+			LastTriggered string `json:"last_triggered"`
+			Config        struct {
+				Alias     string           `json:"alias"`
+				Variables map[string]any   `json:"variables"`
+				Actions   []map[string]any `json:"actions"`
+			} `json:"config"`
+		} `json:"automations"`
 	}
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
-	return res.Timers, nil
+	var out []Timer
+	for _, a := range res.Automations {
+		v := func(k string) string { s, _ := a.Config.Variables[k].(string); return s }
+		if v("mira_due") == "" {
+			continue
+		}
+		out = append(out, Timer{ID: a.ID, EntityID: a.EntityID, Title: cmp.Or(v("mira_title"), a.Config.Alias),
+			Due: v("mira_due"), Owner: v("mira_owner"), Area: v("mira_area"), Kind: v("mira_kind"),
+			Actions: a.Config.Actions, Ran: a.LastTriggered != "", Running: a.Current})
+	}
+	return out, nil
 }
 
 func (c *controller) area(inv tools.Invocation, room string) (string, bool) {

@@ -17,7 +17,8 @@ LABEL_TASKS = "mira"
 # never switch it. The service reads it from the entity registry itself.
 LABEL_CONFIRM = "mira_confirm"
 # "Mira: einmalig": an automation that runs once and is then removed by the
-# integration (once.py). Not a task, so it is not in the task list.
+# service (docs/spec/scheduled-actions.md). Not a task, so it is not in the
+# task list.
 LABEL_ONCE = "mira_once"
 # "Mira: Wecker": Mira's alarms (docs/spec/alarm.md). Not a task.
 LABEL_ALARM = "mira_alarm"

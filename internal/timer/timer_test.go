@@ -27,8 +27,7 @@ func TestTextsComplete(t *testing.T) {
 type fakeHA struct {
 	own     *fakeOwn
 	timers  []Timer
-	saved   []map[string]any // the build commands
-	pending map[string]Timer // built, not yet saved
+	saved   []map[string]any // what was built, as checked
 	labels  map[string]string
 	deleted []string
 	fail    error
@@ -40,28 +39,37 @@ func (f *fakeHA) Call(ctx context.Context, cmd map[string]any) (json.RawMessage,
 		return nil, f.fail
 	}
 	switch cmd["type"] {
-	case "mira/once/list":
-		raw, _ := json.Marshal(map[string]any{"timers": f.timers})
-		return raw, nil
 	case "mira/automation/list":
-		return json.RawMessage(`{"automations":[]}`), nil
-	case "mira/once/build":
-		f.saved = append(f.saved, cmd)
-		tm := Timer{Title: cmd["title"].(string), Due: cmd["due"].(string), Owner: cmd["owner"].(string), Area: cmd["area"].(string), Kind: cmd["kind"].(string)}
-		raw, _ := json.Marshal(cmd["actions"])
-		json.Unmarshal(raw, &tm.Actions)
-		if id, ok := cmd["automation_id"].(string); ok {
-			tm.ID = id
-		} else {
-			f.next++
-			tm.ID = fmt.Sprintf("t%d", f.next)
+		if cmd["label"] != "once" {
+			return json.RawMessage(`{"automations":[]}`), nil
 		}
-		tm.EntityID = "automation." + tm.ID
-		if f.pending == nil {
-			f.pending = map[string]Timer{}
+		var out []map[string]any
+		for _, tm := range f.timers {
+			last := ""
+			if tm.Ran {
+				last = "2026-10-18T20:00:00+00:00"
+			}
+			out = append(out, map[string]any{"id": tm.ID, "entity_id": tm.EntityID, "current": tm.Running, "last_triggered": last,
+				"config": map[string]any{"alias": tm.Title, "actions": tm.Actions, "variables": map[string]any{
+					"mira_title": tm.Title, "mira_due": tm.Due, "mira_owner": tm.Owner, "mira_area": tm.Area, "mira_kind": tm.Kind}}})
 		}
-		f.pending[tm.ID] = tm
-		return json.Marshal(map[string]any{"id": tm.ID, "config": map[string]any{"alias": tm.Title}})
+		return json.Marshal(map[string]any{"automations": out})
+	case "mira/automation/validate":
+		// What the service built, as the tests read it: the variables, the
+		// actions, what was forbidden and the timer it replaces.
+		config := cmd["config"].(map[string]any)
+		v := config["variables"].(map[string]any)
+		var actions []map[string]any
+		for _, a := range config["actions"].([]any) {
+			actions = append(actions, a.(map[string]any))
+		}
+		rec := map[string]any{"title": v["mira_title"], "due": v["mira_due"], "owner": v["mira_owner"], "area": v["mira_area"],
+			"kind": v["mira_kind"], "actions": actions, "forbidden": cmd["forbidden"]}
+		if id, ok := cmd["automation_id"]; ok {
+			rec["automation_id"] = id
+		}
+		f.saved = append(f.saved, rec)
+		return json.RawMessage(`{"valid":true}`), nil
 	case "mira/automation/label":
 		if f.labels == nil {
 			f.labels = map[string]string{}
@@ -76,8 +84,13 @@ func (f *fakeHA) CallService(context.Context, string, string, map[string]any, *h
 	return nil
 }
 
-func (f *fakeHA) SaveAutomationConfig(_ context.Context, id string, _ map[string]any) error {
-	tm := f.pending[id]
+func (f *fakeHA) SaveAutomationConfig(_ context.Context, id string, config map[string]any) error {
+	v := config["variables"].(map[string]any)
+	tm := Timer{ID: id, EntityID: "automation." + id, Title: v["mira_title"].(string), Due: v["mira_due"].(string),
+		Owner: v["mira_owner"].(string), Area: v["mira_area"].(string), Kind: v["mira_kind"].(string)}
+	for _, a := range config["actions"].([]any) {
+		tm.Actions = append(tm.Actions, a.(map[string]any))
+	}
 	for i := range f.timers {
 		if f.timers[i].ID == id {
 			f.timers[i] = tm
@@ -150,6 +163,7 @@ func setup() (map[string]tools.InternalTool, *fakeHA) {
 	ha := &fakeHA{own: newOwn()}
 	list := Tools(Options{
 		Lang: i18n.DE, HA: ha, Own: ha.own, Clock: func() time.Time { return now }, Location: time.UTC,
+		NewID: func() string { ha.next++; return fmt.Sprintf("t%d", ha.next) },
 		Players: func(area string) []string {
 			return map[string][]string{"wohnzimmer": {"media_player.show_speaker"}}[area]
 		},
@@ -320,9 +334,9 @@ func TestSeveralTimersAreAskedAbout(t *testing.T) {
 // HD-25 A finished timer goes when it has run
 func TestHD25_AFinishedTimerGoesWhenItHasRun(t *testing.T) {
 	ha := &fakeHA{timers: []Timer{
-		{ID: "waiting", EntityID: "automation.waiting"},                      // not run yet: stays, watched
-		{ID: "fading", EntityID: "automation.fading", Ran: true, Running: 1}, // still fading out: stays
-		{ID: "done", EntityID: "automation.done", Ran: true},                 // ran while Mira was off: goes
+		{ID: "waiting", EntityID: "automation.waiting", Due: "2026-10-18T22:35:00Z"},                      // not run yet: stays, watched
+		{ID: "fading", EntityID: "automation.fading", Due: "2026-10-18T22:35:00Z", Ran: true, Running: 1}, // still fading out: stays
+		{ID: "done", EntityID: "automation.done", Due: "2026-10-18T22:35:00Z", Ran: true},                 // ran while Mira was off: goes
 	}}
 	watched := make(chan []string, 4)
 	var changed func()
@@ -366,7 +380,7 @@ func tidyOnce(o Options) ([]string, bool, *controller) {
 
 // HD-42 A finished timer without a row stays
 func TestHD42_AFinishedTimerWithoutARowStays(t *testing.T) {
-	ha := &fakeHA{timers: []Timer{{ID: "fremd", EntityID: "automation.fremd", Ran: true}}}
+	ha := &fakeHA{timers: []Timer{{ID: "fremd", EntityID: "automation.fremd", Due: "2026-10-18T22:35:00Z", Ran: true}}}
 	own := newOwn()
 	own.takenOver = true
 	var logs strings.Builder
@@ -387,7 +401,7 @@ func TestHD42_AFinishedTimerWithoutARowStays(t *testing.T) {
 
 // HD-44 Tasks and timers from before are taken over once
 func TestHD44_TasksAndTimersFromBeforeAreTakenOverOnce(t *testing.T) {
-	ha := &fakeHA{timers: []Timer{{ID: "alt", EntityID: "automation.alt", Ran: true}}}
+	ha := &fakeHA{timers: []Timer{{ID: "alt", EntityID: "automation.alt", Due: "2026-10-18T22:35:00Z", Ran: true}}}
 	own := newOwn()
 	var logs strings.Builder
 	o := Options{Lang: i18n.DE, HA: ha, Own: own, Logger: slog.New(slog.NewTextHandler(&logs, nil))}
@@ -413,7 +427,7 @@ func TestHD44_TasksAndTimersFromBeforeAreTakenOverOnce(t *testing.T) {
 	}
 
 	// Once: a timer labelled later is not taken over.
-	ha.timers = []Timer{{ID: "spaeter", EntityID: "automation.spaeter", Ran: true}}
+	ha.timers = []Timer{{ID: "spaeter", EntityID: "automation.spaeter", Due: "2026-10-18T22:35:00Z", Ran: true}}
 	tidyOnce(o)
 	if slices.Contains(ha.deleted, "spaeter") {
 		t.Errorf("taken over again: %v", ha.deleted)

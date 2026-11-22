@@ -39,7 +39,6 @@ from .coordinator import MiraCoordinator
 from .labels import ensure_labels
 from .mail import async_setup_mail
 from .managed import async_config, clear_area_repairs, ensure_primaries, import_settings, sync_area_repairs
-from .once import async_register_commands as async_register_once_commands
 from .panel import async_register_panel, async_register_views, async_remove_panel
 from .telegram import async_setup_telegram
 
@@ -197,7 +196,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     )
     async_register_agent_services(hass, loaded)
     async_register_commands(hass)
-    async_register_once_commands(hass)
     async_register_views(hass)
     ensure_labels(hass)
     return True

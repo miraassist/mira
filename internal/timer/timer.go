@@ -12,6 +12,8 @@ package timer
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"time"
@@ -55,6 +57,8 @@ type Options struct {
 	AreaName func(area string) string
 	// Forbidden is what the integration refuses in a timer's actions.
 	Forbidden func() map[string]any
+	// NewID makes an automation's id; nil: mira_ and 12 random hex digits.
+	NewID func() string
 }
 
 type texts struct {
@@ -126,6 +130,13 @@ func New(o Options) *Timers {
 	}
 	if o.Logger == nil {
 		o.Logger = slog.Default()
+	}
+	if o.NewID == nil {
+		o.NewID = func() string {
+			b := make([]byte, 6)
+			rand.Read(b)
+			return "mira_" + hex.EncodeToString(b)
+		}
 	}
 	return &Timers{c: &controller{o: o, t: i18n.Pick(catalog, o.Lang), log: o.Logger.With("component", "timer"),
 		pokes: make(chan struct{}, 1)}}

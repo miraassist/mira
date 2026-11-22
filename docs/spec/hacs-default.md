@@ -183,7 +183,8 @@ the service's token is an admin's.
   done by the integration's `mira/automation/label` (admins only), which finds the entity by the automation's id in
   the registry and creates the label if missing: no list goes over the wire. A household task keeps its labels.
   Cost: four calls; the turn waits for one automation's reload (milliseconds on the test HA).
-- **Save a timer**: (1) `mira/once/build` at the integration: the timer's automation from title, due time, owner,
+- **Save a timer** (since 2026-11-22 the service builds it and `mira/automation/validate` checks it; `mira/once/build`
+  and `mira/once/list` are gone: [Scheduled actions](scheduled-actions.md), Creating, changing, cancelling): (1) `mira/once/build` at the integration: the timer's automation from title, due time, owner,
   area and actions, checked like a task (before 0.18 part of `mira/once/save`); (2) and (3) as a task, with the label
   "Mira: einmalig".
 - **Read**: `mira/automation/list`, `mira/automation/get` and `mira/once/list` stay with the integration, with

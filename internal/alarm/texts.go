@@ -20,7 +20,7 @@ type texts struct {
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
 		desc: "Miras Wecker zeigen oder löschen: list zeigt die Wecker der Person („Welche Wecker habe ich?“), delete löscht einen („Lösch den Wecker“), auch während er klingelt. " +
-			"Gestellt wird ein Wecker im Skill wecker, nicht hier.",
+			"Gestellt wird ein Wecker im Skill wecker, nicht hier. Nur Wecker: Schlaf-Timer zeigt sleep_timer, Küchen-Timer HassTimerStatus; bei „Welche Timer habe ich?“ also nicht dieses Werkzeug.",
 		actionDesc:         "list oder delete.",
 		idDesc:             "delete: Kennung aus list; weglassen, wenn die Person nur einen Wecker hat.",
 		badAction:          "Unbekannte action; erlaubt sind list, delete.",
@@ -53,7 +53,7 @@ var catalog = map[i18n.Lang]texts{
 	},
 	i18n.EN: {
 		desc: "Show or delete Mira's alarms: list shows the person's alarms (\"which alarms do I have?\"), delete deletes one (\"delete the alarm\"), also while it rings. " +
-			"An alarm is set in the skill wecker, not here.",
+			"An alarm is set in the skill wecker, not here. Alarms only: sleep timers are listed by sleep_timer, kitchen timers by HassTimerStatus; so not this tool for \"which timers do I have?\".",
 		actionDesc:         "list or delete.",
 		idDesc:             "delete: id from list; leave out if the person has only one alarm.",
 		badAction:          "Unknown action; allowed are list, delete.",

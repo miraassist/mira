@@ -118,30 +118,27 @@ func Delete(ctx context.Context, ha HA, own Own, log *slog.Logger, id string) er
 }
 
 // TakeOver notes, once, the automations labelled as Mira's before she kept
-// her own note of them: her tasks (mira/automation/list) and her timers
-// (mira/once/list). Done before anything is deleted; a failure is tried
-// again at the next look.
+// her own note of them: her tasks and her timers (mira/automation/list, the
+// timers by their label "once"). Done before anything is deleted; a failure
+// is tried again at the next look.
 func TakeOver(ctx context.Context, ha HA, own Own, log *slog.Logger) error {
 	done, err := own.OwnAutomationsTakenOver(ctx)
 	if err != nil || done {
 		return err
 	}
 	ids := map[string]string{}
-	for _, l := range []struct{ cmd, key, kind string }{
-		{"mira/automation/list", "automations", KindTask},
-		{"mira/once/list", "timers", KindOnce},
-	} {
-		raw, err := ha.Call(ctx, map[string]any{"type": l.cmd})
+	for _, l := range []struct{ label, kind string }{{LabelTask, KindTask}, {LabelOnce, KindOnce}} {
+		raw, err := ha.Call(ctx, map[string]any{"type": "mira/automation/list", "label": l.label})
 		if err != nil {
-			return fmt.Errorf("%s: %w", l.cmd, err)
+			return fmt.Errorf("mira/automation/list %s: %w", l.label, err)
 		}
 		var res map[string][]struct {
 			ID string `json:"id"`
 		}
 		if err := json.Unmarshal(raw, &res); err != nil {
-			return fmt.Errorf("%s answered %q: %w", l.cmd, excerpt.Bytes(raw), err)
+			return fmt.Errorf("mira/automation/list %s answered %q: %w", l.label, excerpt.Bytes(raw), err)
 		}
-		for _, a := range res[l.key] {
+		for _, a := range res["automations"] {
 			if a.ID != "" {
 				ids[a.ID] = l.kind
 			}
