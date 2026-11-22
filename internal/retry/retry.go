@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/miraassist/mira/internal/clock"
 	"log/slog"
 	"time"
 )
@@ -35,6 +36,9 @@ type Policy struct {
 	// is longer fails at once.
 	Max    time.Duration
 	Growth Growth
+	// Clock is what the waits wait on; nil is the real clock. A test gives
+	// a fake one and moves it (docs/spec/tests.md).
+	Clock clock.Clock
 }
 
 // Wait is the wait after failed failed attempts (1 for the first).
@@ -230,20 +234,22 @@ func DoBy(ctx context.Context, choose func(error) Policy, fn func(context.Contex
 		if ctx.Err() != nil {
 			return err
 		}
+		p := choose(err)
+		clk := clock.Or(p.Clock)
 		deadline, bounded := ctx.Deadline()
-		wait, stop := choose(err).next(err, failed, time.Until(deadline), bounded)
+		wait, stop := p.next(err, failed, clk.Until(deadline), bounded)
 		if stop != nil {
 			return stop
 		}
 		if onRetry != nil {
 			onRetry(failed, wait, err)
 		}
-		t := time.NewTimer(wait)
+		t := clk.NewTimer(wait)
 		select {
 		case <-ctx.Done():
 			t.Stop()
 			return err
-		case <-t.C:
+		case <-t.C():
 		}
 	}
 }

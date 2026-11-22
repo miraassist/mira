@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/miraassist/mira/internal/clock"
 	"log/slog"
 	"strings"
 	"testing"
@@ -19,7 +20,7 @@ func (c classified) Retryable() bool { return c.ok }
 
 func TestRY01_AFatalErrorIsNotTriedAgain(t *testing.T) {
 	calls := 0
-	err := Do(context.Background(), Policy{Attempts: 5, First: time.Millisecond}, func(context.Context) error {
+	err := driven(context.Background(), Policy{Attempts: 5, First: time.Millisecond}, func(context.Context) error {
 		calls++
 		return Fatal(errDown)
 	}, nil)
@@ -30,7 +31,7 @@ func TestRY01_AFatalErrorIsNotTriedAgain(t *testing.T) {
 		t.Error("a fatal error says it is retryable")
 	}
 	calls = 0
-	_ = Do(context.Background(), Policy{Attempts: 5, First: time.Millisecond}, func(context.Context) error {
+	_ = driven(context.Background(), Policy{Attempts: 5, First: time.Millisecond}, func(context.Context) error {
 		calls++
 		return classified{false}
 	}, nil)
@@ -41,7 +42,7 @@ func TestRY01_AFatalErrorIsNotTriedAgain(t *testing.T) {
 
 func TestRY02_ARetryableErrorIsTriedUpToTheBound(t *testing.T) {
 	calls := 0
-	err := Do(context.Background(), Policy{Attempts: 3, First: time.Millisecond}, func(context.Context) error {
+	err := driven(context.Background(), Policy{Attempts: 3, First: time.Millisecond}, func(context.Context) error {
 		calls++
 		return classified{true}
 	}, nil)
@@ -56,7 +57,7 @@ func TestRY02_ARetryableErrorIsTriedUpToTheBound(t *testing.T) {
 
 func TestRY03_AnErrorNobodyClassifiedCountsAsRetryable(t *testing.T) {
 	calls := 0
-	err := Do(context.Background(), Policy{Attempts: 3, First: time.Millisecond}, func(context.Context) error {
+	err := driven(context.Background(), Policy{Attempts: 3, First: time.Millisecond}, func(context.Context) error {
 		calls++
 		if calls == 1 {
 			return errDown
@@ -92,38 +93,44 @@ func TestRY04_WaitsGrowAsThePolicySays(t *testing.T) {
 }
 
 func TestRY05_ANamedWaitIsKeptOrTheCallFailsAtOnce(t *testing.T) {
-	p := Policy{Attempts: 3, First: time.Millisecond}
+	clk := clock.NewFake(time.Now())
+	p := Policy{Attempts: 3, First: time.Millisecond, Clock: clk}
 	var times []time.Time
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	err := Do(ctx, p, func(context.Context) error {
-		times = append(times, time.Now())
-		if len(times) == 1 {
-			return After(errDown, 200*time.Millisecond)
-		}
-		return nil
-	}, nil)
-	if err != nil || len(times) != 2 {
-		t.Fatalf("attempts = %d, err = %v", len(times), err)
+	done := make(chan error, 1)
+	go func() {
+		done <- Do(context.Background(), p, func(context.Context) error {
+			times = append(times, clk.Now())
+			if len(times) == 1 {
+				return After(errDown, 200*time.Millisecond)
+			}
+			return nil
+		}, nil)
+	}()
+	<-clk.AwaitWaiters(1)               // Do waits on the clock
+	clk.Advance(199 * time.Millisecond) // the policy's 1 ms has passed, the named 200 ms not
+	if clk.Waiters() != 1 {
+		t.Fatal("the second attempt came before the named wait")
 	}
-	if d := times[1].Sub(times[0]); d < 200*time.Millisecond {
-		t.Errorf("the second attempt came after %s, before the named 200ms", d)
+	clk.Advance(time.Millisecond)
+	if err := <-done; err != nil || len(times) != 2 || times[1].Sub(times[0]) != 200*time.Millisecond {
+		t.Fatalf("attempts %v, err %v", times, err)
 	}
 
-	short, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel2()
+	// A named wait longer than the call's deadline fails at once, without
+	// waiting.
+	short, cancel := context.WithDeadline(context.Background(), clk.Now().Add(time.Hour))
+	defer cancel()
 	calls := 0
-	began := time.Now()
-	err = Do(short, p, func(context.Context) error { calls++; return After(errDown, time.Second) }, nil)
+	err := Do(short, p, func(context.Context) error { calls++; return After(errDown, 2*time.Hour) }, nil)
 	var w *WaitTooLong
-	if !errors.As(err, &w) || w.Wait != time.Second || calls != 1 || time.Since(began) > 50*time.Millisecond {
-		t.Fatalf("err = %v, calls = %d, took %s", err, calls, time.Since(began))
+	if !errors.As(err, &w) || w.Wait != 2*time.Hour || calls != 1 {
+		t.Fatalf("err = %v, calls = %d", err, calls)
 	}
-	if !strings.Contains(err.Error(), "asked to wait 1s") || !errors.Is(err, errDown) {
+	if !strings.Contains(err.Error(), "asked to wait 2h0m0s") || !errors.Is(err, errDown) {
 		t.Errorf("error = %q", err)
 	}
 	// Longer than the policy's longest wait fails at once too.
-	err = Do(context.Background(), Policy{Attempts: 3, First: time.Millisecond, Max: 10 * time.Millisecond},
+	err = driven(context.Background(), Policy{Attempts: 3, First: time.Millisecond, Max: 10 * time.Millisecond},
 		func(context.Context) error { return After(errDown, time.Second) }, nil)
 	if !errors.As(err, &w) {
 		t.Errorf("err = %v", err)
@@ -135,7 +142,7 @@ func TestRY06_EveryFurtherAttemptLeavesAWarning(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(&buf, nil))
 	p := Policy{Attempts: 3, First: time.Millisecond}
 	calls := 0
-	err := Do(context.Background(), p, func(context.Context) error {
+	err := driven(context.Background(), p, func(context.Context) error {
 		calls++
 		if calls == 1 {
 			return errDown
@@ -184,5 +191,22 @@ func TestNextKeepsAttemptsAcrossTicks(t *testing.T) {
 	at, err = p.Next(now, 1, After(errDown, 5*time.Minute))
 	if err != nil || !at.Equal(now.Add(5*time.Minute)) {
 		t.Errorf("named: %s, %v", at, err)
+	}
+}
+
+// driven is Do on a fake clock, moved on to each wait as Do reaches it: the
+// waits pass without real time (docs/spec/tests.md).
+func driven(ctx context.Context, p Policy, fn func(context.Context) error, onRetry OnRetry) error {
+	clk := clock.NewFake(time.Now())
+	p.Clock = clk
+	done := make(chan error, 1)
+	go func() { done <- Do(ctx, p, fn, onRetry) }()
+	for {
+		select {
+		case err := <-done:
+			return err
+		case <-clk.AwaitWaiters(1):
+			clk.AdvanceToNext()
+		}
 	}
 }
