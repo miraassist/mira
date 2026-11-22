@@ -110,10 +110,14 @@ func NewFake(now time.Time) *Fake // a test's clock
    - **matter** (2026-11-23): `Options.Clock` carries the window, the pause between attempts and the wait for a
      commissioned device's registry event; Scan and Attempt bound calls to Home Assistant and stay real time; the fake
      Home Assistant reports each call; a test lets the window run out with `Drive`.
+   - **programs** (2026-11-23): the wait before a failed download is tried again is on the manager's clock; a
+     test learns from the clock's waiter that the download failed and moves it on; a download's own time limit
+     bounds a connection and stays real time.
+   - **setup** (2026-11-23): `Handler.Clock` is a `clock.Clock`; the restart after an answer waits on it, and a
+     test moves the clock past it instead of sleeping.
 
-   Open: programs, setup, zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch), waiting, clip,
-   voicemail, heard, cmd/mira (a ready signal of `runAgent`, `fakeha.Await`), and the other packages whose tests
-   still sleep or poll.
+   Open: zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch), waiting, clip, voicemail, heard,
+   cmd/mira (a ready signal of `runAgent`, `fakeha.Await`), and the other packages whose tests still sleep or poll.
 
 4. **Absence after a positive signal** (rule 6): the "handled" traces the code lacks, each with its log line.
 5. **Python:** `settle()` and `later()` wait on an `asyncio.Event` of the mocked call; `later()` moves the frozen clock.

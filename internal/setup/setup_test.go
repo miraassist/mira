@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/api"
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
@@ -266,8 +267,9 @@ func TestSetupEndpoint(t *testing.T) {
 	t.Cleanup(models.Close)
 	st := newStore(t)
 	var restarted atomic.Bool
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
 	h := &Handler{Store: st, Token: "tok", ID: "id1", Version: "t", Pairing: true, SetupMode: true,
-		Restart: func() { restarted.Store(true) }, Log: slog.Default()}
+		Restart: func() { restarted.Store(true) }, Log: slog.Default(), Clock: clk}
 	mux := api.NewMux()
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -310,7 +312,8 @@ func TestSetupEndpoint(t *testing.T) {
 		"llm": LLM{Kind: KindCloud, BaseURL: models.URL, Model: "qwen3", APIKey: "good"}}); code != 200 {
 		t.Fatalf("setup: %d %q", code, reason)
 	}
-	time.Sleep(400 * time.Millisecond)
+	<-clk.AwaitWaiters(1) // the restart waits until the answer is out
+	clk.Advance(300 * time.Millisecond)
 	if !restarted.Load() {
 		t.Error("no restart after setup")
 	}
@@ -340,8 +343,9 @@ func TestPairEndpoint(t *testing.T) {
 	st := newStore(t)
 	s, _ := Load(ctx, st)
 	var restarted atomic.Bool
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
 	h := &Handler{Store: st, Token: s.Token, ID: "id1", Version: "t", Pairing: true, SetupMode: true,
-		Restart: func() { restarted.Store(true) }, Log: slog.Default()}
+		Restart: func() { restarted.Store(true) }, Log: slog.Default(), Clock: clk}
 	mux := api.NewMux()
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -386,7 +390,8 @@ func TestPairEndpoint(t *testing.T) {
 	if code != 200 || out["token"] != s.Token {
 		t.Fatalf("pairing: %d %v", code, out)
 	}
-	time.Sleep(400 * time.Millisecond)
+	<-clk.AwaitWaiters(1) // the restart waits until the answer is out
+	clk.Advance(300 * time.Millisecond)
 	if !restarted.Load() {
 		t.Error("no restart after pairing")
 	}

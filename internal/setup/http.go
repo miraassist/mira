@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/api"
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -62,8 +63,10 @@ type Handler struct {
 	// Restart applies new settings: the service starts anew.
 	Restart func()
 	HTTP    *http.Client
-	Clock   func() time.Time
-	Log     *slog.Logger
+	// Clock is the time of the pairing gate and what the restart after an
+	// answer waits on; nil is the real one.
+	Clock clock.Clock
+	Log   *slog.Logger
 
 	gate gate
 }
@@ -105,12 +108,7 @@ func (g *gate) leave() {
 	g.mu.Unlock()
 }
 
-func (h *Handler) now() time.Time {
-	if h.Clock != nil {
-		return h.Clock()
-	}
-	return time.Now()
-}
+func (h *Handler) now() time.Time { return clock.Or(h.Clock).Now() }
 
 // PairState is GET /v1/pair: whether the service is paired and pairing is
 // open.
@@ -328,7 +326,7 @@ func (h *Handler) pair(w http.ResponseWriter, r *http.Request) {
 	h.Log.Info("paired with Home Assistant and set up; starting anew", "model", req.LLM != nil)
 	writeJSON(w, http.StatusOK, Paired{Token: token})
 	if h.Restart != nil {
-		time.AfterFunc(300*time.Millisecond, h.Restart)
+		clock.Or(h.Clock).AfterFunc(300*time.Millisecond, h.Restart)
 	}
 }
 
@@ -383,7 +381,7 @@ func (h *Handler) unpair(w http.ResponseWriter, r *http.Request) {
 	h.Log.Info("Home Assistant let go of Mira; waiting to be paired again. The same Home Assistant pairs without a code; another one needs this pairing code", "code", ShowCode(code))
 	writeJSON(w, http.StatusOK, Done{Status: "restarting"})
 	if h.Restart != nil {
-		time.AfterFunc(300*time.Millisecond, h.Restart)
+		clock.Or(h.Clock).AfterFunc(300*time.Millisecond, h.Restart)
 	}
 }
 
@@ -415,7 +413,7 @@ func (h *Handler) setup(w http.ResponseWriter, r *http.Request) {
 	h.Log.Info("set up from Home Assistant; starting anew", "ha", req.HAURL != "", "model", req.LLM != nil)
 	writeJSON(w, http.StatusOK, Done{Status: "restarting"})
 	if h.Restart != nil {
-		time.AfterFunc(300*time.Millisecond, h.Restart)
+		clock.Or(h.Clock).AfterFunc(300*time.Millisecond, h.Restart)
 	}
 }
 
