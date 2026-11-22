@@ -316,3 +316,25 @@ func (c *controller) area(inv tools.Invocation, room string) (string, bool) {
 	}
 	return inv.Area, inv.Area != ""
 }
+
+// Supplement is what the service adds to Home Assistant's HassTimerStatus
+// (docs/spec/scheduled-actions.md, "Welche Timer habe ich?"): the open sleep
+// timers of the person in the room, one line each; "" for another tool or
+// none. Reading them costs one list of the timers.
+func (s *Timers) Supplement(ctx context.Context, inv tools.Invocation) string {
+	if !strings.HasSuffix(inv.Name, "__HassTimerStatus") {
+		return ""
+	}
+	c := s.c
+	mine, err := c.mine(ctx, inv)
+	if err != nil {
+		c.log.Warn("could not read the sleep timers to add them to HassTimerStatus", "error", err)
+		return fmt.Sprintf(c.t.alsoFailed, err)
+	}
+	var lines []string
+	for _, tm := range mine {
+		due, _ := time.Parse(time.RFC3339, tm.Due)
+		lines = append(lines, fmt.Sprintf(c.t.also, c.clock(due), c.minutesLeft(due), c.o.AreaName(tm.Area)))
+	}
+	return strings.Join(lines, "\n")
+}

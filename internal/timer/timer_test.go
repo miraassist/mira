@@ -442,3 +442,30 @@ func TestHD40_ANewTimerIsRecordedAsMiras(t *testing.T) {
 		t.Errorf("timer %v, noted %v", ha.timers, ha.own.ids)
 	}
 }
+
+// "Welche Timer habe ich?": the person's open sleep timers follow Home
+// Assistant's HassTimerStatus, and nothing else (docs/spec/scheduled-actions.md).
+func TestTheSleepTimersFollowHassTimerStatus(t *testing.T) {
+	ha := &fakeHA{own: newOwn()}
+	timers := New(Options{Lang: i18n.DE, HA: ha, Own: ha.own, Clock: func() time.Time { return now }, Location: time.UTC,
+		Players: func(string) []string { return []string{"media_player.show_speaker"} }, Lights: func(string) []string { return nil },
+		Area: func(n string) string { return n }, AreaName: func(id string) string { return map[string]string{"wohnzimmer": "Wohnzimmer"}[id] },
+		NewID: func() string { ha.next++; return fmt.Sprintf("t%d", ha.next) }})
+	sleep := timers.Tools()[0]
+	run(t, sleep, anna, `{"minutes":30}`)
+	run(t, sleep, tools.Invocation{Person: "ben", Area: "wohnzimmer"}, `{"minutes":45}`)
+	status := anna
+	status.Name = "ha__intent__HassTimerStatus"
+	if got := timers.Supplement(context.Background(), status); got != "Außerdem Schlaf-Timer (sleep_timer): endet um 22:35, in 30 Minuten, Raum Wohnzimmer." {
+		t.Errorf("supplement %q", got)
+	}
+	other := anna
+	other.Name = "ha__intent__HassTurnOn"
+	if got := timers.Supplement(context.Background(), other); got != "" {
+		t.Errorf("another tool: %q", got)
+	}
+	ha.fail = errors.New("not connected")
+	if got := timers.Supplement(context.Background(), status); !strings.Contains(got, "nicht gelesen werden: not connected") {
+		t.Errorf("failure %q", got)
+	}
+}

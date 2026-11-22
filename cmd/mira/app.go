@@ -887,6 +887,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if ducker != nil {
 		registry.Observe(func(inv tools.Invocation) { volumeCall(a.log, ducker, inv) })
 	}
+	// "Welche Timer habe ich?" names the sleep timers too
+	// (docs/spec/scheduled-actions.md).
+	if t := a.timers.Load(); t != nil {
+		registry.Supplement(t.Supplement)
+	}
 	a.tools = registry
 	models := map[string]conversation.Chatter{}
 	for name, c := range a.models {

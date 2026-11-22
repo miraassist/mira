@@ -23,9 +23,20 @@ fünf Minuten"). See [skill ideas](skill-ideas.md).
 | Who triggers | Mira's notifier | Home Assistant |
 | Runs when the other side is off | no (Mira must be running) | yes (Mira need not be running) |
 
-Both stay side by side. "Welche Timer habe ich?" queries both lists: the sleep timers (`sleep_timer` list) and Home
-Assistant's countdown timers (`HassTimerStatus`); the description of `sleep_timer` tells the model so (2026-11-22, after
-flash lite named only the countdown timer).
+Both stay side by side. "Welche Timer habe ich?" names both: the sleep timers and Home Assistant's countdown timers.
+
+### "Welche Timer habe ich?" (decided 2026-11-22, the maintainer)
+
+Asked for timers, the model calls Home Assistant's `HassTimerStatus` and, despite the description of `sleep_timer`,
+not `sleep_timer` list (seen 2026-11-22 with flash lite: a sleep timer of 20 minutes was left out). So the service
+does not leave it to the model: to every answer of `HassTimerStatus`, an error too (Home Assistant has no countdown
+timer), it adds the open sleep timers of the person in the room (anonymous: of the room), one line each:
+"Außerdem Schlaf-Timer (sleep_timer): endet um 22:35, in 20 Minuten, Raum Wohnzimmer". With none it adds nothing.
+
+- **What it costs**: one `mira/automation/list` (label `once`) per call of `HassTimerStatus`; the turn waits for it.
+- **When reading fails**: the line says that the sleep timers could not be read, with the error, and the log names
+  it; Home Assistant's answer stays as it is.
+- Only `HassTimerStatus` of Home Assistant's Assist server; no other tool's result is changed.
 
 ## Countdown timers are a third thing
 

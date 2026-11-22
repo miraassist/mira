@@ -65,3 +65,27 @@ func TestALargeResultIsCutAndSaysSo(t *testing.T) {
 		t.Errorf("default limit cut %d chars", len(out))
 	}
 }
+
+// What a supplement returns is added to an MCP tool's answer
+// (docs/spec/scheduled-actions.md: the sleep timers after HassTimerStatus).
+func TestASupplementIsAddedToAnMCPAnswer(t *testing.T) {
+	ha := fakemcp.HA("x")
+	defer ha.Close()
+	host := mcp.New(mcp.Options{Servers: []config.MCPServer{{Name: "ha", Transport: config.TransportHTTP, URL: ha.Endpoint()}}})
+	ctx := context.Background()
+	if err := host.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer host.Close()
+	reg := NewRegistry(host)
+	reg.Supplement(func(_ context.Context, inv Invocation) string {
+		if inv.Name == "ha__HassTurnOn" {
+			return "Außerdem: etwas"
+		}
+		return ""
+	})
+	out, _, err := reg.Execute(ctx, Invocation{Name: "ha__HassTurnOn", Args: []byte(`{"name":"x"}`)})
+	if err != nil || !strings.HasSuffix(out, "\nAußerdem: etwas") {
+		t.Errorf("answer %q: %v", out, err)
+	}
+}
