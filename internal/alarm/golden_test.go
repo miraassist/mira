@@ -21,7 +21,7 @@ func TestTheBuiltAlarmsAreKeptForTheIntegrationsCheck(t *testing.T) {
 	weekdays.Days = []string{"mon", "tue", "wed", "thu", "fri"}
 	weekdays.Lights, weekdays.LightAt = []string{"light.farblampe"}, "05:50"
 	radio := once
-	radio.Station = &Station{Player: "media_player.wohnzimmer_ma", ContentID: "library://radio/1", ContentType: "music", Title: "SWR3"}
+	radio.Music = &Music{Player: "media_player.wohnzimmer_ma", ContentID: "library://radio/1", ContentType: "music", Title: "SWR3"}
 	configs := []any{build(once), build(weekdays), build(radio)}
 	got, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {

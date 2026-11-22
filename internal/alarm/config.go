@@ -14,15 +14,16 @@ const (
 	// lightLead is how long before the alarm the light starts to rise, and
 	// how long it takes to be full (decision 11); a constant, not a setting.
 	lightLead = 10
-	// radioStart is how long the run waits for a station to play before it
+	// musicStart is how long the run waits for music to play before it
 	// tells the person the alarm could not ring; a safety net, the signal is
 	// the player going to playing.
-	radioStart = "00:00:30"
+	musicStart = "00:00:30"
 )
 
-// Station is a station an alarm wakes with, found when it is set: the
-// player that plays it and what play_media gets.
-type Station struct {
+// Music is what an alarm wakes with instead of the wake sound, found when it
+// is set: a station, playlist, album, artist or track; the player that plays
+// it and what play_media gets.
+type Music struct {
 	Player, ContentID, ContentType, Title string
 }
 
@@ -34,8 +35,8 @@ type spec struct {
 	Owner, Area        string
 	Satellite, Speaker string
 	RiseURL, LoopURL   string
-	FailedText         string // the speaker or the player cannot be reached, or the station does not play
-	Station            *Station
+	FailedText         string // the speaker or the player cannot be reached, or the music does not play
+	Music              *Music
 	Lights             []string
 	LightAt            string // HH:MM
 }
@@ -46,8 +47,8 @@ type spec struct {
 // message to the person; the volume to 90 %; the wake sound round by round,
 // after each round waiting for the satellite listening (a reaction), the
 // speaker idle (the round over) or the cancel event; after a reaction until
-// the satellite is idle again; then the volume back. With a station, the
-// station instead of the rounds, until it is stopped. With light, a second
+// the satellite is idle again; then the volume back. With music, the music
+// instead of the rounds, until it is stopped. With light, a second
 // trigger turns the room's lights on before the alarm time.
 //
 // The alias ends in a tag unique to the alarm: Home Assistant restores a new
@@ -65,9 +66,9 @@ func build(s spec) map[string]any {
 	}
 	triggers := []any{map[string]any{"trigger": "time", "at": s.Time + ":00", "id": "ring"}}
 	ring := ringActions(s)
-	if s.Station != nil {
-		variables["mira_station"] = s.Station.Title
-		ring = radioActions(s)
+	if s.Music != nil {
+		variables["mira_music"] = s.Music.Title
+		ring = musicActions(s)
 	}
 	actions := ring
 	if len(s.Lights) > 0 {
@@ -171,21 +172,21 @@ func ringActions(s spec) []any {
 	}
 }
 
-// radioActions wake with a station (decision 10): the player to 90 %, the
-// station, until someone stops it; the volume is not set back, as there is
-// no end to wait for. A station that does not start playing gets the person
-// the message of decision 13.
-func radioActions(s spec) []any {
-	player := map[string]any{"entity_id": s.Station.Player}
+// musicActions wake with music (decision 10): the player to 90 %, the
+// music, until someone stops it; the volume is not set back, as there is
+// no end to wait for. Music that does not start playing gets the person the
+// message of decision 13.
+func musicActions(s spec) []any {
+	player := map[string]any{"entity_id": s.Music.Player}
 	return []any{
-		unreachable(s, s.Station.Player),
+		unreachable(s, s.Music.Player),
 		map[string]any{"action": "media_player.volume_set", "target": player, "data": map[string]any{"volume_level": volume}},
 		map[string]any{"action": "media_player.play_media", "target": player, "data": map[string]any{
-			"media_content_id": s.Station.ContentID, "media_content_type": s.Station.ContentType,
+			"media_content_id": s.Music.ContentID, "media_content_type": s.Music.ContentType,
 		}},
 		map[string]any{
-			"wait_template": fmt.Sprintf("{{ is_state('%s', 'playing') }}", s.Station.Player),
-			"timeout":       radioStart,
+			"wait_template": fmt.Sprintf("{{ is_state('%s', 'playing') }}", s.Music.Player),
+			"timeout":       musicStart,
 		},
 		map[string]any{
 			"if":   "{{ not wait.completed }}",

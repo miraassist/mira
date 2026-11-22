@@ -115,13 +115,14 @@ func (a *app) supportedFeatures(ctx context.Context, entity string) (int, error)
 	return 0, fmt.Errorf("home assistant has no state of %s", entity)
 }
 
-// alarmStation finds the station an alarm wakes with, when it is set
+// alarmMusic finds what an alarm wakes with, when it is set
 // (docs/spec/alarm.md, decision 10): where the area has an exposed Music
-// Assistant player, Music Assistant's search on it, its stations (an address
-// with "://radio/"); else Radio Browser, as radio_play, on the satellite's
-// speaker. A name with a space is searched once more without it, as
-// radio_play does. Cost: one search, two for a name with a space and no hit.
-func (a *app) alarmStation(ctx context.Context, area, speaker, name string) (*alarm.Station, []string, error) {
+// Assistant player, Music Assistant's search on it, any kind (station,
+// playlist, album, artist, track), and that player plays it; else only a
+// station from Radio Browser, as radio_play, on the satellite's speaker. A
+// station's name with a space is searched once more without it, as radio_play
+// does. Cost: one search, two for a name with a space and no hit.
+func (a *app) alarmMusic(ctx context.Context, area, speaker, name, kind string) (*alarm.Music, []string, error) {
 	snap := a.structure.Snapshot()
 	var players []string
 	for id := range snap.MusicPlayers {
@@ -130,45 +131,61 @@ func (a *app) alarmStation(ctx context.Context, area, speaker, name string) (*al
 		}
 	}
 	sort.Strings(players)
-	search := radio.Search(a.ha)
-	player := speaker
-	if len(players) > 0 {
-		player = players[0]
-		search = func(ctx context.Context, query string) ([]radio.Station, error) {
-			raw, err := a.ha.CallServiceResponse(ctx, "media_player", "search_media",
-				map[string]any{"entity_id": player, "search_query": query})
-			if err != nil {
-				return nil, err
-			}
-			var res map[string]struct {
-				Result []struct {
-					Title       string `json:"title"`
-					ContentID   string `json:"media_content_id"`
-					ContentType string `json:"media_content_type"`
-				} `json:"result"`
-			}
-			if err := json.Unmarshal(raw, &res); err != nil {
-				return nil, fmt.Errorf("search_media answered %q: %w", excerpt.Bytes(raw), err)
-			}
-			var out []radio.Station
-			for _, r := range res[player].Result {
-				if strings.Contains(r.ContentID, "://radio/") {
-					out = append(out, radio.Station{Title: r.Title, ContentID: r.ContentID, ContentType: r.ContentType})
-				}
-			}
-			return out, nil
+	if len(players) == 0 {
+		if kind != "" && kind != "radio" {
+			return nil, nil, alarm.ErrNeedsMusicAssistant
 		}
+		search := radio.Search(a.ha)
+		stations, err := search(ctx, name)
+		if joined := strings.Join(strings.Fields(name), ""); err == nil && len(stations) == 0 && joined != strings.TrimSpace(name) {
+			stations, err = search(ctx, joined)
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		st, titles := radio.Pick(stations, name)
+		if st == nil {
+			return nil, titles, nil
+		}
+		return &alarm.Music{Player: speaker, ContentID: st.ContentID, ContentType: st.ContentType, Title: st.Title}, nil, nil
 	}
-	stations, err := search(ctx, name)
-	if joined := strings.Join(strings.Fields(name), ""); err == nil && len(stations) == 0 && joined != strings.TrimSpace(name) {
-		stations, err = search(ctx, joined)
+	player := players[0]
+	search := func(query string) ([]alarm.Hit, error) {
+		raw, err := a.ha.CallServiceResponse(ctx, "media_player", "search_media",
+			map[string]any{"entity_id": player, "search_query": query})
+		if err != nil {
+			return nil, err
+		}
+		var res map[string]struct {
+			Result []struct {
+				Class       string `json:"media_class"`
+				Title       string `json:"title"`
+				ContentID   string `json:"media_content_id"`
+				ContentType string `json:"media_content_type"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(raw, &res); err != nil {
+			return nil, fmt.Errorf("search_media answered %q: %w", excerpt.Bytes(raw), err)
+		}
+		var out []alarm.Hit
+		for _, r := range res[player].Result {
+			out = append(out, alarm.Hit{Class: r.Class, Title: r.Title, ContentID: r.ContentID, ContentType: r.ContentType})
+		}
+		return out, nil
 	}
+	hits, err := search(name)
 	if err != nil {
 		return nil, nil, err
 	}
-	st, titles := radio.Pick(stations, name)
-	if st == nil {
+	hit, titles := alarm.Pick(hits, name, kind)
+	if joined := strings.Join(strings.Fields(name), ""); hit == nil && len(titles) == 0 && kind == "radio" && joined != strings.TrimSpace(name) {
+		if hits, err = search(joined); err != nil {
+			return nil, nil, err
+		}
+		hit, titles = alarm.Pick(hits, name, kind)
+	}
+	if hit == nil {
 		return nil, titles, nil
 	}
-	return &alarm.Station{Player: player, ContentID: st.ContentID, ContentType: st.ContentType, Title: st.Title}, nil, nil
+	return &alarm.Music{Player: player, ContentID: hit.ContentID, ContentType: hit.ContentType, Title: hit.Title}, nil, nil
 }

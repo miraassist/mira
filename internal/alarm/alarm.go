@@ -65,10 +65,13 @@ type Options struct {
 	Speaker func(satellite string) string
 	// Lights are the exposed lights in an area.
 	Lights func(area string) []string
-	// Station finds a station for an alarm in an area: on the area's Music
-	// Assistant player where there is one, else on the speaker. nil and the
-	// names found when none is meant for sure; an error when searching fails.
-	Station func(ctx context.Context, area, speaker, name string) (*Station, []string, error)
+	// Music finds what an alarm wakes with in an area (decision 10): name and
+	// kind (radio, playlist, album, artist, track, or "" for any), on the
+	// area's Music Assistant player where there is one, else a station on the
+	// speaker. nil and the names found when none is meant for sure;
+	// ErrNeedsMusicAssistant for another kind than a station without Music
+	// Assistant; another error when searching fails.
+	Music func(ctx context.Context, area, speaker, name, kind string) (*Music, []string, error)
 	// Features are a media player's supported_features.
 	Features func(ctx context.Context, entity string) (int, error)
 	// SoundURL is where a satellite fetches one of Mira's sounds.
@@ -95,7 +98,7 @@ type Alarm struct {
 	Time     string   `json:"time"`
 	Days     []string `json:"days"`
 	Date     string   `json:"date"` // a once-alarm's day
-	Station  string   `json:"station"`
+	Music    string   `json:"music"`
 	Light    bool     `json:"light"`
 	Owner    string   `json:"owner"`
 	Area     string   `json:"area"`
@@ -178,6 +181,10 @@ const (
 	ActionDeleteCreated = "alarm.delete_created"
 )
 
+// ErrNeedsMusicAssistant: music other than a station was asked for in a room
+// without Music Assistant (decision 10).
+var ErrNeedsMusicAssistant = errors.New("music other than a station needs Music Assistant")
+
 // Refusal is the building block's no: nothing was set, and Text says why,
 // for the model.
 type Refusal struct{ Text string }
@@ -189,7 +196,7 @@ func (r *Refusal) Error() string { return r.Text }
 func (s *Alarms) SetAction(ctx context.Context, data map[string]any) error {
 	str := func(k string) string { v, _ := data[k].(string); return strings.TrimSpace(v) }
 	return s.c.set(ctx, request{person: str("person"), area: str("area"), satellite: str("satellite"),
-		time: str("time"), days: str("days"), station: str("station"), light: wants(str("light"))})
+		time: str("time"), days: str("days"), music: str("music"), kind: str("music_kind"), light: wants(str("light"))})
 }
 
 // DeleteCreated is the building block alarm.delete_created: the newest alarm
@@ -232,8 +239,8 @@ func clockOf(s string) (string, bool) {
 
 // request is what the thread of wecker hands alarm.set.
 type request struct {
-	person, area, satellite, time, days, station string
-	light                                        bool
+	person, area, satellite, time, days, music, kind string
+	light                                            bool
 }
 
 // wants reads the field light: set for yes, empty or a "-" (not needed) for no.
@@ -307,18 +314,24 @@ func (c *controller) set(ctx context.Context, r request) error {
 		}
 		sp.LightAt = lightAt(at)
 	}
-	if name := strings.TrimSpace(r.station); name != "" && !strings.HasPrefix(name, "-") {
-		st, titles, err := c.o.Station(ctx, area, speaker, name)
-		switch {
-		case err != nil:
-			c.log.Warn("could not search the station for an alarm; no alarm set", "station", name, "error", err)
-			return &Refusal{fmt.Sprintf(c.t.stationUnavailable, name)}
-		case st == nil && len(titles) == 0:
-			return &Refusal{fmt.Sprintf(c.t.noStation, name)}
-		case st == nil:
-			return &Refusal{fmt.Sprintf(c.t.severalStations, name, strings.Join(titles, "; "))}
+	if name := strings.TrimSpace(r.music); name != "" && !strings.HasPrefix(name, "-") {
+		kind := strings.ToLower(strings.TrimSpace(r.kind))
+		if strings.HasPrefix(kind, "-") {
+			kind = ""
 		}
-		sp.Station = st
+		m, titles, err := c.o.Music(ctx, area, speaker, name, kind)
+		switch {
+		case errors.Is(err, ErrNeedsMusicAssistant):
+			return &Refusal{fmt.Sprintf(c.t.needsMusicAssistant, name, room)}
+		case err != nil:
+			c.log.Warn("could not search the music for an alarm; no alarm set", "music", name, "kind", kind, "error", err)
+			return &Refusal{fmt.Sprintf(c.t.musicUnavailable, name, err)}
+		case m == nil && len(titles) == 0:
+			return &Refusal{fmt.Sprintf(c.t.noMusic, name)}
+		case m == nil:
+			return &Refusal{fmt.Sprintf(c.t.severalMusic, name, strings.Join(titles, "; "))}
+		}
+		sp.Music = m
 	}
 	id := sp.ID
 	config := build(sp)
@@ -339,7 +352,7 @@ func (c *controller) set(ctx context.Context, r request) error {
 		return &Refusal{c.failed(err)}
 	}
 	c.log.Info("alarm set", "automation", id, "time", at, "days", on, "date", sp.Date, "area", area, "satellite", satellite,
-		"station", sp.Station != nil, "light", len(sp.Lights) > 0)
+		"music", sp.Music != nil, "light", len(sp.Lights) > 0)
 	c.Poke()
 	return nil
 }
@@ -534,8 +547,8 @@ func (c *controller) cancel(ctx context.Context, al Alarm) {
 // with names what an alarm wakes with besides the wake sound: ", mit SWR3, mit Licht".
 func (c *controller) with(al Alarm) string {
 	out := ""
-	if al.Station != "" {
-		out += ", " + fmt.Sprintf(c.t.withStation, al.Station)
+	if al.Music != "" {
+		out += ", " + fmt.Sprintf(c.t.withMusic, al.Music)
 	}
 	if al.Light {
 		out += ", " + c.t.withLight
@@ -634,7 +647,7 @@ func (c *controller) all(ctx context.Context) ([]Alarm, error) {
 			on = strings.Split(v["mira_days"], ",")
 		}
 		out = append(out, Alarm{ID: a.ID, EntityID: a.EntityID, Title: cmp.Or(v["mira_title"], a.Config.Alias),
-			Time: v["mira_time"], Days: on, Date: v["mira_date"], Station: v["mira_station"], Light: v["mira_light"] == "on",
+			Time: v["mira_time"], Days: on, Date: v["mira_date"], Music: v["mira_music"], Light: v["mira_light"] == "on",
 			Owner: v["mira_owner"], Area: v["mira_area"],
 			Ran: a.LastTriggered != "", Running: a.Current})
 	}

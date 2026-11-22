@@ -41,7 +41,7 @@ Departures, with the reason:
 | 7 | The volume | Before it rings, the alarm sets the satellite's speaker to 90 % (`media_player.volume_set`, `0.9`), so that a volume turned down or muted the night before does not make it quiet. Essential, not optional |
 | 8 | The volume after the alarm | Back to what it was before the alarm |
 | 9 | A satellite whose volume cannot be set (no `media_player` of its device, as a Wyoming satellite) | No alarm there: without a volume it can rely on it is no alarm. Mira says so when asked to set it |
-| 10 | Radio | Plays until it is stopped, as radio; no 10-minute bound |
+| 10 | Music | Waking with music of every kind (amended 2026-11-22; first built for stations only, from the example "mit Musik von SWR3"): where the room has Music Assistant, a station, playlist, album, artist or track, a favorite among them; without Music Assistant only a station (Radio Browser, as `radio_play`), and Mira says so for anything else. It plays until it is stopped; no 10-minute bound |
 | 11 | Light | Rises before the alarm, so that it is full at the alarm time |
 | 12 | Home Assistant off at the time | The alarm is not rung later: only the time trigger, no trigger on Home Assistant's start (the variant with the least logic) |
 | 13 | An alarm that could not ring | The automation reports it, and the person gets a message |
@@ -56,7 +56,7 @@ Departures, with the reason:
 ### Setting
 
 "Weck mich morgen um 6" at a satellite: the thread of the skill `wecker` with `time`, `days` (empty: once), and,
-with step 4, `station` (radio) and `light` (on, slowly); its finish `alarm.set` gets them with the place (satellite,
+with step 4, `music` and `music_kind` (what to wake with) and `light` (on, slowly); its finish `alarm.set` gets them with the place (satellite,
 area, person) (decision 16).
 
 1. Mira finds the satellite of the turn, its area and its speaker (the `media_player` of the satellite's device).
@@ -65,8 +65,8 @@ area, person) (decision 16).
    saves it, labelled `mira_alarm`, the person and the area in its variables.
 3. Mira says what is set: time, day, room, and what it wakes with ("Wecker steht: morgen, 6 Uhr, mit SWR3.").
 
-What it costs: one integration call to build and check, one to save, one reload of automations; with a station, one
-search in Radio Browser or Music Assistant at setting time (the station is written into the automation, not searched
+What it costs: one integration call to build and check, one to save, one reload of automations; with music, one
+search in Music Assistant or Radio Browser at setting time (what plays is written into the automation, not searched
 at 6 in the morning). The turn waits for all of it (about a second, not measured).
 
 ### The automation
@@ -172,12 +172,16 @@ actions:
   (decision 9).
 - **The round that is playing** plays to its end on the Show after the wake word (seen 2026-11-22 with `announce`);
   "Stopp" as a command stops it.
-- **Radio** instead of the wake sound (decision 10, step 4): the station is searched once, when the alarm is set, and
-  written into the automation. Where the area has an exposed Music Assistant player, Music Assistant's search on it
-  (`media_player.search_media`, its stations are the hits with `://radio/` in their address) and that player plays
-  it; else Radio Browser as `radio_play` does, on the satellite's speaker. A name with a space is searched once more
-  without it; the station whose name equals the one asked for is taken, a single hit as it is, else Mira asks
-  (several) or says it found none. At the time: the player reachable (else decision 13), its volume to 90 %,
+- **Music** instead of the wake sound (decision 10, step 4): searched once, when the alarm is set, and written into the
+  automation. The thread's field `music` is the name ("SWR3", "Morgen-Mix", "Queen"), `music_kind` what it is
+  (`radio`, `playlist`, `album`, `artist`, `track`; empty when the user does not say). Where the area has an exposed
+  Music Assistant player: Music Assistant's search on it (`media_player.search_media`), its hits of that kind (a
+  station is a hit with `://radio/` in its address, the others by their `media_class`); that player plays it.
+  Without one: only a station, from Radio Browser as `radio_play` does, on the satellite's speaker; asked for another
+  kind, nothing is set and Mira says that this needs Music Assistant. The hit whose name equals the one asked for
+  is taken (case, spaces and punctuation aside; for an album or a track the part after "Artist - " counts too; Music
+  Assistant's library first), a single hit as it is, else Mira names up to five and asks; a station's name with a
+  space is searched once more without it. At the time: the player reachable (else decision 13), its volume to 90 %,
   `play_media`, then the run waits up to 30 s for the player to play (a safety net; the signal is its state) and
   sends the message of decision 13 if it does not. No rounds: it plays until it is stopped; the volume is not set
   back, as there is no end to wait for.
@@ -231,8 +235,9 @@ ended within half a second); then it deletes the automation.
 |---|---|---|---|
 | Setting | the satellite's device has no speaker, or one that cannot set its volume or play an announcement (`supported_features` without `VOLUME_SET` or `MEDIA_ANNOUNCE`) | nothing is set (decision 9) | the user: "Hier kann ich keinen Wecker stellen." |
 | Setting | the integration is missing or refuses (`NotAllowed`) | nothing is set | the user ("Den Wecker konnte ich nicht stellen"), the log with the refusal |
-| Setting | the station is not found | nothing is set; Mira asks for the station | the user, as `radio_play` |
-| Setting | several stations fit, or searching fails | nothing is set; Mira names up to five and asks, or asks whether the wake sound will do | the user; a failed search also the log |
+| Setting | the music is not found | nothing is set; Mira asks for it | the user, as `radio_play` |
+| Setting | music other than a station in a room without Music Assistant | nothing is set; Mira says it needs Music Assistant and offers a station or the wake sound | the user |
+| Setting | several hits fit, or searching fails | nothing is set; Mira names up to five and asks, or asks whether the wake sound will do | the user; a failed search also the log |
 | Setting | light asked for, but the room has no exposed light | nothing is set | the user: Mira asks whether it should ring without light |
 | Setting | saving or reloading fails | nothing is set | the user and the log, with Home Assistant's answer |
 | Ringing | the speaker is unreachable at the time | nothing rings; the run ends | the person, by a message (decision 13); the automation's trace |
@@ -251,7 +256,7 @@ ended within half a second); then it deletes the automation.
    the tool `alarm` (`list`, `delete`), the automation built by the service and checked by the integration
    (`mira/automation/validate`); the integration lists and labels by any of Mira's labels (`mira/automation/list`
    and `mira/automation/label` with `label: alarm`), so it holds nothing of the alarm itself. Built 2026-11-22.
-4. **Radio and light** (decisions 10 and 11): the thread's fields `station` and `light`, the search when it is set, the
+4. **Music and light** (decisions 10 and 11): the thread's fields `music`, `music_kind` and `light`, the search when it is set, the
    light trigger, the once-alarm's date. Built 2026-11-22.
 5. **The guide** (both languages): "Weck mich" at every satellite, with radio and light; that an alarm set at a TECHO5
    itself is the device's own. Built 2026-11-22.

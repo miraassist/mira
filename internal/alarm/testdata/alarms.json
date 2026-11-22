@@ -423,10 +423,10 @@
       "mira_date": "2099-01-01",
       "mira_days": "",
       "mira_kind": "alarm",
+      "mira_music": "SWR3",
       "mira_owner": "anna",
       "mira_satellite": "assist_satellite.show_assist_satellit",
       "mira_speaker": "media_player.show_speaker",
-      "mira_station": "SWR3",
       "mira_time": "06:00",
       "mira_title": "Wecker Schlafzimmer"
     }

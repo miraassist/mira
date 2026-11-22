@@ -148,13 +148,19 @@ func setup() *env {
 		Lights: func(area string) []string {
 			return map[string][]string{"schlafzimmer": {"light.bett", "light.decke"}}[area]
 		},
-		Station: func(_ context.Context, area, speaker, name string) (*Station, []string, error) {
+		Music: func(_ context.Context, area, speaker, name, kind string) (*Music, []string, error) {
+			ma := area == "schlafzimmer" // the bedroom has a Music Assistant player
+			if !ma && kind != "" && kind != "radio" {
+				return nil, nil, ErrNeedsMusicAssistant
+			}
 			switch strings.ToLower(name) {
 			case "swr3":
-				if area == "schlafzimmer" {
-					return &Station{Player: "media_player.schlafzimmer_ma", ContentID: "library://radio/1", ContentType: "music", Title: "SWR3"}, nil, nil
+				if ma {
+					return &Music{Player: "media_player.schlafzimmer_ma", ContentID: "library://radio/1", ContentType: "music", Title: "SWR3"}, nil, nil
 				}
-				return &Station{Player: speaker, ContentID: "media-source://radio_browser/swr3", ContentType: "audio/mpeg", Title: "SWR3"}, nil, nil
+				return &Music{Player: speaker, ContentID: "media-source://radio_browser/swr3", ContentType: "audio/mpeg", Title: "SWR3"}, nil, nil
+			case "queen":
+				return &Music{Player: "media_player.schlafzimmer_ma", ContentID: "library://artist/1041", ContentType: "music", Title: "Queen"}, nil, nil
 			case "swr":
 				return nil, []string{"SWR1", "SWR3"}, nil
 			case "kaputt":
@@ -162,6 +168,7 @@ func setup() *env {
 			}
 			return nil, nil, nil
 		},
+
 		Speaker: func(sat string) string {
 			return map[string]string{show: "media_player.show_speaker", echo: "media_player.echo_speaker"}[sat]
 		},
@@ -206,9 +213,13 @@ func (e *env) set(person, area, satellite, at, days string) error {
 	return e.setWith(person, area, satellite, at, days, "", "")
 }
 
-func (e *env) setWith(person, area, satellite, at, days, station, light string) error {
+func (e *env) setWith(person, area, satellite, at, days, music, light string) error {
+	return e.setMusic(person, area, satellite, at, days, music, "", light)
+}
+
+func (e *env) setMusic(person, area, satellite, at, days, music, kind, light string) error {
 	return e.alarms.SetAction(context.Background(), map[string]any{"person": person, "area": area,
-		"satellite": satellite, "time": at, "days": days, "station": station, "light": light})
+		"satellite": satellite, "time": at, "days": days, "music": music, "music_kind": kind, "light": light})
 }
 
 func (e *env) setAnna(t *testing.T, at, days string) {
@@ -492,15 +503,42 @@ func TestWK11_AnAlarmWithAStationPlaysTheStationInsteadOfTheWakeSound(t *testing
 	if !strings.Contains(acts, `is_state('media_player.schlafzimmer_ma', 'playing')`) || !strings.Contains(acts, "mira.send_message") {
 		t.Errorf("no message when it does not play:\n%s", acts)
 	}
-	if c["variables"].(map[string]any)["mira_station"] != "SWR3" {
+	if c["variables"].(map[string]any)["mira_music"] != "SWR3" {
 		t.Errorf("variables %v", c["variables"])
 	}
 	// Several stations: asked, nothing set; a search that fails: said.
-	for name, want := range map[string]string{"SWR": "SWR1; SWR3", "kaputt": "Sendersuche geht gerade nicht", "Nirgendwo": "nicht gefunden"} {
+	for name, want := range map[string]string{"SWR": "SWR1; SWR3", "kaputt": "Suche nach \"kaputt\" geht gerade nicht", "Nirgendwo": "nichts gefunden"} {
 		err := e.setWith("anna", "schlafzimmer", show, "07:00", "", name, "")
 		if err == nil || !strings.Contains(err.Error(), want) || len(e.ha.saved) != 1 {
 			t.Errorf("%s: %v", name, err)
 		}
+	}
+}
+
+func TestWK15_AnAlarmWithAPlaylistAnAlbumOrAnArtistPlaysItThroughMusicAssistant(t *testing.T) {
+	e := setup()
+	if err := e.setMusic("anna", "schlafzimmer", show, "06:00", "", "Queen", "artist", ""); err != nil {
+		t.Fatal(err)
+	}
+	_, c := e.only(t)
+	acts := strings.Join(actions(c), "\n")
+	if !strings.Contains(acts, `"media_content_id":"library://artist/1041"`) || !strings.Contains(acts, `{"entity_id":"media_player.schlafzimmer_ma"}`) {
+		t.Errorf("music actions:\n%s", acts)
+	}
+	if c["variables"].(map[string]any)["mira_music"] != "Queen" {
+		t.Errorf("variables %v", c["variables"])
+	}
+}
+
+func TestWK16_MusicOtherThanAStationNeedsMusicAssistant(t *testing.T) {
+	e := setup()
+	err := e.setMusic("ben", "kinderzimmer", show, "07:00", "", "Morgen-Mix", "playlist", "")
+	if err == nil || !strings.Contains(err.Error(), "nur mit Music Assistant") || len(e.ha.saved) != 0 {
+		t.Errorf("saved %d: %v", len(e.ha.saved), err)
+	}
+	// A station goes without it.
+	if err := e.setMusic("ben", "kinderzimmer", show, "07:00", "", "SWR3", "radio", ""); err != nil {
+		t.Errorf("station without Music Assistant: %v", err)
 	}
 }
 

@@ -73,7 +73,7 @@ Feature: WK Alarm
   @step4
   Scenario: WK-11 An alarm with a station plays the station instead of the wake sound
     Given a turn at a satellite without alarms of its own, Music Assistant with a player in the area
-    When the model calls alarm with time 06:00 and station SWR3
+    When the model calls alarm with time 06:00 and music SWR3, music_kind radio
     Then the station is searched once at setting time
     And the automation plays it on the area's Music Assistant player at 06:00
 
@@ -94,3 +94,17 @@ Feature: WK Alarm
     When the model calls alarm with time 06:00
     Then nothing is set
     And the tool says that an alarm is set only at a satellite, in the room where it is to ring
+
+  @step4
+  Scenario: WK-15 An alarm with a playlist, an album or an artist plays it through Music Assistant
+    Given a turn at a satellite whose area has a Music Assistant player
+    When the model calls alarm with time 06:00, music "Queen" and music_kind artist
+    Then Music Assistant's artist Queen is searched once at setting time
+    And the automation plays it on the area's Music Assistant player at 06:00
+
+  @step4
+  Scenario: WK-16 Music other than a station needs Music Assistant
+    Given a turn at a satellite whose area has no Music Assistant player
+    When the model calls alarm with music "Morgen-Mix" and music_kind playlist
+    Then nothing is set
+    And the tool says that this needs Music Assistant
