@@ -1327,6 +1327,8 @@ Elaborate questions – explanations, comparisons, weighing options ("Explain to
 
 At the time you chose, Mira speaks the reminder in the room where you asked for it – even during quiet hours, since you picked the time. Reminders set on Telegram or in the companion app come to you privately over your channels.
 
+▶ [Explainer video: The alarm (1:01)](https://mira-assist.com/videos/erklaer/wecker-en.mp4)
+
 **Alarm clock**: "Wake me tomorrow at 6" – "Wake me on weekdays at half past six" – "Wake me at the usual time", if Mira knows it. The alarm rings at the satellite where you asked, with Mira's wake sound: quiet at first, then louder and louder, until you say the wake word, for at most ten minutes. For it Mira sets the speaker to 90 % and back to where it was afterwards – so it wakes you even if you turned it down in the evening. Mira does not ask back but says what she set; if she misheard, just say "No, half past six". "Which alarms do I have?" and "Delete the alarm" work too, even while it rings.
 
 **With music and light**: "Wake me tomorrow at 6 with SWR3 and turn the light on slowly." – "Wake me with my morning playlist." – "… with the album A Night at the Opera" – "… with Queen". The music then plays instead of the wake sound until you turn it off: a station, a playlist, an album, an artist or a song, from your favorites too, through Music Assistant if the room has one of its players. Without Music Assistant only a radio station works, on the satellite's speaker. The room's light comes on slowly ten minutes before and is fully on at the alarm time. Speakers and lights have to be exposed to Assist.

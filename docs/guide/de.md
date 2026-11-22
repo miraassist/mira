@@ -1347,6 +1347,8 @@ Aufwendige Fragen – Erklärungen, Vergleiche, Abwägungen („Erklär mir, wie
 
 Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie gestellt hast – auch in der Ruhezeit, denn die Zeit hast du gewählt. Per Telegram oder in der Companion App gestellte Erinnerungen kommen privat über deine Kanäle.
 
+▶ [Erklärvideo: Der Wecker (0:57)](https://mira-assist.com/videos/erklaer/wecker.mp4)
+
 **Wecker**: „Weck mich morgen um 6“ – „Weck mich werktags um halb sieben“ – „Weck mich zur üblichen Zeit“, wenn Mira die kennt. Der Wecker klingelt an dem Satelliten, an dem du gefragt hast, mit Miras Weckton: erst leise, dann immer lauter, bis du das Aktivierungswort sagst, höchstens zehn Minuten lang. Dafür stellt Mira den Lautsprecher auf 90 % und danach wieder so, wie er war – so weckt er dich auch, wenn du abends leiser gedreht hast. Mira fragt nicht nach, sondern sagt, was sie gestellt hat; hat sie sich verhört, sag gleich „Nein, halb sieben“. „Welche Wecker habe ich?“ und „Lösch den Wecker“ gehen auch, sogar während er klingelt.
 
 **Mit Musik und Licht**: „Weck mich morgen um 6 mit SWR3 und mach langsam das Licht an.“ – „Weck mich mit meiner Morgen-Playlist.“ – „… mit dem Album A Night at the Opera“ – „… mit Queen“. Statt des Wecktons spielt dann die Musik, bis du sie ausmachst: ein Sender, eine Playlist, ein Album, ein Künstler oder ein Lied, auch aus deinen Favoriten, über Music Assistant, wenn es im Raum einen Player davon gibt. Ohne Music Assistant geht nur ein Radiosender, auf dem Lautsprecher des Satelliten. Das Licht im Raum geht zehn Minuten vorher langsam an und ist zur Weckzeit ganz hell. Lautsprecher und Lichter müssen für Assist freigegeben sein.
