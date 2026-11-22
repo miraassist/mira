@@ -69,7 +69,7 @@ type texts struct {
 
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
-		sleepDesc:     "Schlaf-Timer: nach der Zeit hört im Raum die Wiedergabe auf (Hörbuch, Radio, Musik), auf Wunsch geht auch das Licht aus. action: set (Standard) stellt ihn („Schlaf-Timer 30 Minuten“, „schalte in einer halben Stunde die Musik aus“; ein vorhandener im Raum wird ersetzt), list zeigt die offenen mit Restzeit, extend verlängert („noch zehn Minuten“), cancel bricht ab. Läuft in Home Assistant, auch wenn Mira aus ist. Nicht für Küchen-Timer zum Herunterzählen: dafür gibt es die Timer-Werkzeuge von Home Assistant (HassStartTimer und Verwandte).",
+		sleepDesc:     "Schlaf-Timer: nach der Zeit hört im Raum die Wiedergabe auf (Hörbuch, Radio, Musik), auf Wunsch geht auch das Licht aus. action: set (Standard) stellt ihn („Schlaf-Timer 30 Minuten“, „schalte in einer halben Stunde die Musik aus“; ein vorhandener im Raum wird ersetzt), list zeigt die offenen mit Restzeit, extend verlängert („noch zehn Minuten“), cancel bricht ab. Läuft in Home Assistant, auch wenn Mira aus ist. Nicht für Kurzzeit-Timer zum Herunterzählen („Timer auf 10 Minuten“): dafür gibt es die Timer-Werkzeuge von Home Assistant (HassStartTimer und Verwandte). Fragt der Nutzer allgemein nach Timern („Welche Timer habe ich?“, „Wie lange läuft der Timer noch?“), ruf list hier und HassTimerStatus und nenn beide, Schlaf-Timer und Kurzzeit-Timer.",
 		actionDesc:    "set, list, extend oder cancel.",
 		minutesDesc:   "set: nach wie vielen Minuten der Timer abläuft. extend: um wie viele Minuten er länger läuft.",
 		roomDesc:      "Raum; weglassen für den Raum des Nutzers.",
@@ -92,7 +92,7 @@ var catalog = map[i18n.Lang]texts{
 		needAccess:    "Ergebnis: kein Timer. Grund: Mira braucht erst wieder einen Zugang: Einstellungen → Reparaturen.",
 	},
 	i18n.EN: {
-		sleepDesc:     "Sleep timer: after the time the playback in the room stops (audiobook, radio, music), and on request the light goes off too. action: set (default) sets it (\"sleep timer 30 minutes\", \"turn the music off in half an hour\"; an existing one in the room is replaced), list shows the open ones with the time left, extend extends (\"ten more minutes\"), cancel cancels. Runs in Home Assistant, even when Mira is off. Not for kitchen timers that count down: Home Assistant's timer tools (HassStartTimer and the others) are for that.",
+		sleepDesc:     "Sleep timer: after the time the playback in the room stops (audiobook, radio, music), and on request the light goes off too. action: set (default) sets it (\"sleep timer 30 minutes\", \"turn the music off in half an hour\"; an existing one in the room is replaced), list shows the open ones with the time left, extend extends (\"ten more minutes\"), cancel cancels. Runs in Home Assistant, even when Mira is off. Not for countdown timers (\"timer for 10 minutes\"): Home Assistant's timer tools (HassStartTimer and the others) are for that. If the user asks about timers in general (\"which timers do I have?\", \"how long does the timer still run?\"), call list here and HassTimerStatus and name both, sleep timers and countdown timers.",
 		actionDesc:    "set, list, extend or cancel.",
 		minutesDesc:   "set: after how many minutes the timer ends. extend: by how many minutes it runs longer.",
 		roomDesc:      "Room; leave out for the user's room.",

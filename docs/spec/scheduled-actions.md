@@ -23,11 +23,14 @@ fünf Minuten"). See [skill ideas](skill-ideas.md).
 | Who triggers | Mira's notifier | Home Assistant |
 | Runs when the other side is off | no (Mira must be running) | yes (Mira need not be running) |
 
-Both stay side by side. "Welche Timer habe ich?" queries both lists.
+Both stay side by side. "Welche Timer habe ich?" queries both lists: the sleep timers (`sleep_timer` list) and Home
+Assistant's countdown timers (`HassTimerStatus`); the description of `sleep_timer` tells the model so (2026-11-22, after
+flash lite named only the countdown timer).
 
 ## Countdown timers are a third thing
 
-"Timer auf zehn Minuten für die Nudeln" Mira does **not** rebuild. Those are Home Assistant's timers
+"Timer auf zehn Minuten für die Nudeln" (a countdown timer, Kurzzeit-Timer, [Glossary](../glossary.md)) Mira does
+**not** rebuild. Those are Home Assistant's timers
 (`HassStartTimer`, `HassCancelTimer`, `HassTimerStatus`, `HassIncreaseTimer`, `HassDecreaseTimer`, `HassPauseTimer`,
 `HassUnpauseTimer`): The satellite that gets them counts down, shows the rest and rings (TECHO5 does that on
 Show as on Echo; the Show additionally has the screen). Mira uses these tools herself, just as HA gives them to its
