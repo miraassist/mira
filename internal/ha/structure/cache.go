@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
@@ -44,6 +45,8 @@ type Options struct {
 	// the Mira integration sent it (docs/spec/ha-integration.md). It comes
 	// before asking Home Assistant, which only answers admins.
 	Exposed func(ctx context.Context) (map[string]bool, bool)
+	// Clock is what the debounce waits on; nil is the real one.
+	Clock clock.Clock
 }
 
 // Cache holds the current structure snapshot and keeps it up to date.
@@ -54,6 +57,7 @@ type Cache struct {
 	log      *slog.Logger
 	onChange func(Snapshot)
 	exposed  func(ctx context.Context) (map[string]bool, bool)
+	clock    clock.Clock
 
 	mu   sync.RWMutex
 	snap Snapshot
@@ -78,6 +82,7 @@ func NewCache(opts Options) *Cache {
 		log:      opts.Logger.With("component", "ha-structure"),
 		exposed:  opts.Exposed,
 		onChange: opts.OnChange,
+		clock:    clock.Or(opts.Clock),
 		dirty:    make(chan struct{}, 1),
 		now:      make(chan struct{}, 1),
 	}
@@ -148,30 +153,33 @@ func (c *Cache) Run(ctx context.Context) error {
 		}
 	}
 
-	timer := time.NewTimer(time.Hour)
-	if !timer.Stop() {
-		<-timer.C
+	// timer is the debounce of a pending rebuild, nil while none is
+	// pending; due is its channel (nil, never ready, while none is).
+	var timer clock.Timer
+	var due <-chan time.Time
+	stop := func() {
+		if timer != nil {
+			timer.Stop()
+		}
+		timer, due = nil, nil
 	}
-	pending := false
+	defer stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-c.dirty:
-			if !pending {
-				pending = true
-				timer.Reset(c.debounce)
+			if timer == nil {
+				timer = c.clock.NewTimer(c.debounce)
+				due = timer.C()
 			}
 		case <-c.now:
 			// It reads the registries too: a rebuild still waiting is
 			// dropped (docs/spec/context.md, 1.3).
-			if pending && !timer.Stop() {
-				<-timer.C
-			}
-			pending = false
+			stop()
 			c.rebuild(ctx)
-		case <-timer.C:
-			pending = false
+		case <-due:
+			timer, due = nil, nil
 			c.rebuild(ctx)
 		}
 	}

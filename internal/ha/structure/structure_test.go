@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/testsupport/logcap"
 )
@@ -161,27 +162,31 @@ func (f *fakeSource) Entities(context.Context) ([]haws.Entity, error) {
 type fakeSubscriber struct {
 	mu       sync.Mutex
 	handlers map[string]haws.EventHandler
+	all      chan struct{} // closed once every registry event is subscribed
+}
+
+func newSubscriber() *fakeSubscriber {
+	return &fakeSubscriber{handlers: map[string]haws.EventHandler{}, all: make(chan struct{})}
 }
 
 func (f *fakeSubscriber) Subscribe(_ context.Context, ev string, h haws.EventHandler) (func(), error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.handlers == nil {
-		f.handlers = map[string]haws.EventHandler{}
-	}
 	f.handlers[ev] = h
+	if len(f.handlers) == len(registryEvents) {
+		close(f.all)
+	}
 	return func() {}, nil
 }
 
-func (f *fakeSubscriber) fire(ev string) bool {
+// fire runs the event's handler once the cache subscribed every registry
+// event.
+func (f *fakeSubscriber) fire(ev string) {
+	<-f.all
 	f.mu.Lock()
 	h := f.handlers[ev]
 	f.mu.Unlock()
-	if h == nil {
-		return false
-	}
 	h(haws.Event{EventType: ev})
-	return true
 }
 
 func TestRebuildCallsOnChangeOnlyWhenTheHouseChanged(t *testing.T) {
@@ -255,10 +260,11 @@ func TestExposureFromTheIntegration(t *testing.T) {
 func TestRegistryEventsAreDebounced(t *testing.T) {
 	src := &fakeSource{}
 	src.set(sampleRegistry())
-	sub := &fakeSubscriber{}
+	sub := newSubscriber()
+	clk := clock.NewFake(time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC))
 	changed := make(chan Snapshot, 4)
 	c := NewCache(Options{Source: src, Exposed: src.exposed, Subscriber: sub, Debounce: 50 * time.Millisecond,
-		OnChange: func(s Snapshot) { changed <- s }})
+		OnChange: func(s Snapshot) { changed <- s }, Clock: clk})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -268,15 +274,7 @@ func TestRegistryEventsAreDebounced(t *testing.T) {
 	<-changed
 	go c.Run(ctx)
 
-	deadline := time.Now().Add(2 * time.Second)
-	for !sub.fire("entity_registry_updated") {
-		if time.Now().After(deadline) {
-			t.Fatal("cache never subscribed to registry events")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
 	before := src.reads.Load()
-
 	reg := sampleRegistry()
 	reg.Entities[0].Aliases = append(reg.Entities[0].Aliases, "Großes Licht")
 	src.set(reg)
@@ -284,16 +282,15 @@ func TestRegistryEventsAreDebounced(t *testing.T) {
 		sub.fire("entity_registry_updated")
 		sub.fire("area_registry_updated")
 	}
-
-	select {
-	case s := <-changed:
-		if !slices.Contains(s.EntityNames[reg.Entities[0].EntityID], "großes licht") {
-			t.Fatalf("rebuilt structure lacks the new alias: %v", s.EntityNames)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("no rebuild after registry events")
+	<-clk.AwaitWaiters(1) // the burst's rebuild waits
+	if n := src.reads.Load() - before; n != 0 {
+		t.Fatalf("rebuilt %d times before the debounce ran out", n)
 	}
-	time.Sleep(150 * time.Millisecond)
+	clk.Advance(50 * time.Millisecond)
+	if s := <-changed; !slices.Contains(s.EntityNames[reg.Entities[0].EntityID], "großes licht") {
+		t.Fatalf("rebuilt structure lacks the new alias: %v", s.EntityNames)
+	}
+	// Another rebuild would need the clock moved again: the burst cost one.
 	if n := src.reads.Load() - before; n != 1 {
 		t.Fatalf("burst of 20 events caused %d rebuilds, want 1", n)
 	}
@@ -422,33 +419,27 @@ func startRun(t *testing.T, c *Cache, changed chan Snapshot) {
 func TestHU02_ARebuildWaitingForRegistryChangesIsDroppedByTheOneAtOnce(t *testing.T) {
 	src := &fakeSource{}
 	src.set(sampleRegistry())
-	sub := &fakeSubscriber{}
+	sub := newSubscriber()
+	clk := clock.NewFake(time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC))
 	changed := make(chan Snapshot, 4)
 	c := NewCache(Options{Source: src, Exposed: src.exposed, Subscriber: sub, Debounce: 300 * time.Millisecond,
-		OnChange: func(s Snapshot) { changed <- s }})
+		OnChange: func(s Snapshot) { changed <- s }, Clock: clk})
 	startRun(t, c, changed)
-	deadline := time.Now().Add(2 * time.Second)
-	for !sub.fire("entity_registry_updated") { // a registry change: its rebuild waits
-		if time.Now().After(deadline) {
-			t.Fatal("cache never subscribed to registry events")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	sub.fire("entity_registry_updated") // a registry change: its rebuild waits
+	<-clk.AwaitWaiters(1)
 	before := src.reads.Load()
 
 	reg := sampleRegistry()
 	reg.Areas[0].Name = "Wohnküche"
 	src.set(reg)
 	c.Now()
-	select {
-	case s := <-changed:
-		if s.AreaNames["kueche"] != "Wohnküche" {
-			t.Fatalf("rebuilt at once without the change: %v", s.AreaNames)
-		}
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("no rebuild at once")
+	if s := <-changed; s.AreaNames["kueche"] != "Wohnküche" {
+		t.Fatalf("rebuilt at once without the change: %v", s.AreaNames)
 	}
-	time.Sleep(500 * time.Millisecond) // past the wait of the registry change
+	if n := clk.Waiters(); n != 0 {
+		t.Fatalf("the waiting rebuild was not dropped: %d waits", n)
+	}
+	clk.Advance(300 * time.Millisecond) // past the wait of the registry change
 	if n := src.reads.Load() - before; n != 1 {
 		t.Fatalf("the registries were read %d times, want 1", n)
 	}
@@ -469,13 +460,7 @@ func TestHU03_AFailedRebuildKeepsTheLastStructureAndTheNextOneTriesAgain(t *test
 	src.fail(errors.New("connection lost"))
 	before := src.reads.Load()
 	c.Now()
-	deadline := time.Now().Add(2 * time.Second)
-	for !strings.Contains(lines.String(), "structure rebuild failed") {
-		if time.Now().After(deadline) {
-			t.Fatalf("no log line of the failed rebuild: %s", lines.String())
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	<-lines.Await("structure rebuild failed")
 	if src.reads.Load() == before {
 		t.Fatal("the rebuild at once did not read the registries")
 	}
@@ -488,12 +473,7 @@ func TestHU03_AFailedRebuildKeepsTheLastStructureAndTheNextOneTriesAgain(t *test
 
 	src.fail(nil)
 	c.Now()
-	select {
-	case s := <-changed:
-		if s.AreaNames["kueche"] != "Wohnküche" {
-			t.Fatalf("not the new structure: %v", s.AreaNames)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("the next rebuild at once did not come")
+	if s := <-changed; s.AreaNames["kueche"] != "Wohnküche" {
+		t.Fatalf("not the new structure: %v", s.AreaNames)
 	}
 }
