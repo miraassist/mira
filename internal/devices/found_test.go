@@ -485,6 +485,9 @@ func TestFD03_SaidOnceNeverAgain(t *testing.T) {
 	e := newFoundEnv(t, nil, ha)
 	ha.addDevice("d1", "Hue Lampe", "e1", true)
 	e.post(t)
+	// Said is kept after the entry is left: the restart comes once it is
+	// (failed in check.sh --release 2026-11-22 when it came between the two).
+	waitFor(t, func() bool { return strings.Contains(e.kv.saidKeys(), "device:d1") })
 	// Mira restarts: the subscriptions start again with what is open.
 	e.cancel()
 	ha.mu.Lock()
