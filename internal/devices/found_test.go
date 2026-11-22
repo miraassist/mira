@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
@@ -45,12 +46,54 @@ type fakeHA struct {
 	// onSubmit creates the entry's devices, as Home Assistant does before it
 	// answers.
 	onSubmit map[string]func() haws.FlowStep
+	// sent counts the changes handed to the subscriptions; subscribed is
+	// closed once both subscriptions are made.
+	sent       int
+	subscribed chan struct{}
 }
 
 func newFakeHA() *fakeHA {
 	return &fakeHA{devices: map[string]*fakeDevice{}, labels: map[string]string{}, steps: map[string]haws.FlowStep{},
 		submitted: map[string]map[string]any{}, ignored: map[string]string{}, refuse: map[string]error{},
-		onSubmit: map[string]func() haws.FlowStep{}}
+		onSubmit: map[string]func() haws.FlowStep{}, subscribed: make(chan struct{})}
+}
+
+// ready closes subscribed once both subscriptions are made. The caller
+// holds f.mu.
+func (f *fakeHA) ready() {
+	if len(f.flowSubs) > 0 && len(f.devSubs) > 0 {
+		select {
+		case <-f.subscribed:
+		default:
+			close(f.subscribed)
+		}
+	}
+}
+
+// restart forgets the subscriptions, as when Mira restarts.
+func (f *fakeHA) restart() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.flowSubs, f.devSubs, f.sent = nil, nil, 0
+	f.subscribed = make(chan struct{})
+}
+
+// sentCount is how many changes the subscriptions were handed.
+func (f *fakeHA) sentCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sent
+}
+
+// flowEvent hands a change of the flows to the subscriptions.
+func (f *fakeHA) flowEvent(events []haws.FlowEvent) {
+	f.mu.Lock()
+	subs := slices.Clone(f.flowSubs)
+	f.sent += len(subs)
+	f.mu.Unlock()
+	for _, h := range subs {
+		h(events)
+	}
 }
 
 func (f *fakeHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, error) {
@@ -141,6 +184,7 @@ func (f *fakeHA) Subscribe(_ context.Context, eventType string, h haws.EventHand
 	if eventType == "device_registry_updated" {
 		f.devSubs = append(f.devSubs, h)
 	}
+	f.ready()
 	return func() {}, nil
 }
 
@@ -153,6 +197,8 @@ func (f *fakeHA) SubscribeFlows(_ context.Context, h func([]haws.FlowEvent)) (fu
 			Context: haws.FlowContext{Source: "zeroconf", UniqueID: "u-" + id, TitlePlaceholders: map[string]any{"name": s.Title}}}
 		initial = append(initial, haws.FlowEvent{FlowID: id, Flow: &fl})
 	}
+	f.sent++
+	f.ready()
 	f.mu.Unlock()
 	h(initial)
 	return func() {}, nil
@@ -195,13 +241,10 @@ func (f *fakeHA) discover(id, handler, name, stepID string, fields ...string) {
 	}
 	f.mu.Lock()
 	f.steps[id] = step
-	subs := slices.Clone(f.flowSubs)
 	f.mu.Unlock()
 	fl := haws.Flow{FlowID: id, Handler: handler, StepID: stepID,
 		Context: haws.FlowContext{Source: "zeroconf", UniqueID: "u-" + id, TitlePlaceholders: map[string]any{"name": name}}}
-	for _, h := range subs {
-		h([]haws.FlowEvent{{Type: "added", FlowID: id, Flow: &fl}})
-	}
+	f.flowEvent([]haws.FlowEvent{{Type: "added", FlowID: id, Flow: &fl}})
 }
 
 // addDevice creates a device in the registry and fires its create event.
@@ -215,6 +258,7 @@ func (f *fakeHA) addDeviceOf(platform, id, name, entry string, measuring bool) {
 	f.devices[id] = &fakeDevice{registry: registry{ID: id, Name: name, Manufacturer: "Signify", Model: "LCA001",
 		ConfigEntries: []string{entry}}, measuring: measuring, platform: platform}
 	subs := slices.Clone(f.devSubs)
+	f.sent += len(subs)
 	f.mu.Unlock()
 	data, _ := json.Marshal(map[string]string{"action": "create", "device_id": id})
 	for _, h := range subs {
@@ -279,6 +323,7 @@ type foundEnv struct {
 	f      *Found
 	core   *Core
 	posts  chan [2]string
+	clk    *clock.Fake
 	ended  chan string
 	ticked []string
 	logs   *bytes.Buffer
@@ -303,7 +348,8 @@ func newFoundEnv(t *testing.T, kv *memKV, ha *fakeHA) *foundEnv {
 	if ha == nil {
 		ha = newFakeHA()
 	}
-	e := &foundEnv{ha: ha, kv: kv, posts: make(chan [2]string, 8), ended: make(chan string, 8), logs: &bytes.Buffer{}}
+	e := &foundEnv{ha: ha, kv: kv, posts: make(chan [2]string, 8), ended: make(chan string, 8), logs: &bytes.Buffer{},
+		clk: clock.NewFake(time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC))}
 	logger := slog.New(slog.NewTextHandler(writer(func(b []byte) (int, error) {
 		e.logMu.Lock()
 		defer e.logMu.Unlock()
@@ -387,17 +433,16 @@ func newFoundEnv(t *testing.T, kv *memKV, ha *fakeHA) *foundEnv {
 		},
 		Thread: thread, Tick: tick, End: end,
 		Note:   func(context.Context, string, string) error { return nil },
-		Gather: 30 * time.Millisecond, EntryWait: 200 * time.Millisecond,
+		Gather: 30 * time.Millisecond, EntryWait: 200 * time.Millisecond, Clock: e.clk,
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	e.cancel = cancel
 	t.Cleanup(cancel)
 	go func() { _ = e.f.Run(ctx) }()
-	waitFor(t, func() bool {
-		ha.mu.Lock()
-		defer ha.mu.Unlock()
-		return len(ha.flowSubs) > 0 && len(ha.devSubs) > 0
-	})
+	ha.mu.Lock()
+	subscribed := ha.subscribed
+	ha.mu.Unlock()
+	<-subscribed
 	return e
 }
 
@@ -412,34 +457,68 @@ type writer func([]byte) (int, error)
 
 func (w writer) Write(b []byte) (int, error) { return w(b) }
 
-func waitFor(t *testing.T, ok func() bool) {
-	t.Helper()
-	for i := 0; i < 200; i++ {
-		if ok() {
+// until waits until ok holds of what Run counted, on Run's signal.
+func (e *foundEnv) until(ok func() bool) {
+	for {
+		e.f.mu.Lock()
+		done, changed := ok(), e.f.changed
+		e.f.mu.Unlock()
+		if done {
 			return
 		}
-		time.Sleep(5 * time.Millisecond)
+		<-changed
 	}
-	t.Fatal("timed out")
 }
 
+// settle waits until Run handled every change the fake handed over.
+func (e *foundEnv) settle() {
+	sent := e.ha.sentCount()
+	e.until(func() bool { return e.f.taken >= sent })
+}
+
+// post is the next message to the house: one left already, or the one
+// the gathering says once its wait ran out.
 func (e *foundEnv) post(t *testing.T) [2]string {
 	t.Helper()
 	select {
 	case p := <-e.posts:
 		return p
-	case <-time.After(2 * time.Second):
+	default:
+	}
+	e.settle()
+	if e.clk.Waiters() == 0 {
+		t.Fatal("no message to the house: nothing waits to be said")
+	}
+	e.f.mu.Lock()
+	said := e.f.announced
+	e.f.mu.Unlock()
+	e.clk.AdvanceToNext()
+	e.until(func() bool { return e.f.announced > said })
+	select {
+	case p := <-e.posts:
+		return p
+	default:
 		t.Fatal("no message to the house")
 	}
 	return [2]string{}
 }
 
+// noPost: Run handled every change, a gathering that waits said what it
+// had (what counts is decided when it is said), and no message was left.
 func (e *foundEnv) noPost(t *testing.T) {
 	t.Helper()
+	e.settle()
+	if e.clk.Waiters() != 0 {
+		e.f.mu.Lock()
+		said := e.f.announced
+		e.f.mu.Unlock()
+		e.clk.AdvanceToNext()
+		e.until(func() bool { return e.f.announced > said })
+	}
 	select {
 	case p := <-e.posts:
 		t.Fatalf("a message was left: %q", p[0])
-	case <-time.After(150 * time.Millisecond):
+	default:
 	}
 }
 
@@ -468,7 +547,9 @@ func TestFD01_ADiscoveredDeviceIsSaidOnceAsAMessageToTheHouse(t *testing.T) {
 	if !strings.Contains(p[1], "flow:f1: Hue Bridge") || !strings.Contains(p[1], "geraet-einbinden") {
 		t.Errorf("details = %q", p[1])
 	}
-	waitFor(t, func() bool { return strings.Contains(e.kv.saidKeys(), "flow:hue:u-f1") })
+	if !strings.Contains(e.kv.saidKeys(), "flow:hue:u-f1") {
+		t.Errorf("said = %s", e.kv.saidKeys())
+	}
 }
 
 // Since 2026-11-12 (docs/spec/messages.md, decision 28) each device is an
@@ -494,12 +575,12 @@ func TestFD03_SaidOnceNeverAgain(t *testing.T) {
 	e.post(t)
 	// Said is kept after the entry is left: the restart comes once it is
 	// (failed in check.sh --release 2026-11-22 when it came between the two).
-	waitFor(t, func() bool { return strings.Contains(e.kv.saidKeys(), "device:d1") })
+	if !strings.Contains(e.kv.saidKeys(), "device:d1") {
+		t.Fatalf("said = %s", e.kv.saidKeys())
+	}
 	// Mira restarts: the subscriptions start again with what is open.
 	e.cancel()
-	ha.mu.Lock()
-	ha.flowSubs, ha.devSubs = nil, nil
-	ha.mu.Unlock()
+	ha.restart()
 	e2 := newFoundEnv(t, e.kv, ha)
 	ha.addDevice("d1", "Hue Lampe", "e1", true) // the same device's event once more
 	e2.noPost(t)
@@ -592,8 +673,7 @@ func (e *foundEnv) created(flow, device string) {
 	e.ha.mu.Lock()
 	defer e.ha.mu.Unlock()
 	e.ha.onSubmit[flow] = func() haws.FlowStep {
-		go e.ha.addDevice(device, "Shelly Plus 1", "entry-"+flow, true)
-		time.Sleep(20 * time.Millisecond)
+		e.ha.addDevice(device, "Shelly Plus 1", "entry-"+flow, true)
 		step := haws.FlowStep{Type: "create_entry", FlowID: flow}
 		step.Result.EntryID = "entry-" + flow
 		return step
@@ -717,18 +797,17 @@ func TestFD10_IgnoringADiscoveredDeviceUsesHomeAssistantsIgnore(t *testing.T) {
 	if out := e.run(t, ToolIgnore, `{"item":"flow:f1"}`); !strings.Contains(out, "ignoriert") {
 		t.Fatalf("ignore = %q", out)
 	}
-	var subs []func([]haws.FlowEvent)
 	e.ha.locked(func() {
 		if e.ha.ignored["f1"] != "Hue Bridge" {
 			t.Errorf("ignored = %v", e.ha.ignored)
 		}
-		subs = slices.Clone(e.ha.flowSubs)
 	})
 	// Home Assistant removes the flow (row 3).
-	for _, h := range subs {
-		h([]haws.FlowEvent{{Type: "removed", FlowID: "f1"}})
+	e.ha.flowEvent([]haws.FlowEvent{{Type: "removed", FlowID: "f1"}})
+	e.settle()
+	if out := e.run(t, ToolFound, `{}`); strings.Contains(out, "Hue Bridge") {
+		t.Errorf("still listed: %q", out)
 	}
-	waitFor(t, func() bool { return !strings.Contains(e.run(t, ToolFound, `{}`), "Hue Bridge") })
 }
 
 func TestFD11_IgnoringANewDeviceLabelsIt(t *testing.T) {
@@ -810,6 +889,8 @@ func TestKV05_AGoneDeviceIsForgottenTheOthersStaySaid(t *testing.T) {
 		"device:d1": "Hue Lampe", "device:gone": "Alte Lampe", "flow:hue:u-f1": "Hue Bridge", "flow:hue:u-old": "Alte Bridge",
 	}}
 	e := newFoundEnv(t, kv, ha)
-	waitFor(t, func() bool { return e.kv.saidKeys() == "device:d1 flow:hue:u-f1" })
-	e.noPost(t)
+	e.noPost(t) // the open flows came and were handled
+	if got := e.kv.saidKeys(); got != "device:d1 flow:hue:u-f1" {
+		t.Errorf("said = %s", got)
+	}
 }

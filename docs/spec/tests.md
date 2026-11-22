@@ -1,6 +1,6 @@
 # Tests without time – spec
 
-Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads, the notifier, ha/ws, ha/structure and mcp built. Scenarios:
+Status 2026-11-22: decided; step 1 (the clock), step 2 (`retry`) and of step 3 threads, the notifier, ha/ws, ha/structure, mcp and devices built. Scenarios:
 [tests.feature](tests.feature). The inventory behind it (private): `docs/test-review.local.md`.
 
 ## Goal
@@ -85,7 +85,10 @@ func NewFake(now time.Time) *Fake // a test's clock
    built 2026-11-22: `Options.Clock`; the retry is a timer set anew after each round instead of a ticker, so the
    clock's waiters tell the test when a round is done; a call's `CallTimeout` and the wait for a stdio server's
    process to end stay real time, as bounds of a connection and a process),
-   devices (Gather, EntryWait), agent (attempt timeout, run time), a2a (card retry), conversation (fakellm: gate instead
+   devices (Gather, EntryWait; built 2026-11-23: `FoundOptions.Clock` carries Gather, EntryWait and `Await`'s limit;
+   Run counts what it handled (a change taken with its gathering set, a gathering said) and closes its `changed` with
+   each, so a test waits until Run handled every change the fake handed over, moves the clock past a gathering and
+   waits until it was said; the fake creates an entry's device before it answers the submit, without a goroutine), agent (attempt timeout, run time), a2a (card retry), conversation (fakellm: gate instead
    of `Delay`/`PieceDelay`), matter, programs, setup, zigbee, llm (Retry-After), speakerid (timeout), hooks (file watch),
    waiting, clip, voicemail, heard, cmd/mira (a ready signal of `runAgent`, `fakeha.Await`).
 4. **Absence after a positive signal** (rule 6): the "handled" traces the code lacks, each with its log line.

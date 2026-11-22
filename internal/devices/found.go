@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/excerpt"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
@@ -103,6 +104,9 @@ type FoundOptions struct {
 	// registry's create).
 	Gather    time.Duration
 	EntryWait time.Duration
+	// Clock is what Gather, EntryWait and Await's limit wait on; nil is
+	// the real one.
+	Clock clock.Clock
 }
 
 // Found notices what Home Assistant found and has the tools to take it in.
@@ -127,6 +131,10 @@ type Found struct {
 	// the devices created lately, in order.
 	changed chan struct{}
 	recent  []string
+	// taken counts the inputs Run handled (with its gathering set),
+	// announced the gatherings it said; changed is closed with each, so a
+	// test learns that Run went on.
+	taken, announced int
 }
 
 type foundInput struct {
@@ -144,6 +152,7 @@ func NewFound(o FoundOptions) *Found {
 	if o.EntryWait == 0 {
 		o.EntryWait = 10 * time.Second
 	}
+	o.Clock = clock.Or(o.Clock)
 	if o.Wifi == nil {
 		o.Wifi = func() (string, string) { return "", "" }
 	}
@@ -215,25 +224,41 @@ func (f *Found) Run(ctx context.Context) error {
 		}
 	}()
 	var gather <-chan time.Time
-	var timer *time.Timer
+	var timer clock.Timer
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-gather:
-			gather = nil
+			gather, timer = nil, nil
 			f.announce(ctx)
+			f.handled(func() { f.announced++ })
 		case in := <-f.in:
 			if f.take(ctx, in) {
 				// The burst waits Gather after its last find.
 				if timer != nil {
 					timer.Stop()
 				}
-				timer = time.NewTimer(f.o.Gather)
-				gather = timer.C
+				timer = f.o.Clock.NewTimer(f.o.Gather)
+				gather = timer.C()
 			}
+			f.handled(func() { f.taken++ })
 		}
 	}
+}
+
+// handled counts a step of Run and tells those waiting on changed.
+func (f *Found) handled(count func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	count()
+	close(f.changed)
+	f.changed = make(chan struct{})
 }
 
 // take keeps a change; true when something new waits to be said.
@@ -318,7 +343,7 @@ func (f *Found) take(ctx context.Context, in foundInput) bool {
 	f.started = true
 	f.mu.Unlock()
 	if first {
-		if err := f.o.KV.SetKV(ctx, keyStarted, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		if err := f.o.KV.SetKV(ctx, keyStarted, f.o.Clock.Now().UTC().Format(time.RFC3339)); err != nil {
 			f.log.Warn("could not remember that the noticing ran; the backlog may be said", "error", err)
 		}
 	}
@@ -1005,7 +1030,7 @@ func (f *Found) confirm(ctx context.Context, inv tools.Invocation) (string, erro
 // the test HA 2026-11-10); else Mira waits for the registry's create, up to
 // EntryWait.
 func (f *Found) entryDevices(ctx context.Context, entryID string) ([]registry, error) {
-	deadline := time.NewTimer(f.o.EntryWait)
+	deadline := f.o.Clock.NewTimer(f.o.EntryWait)
 	defer deadline.Stop()
 	for {
 		raw, err := f.o.HA.Call(ctx, map[string]any{"type": "config/device_registry/list"})
@@ -1027,7 +1052,7 @@ func (f *Found) entryDevices(ctx context.Context, entryID string) ([]registry, e
 		}
 		select {
 		case <-f.wake:
-		case <-deadline.C:
+		case <-deadline.C():
 			return nil, nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -1116,7 +1141,7 @@ func (f *Found) Await(ctx context.Context, limit time.Duration, flowOK func(haws
 	f.mu.Lock()
 	start := len(f.recent)
 	f.mu.Unlock()
-	safety := time.NewTimer(limit)
+	safety := f.o.Clock.NewTimer(limit)
 	defer safety.Stop()
 	for {
 		f.mu.Lock()
@@ -1150,7 +1175,7 @@ func (f *Found) Await(ctx context.Context, limit time.Duration, flowOK func(haws
 		select {
 		case <-ctx.Done():
 			return "", "", ctx.Err()
-		case <-safety.C:
+		case <-safety.C():
 			return "", "", nil
 		case <-changed:
 		}
