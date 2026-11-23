@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -28,6 +29,8 @@ type Options struct {
 	// export; the service still runs, it just records nothing.
 	OTLPEndpoint string
 	LogLevel     string
+	// LogTo is where the log goes; standard error when nil. Tests read it.
+	LogTo io.Writer
 	// CaptureContent enables recording prompt and completion text on spans.
 	// Off by default because that text is the household's private data.
 	CaptureContent bool
@@ -56,7 +59,7 @@ func Setup(ctx context.Context, opts Options) (*Provider, error) {
 	if opts.ServiceName == "" {
 		opts.ServiceName = "mira"
 	}
-	logger := newLogger(opts.LogLevel)
+	logger := newLogger(opts.LogLevel, opts.LogTo)
 	p := &Provider{Logger: logger, captureContent: opts.CaptureContent}
 
 	if opts.OTLPEndpoint == "" {
@@ -203,7 +206,7 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	return firstErr
 }
 
-func newLogger(level string) *slog.Logger {
+func newLogger(level string, to io.Writer) *slog.Logger {
 	var lvl slog.Level
 	switch strings.ToLower(level) {
 	case "debug":
@@ -215,7 +218,10 @@ func newLogger(level string) *slog.Logger {
 	default:
 		lvl = slog.LevelInfo
 	}
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))
+	if to == nil {
+		to = os.Stderr
+	}
+	return slog.New(slog.NewTextHandler(to, &slog.HandlerOptions{Level: lvl}))
 }
 
 // NewTestProvider returns a provider that records nothing, for tests and for

@@ -20,17 +20,6 @@ import (
 	"github.com/miraassist/mira/internal/testsupport/fakemcp"
 )
 
-func waitUntil(t *testing.T, what string, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for %s", what)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-}
-
 // TestInverterCaseEndToEnd is the M3 acceptance scenario through the real
 // wiring: the inverter faults and a task (a Home Assistant automation)
 // calls mira.assess, the model rates it, motion in the bathroom gets it
@@ -49,14 +38,14 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 		return `{"text":"Der Wechselrichter meldet einen Fehler.","ids":[` + strings.Join(list, ",") + `]}`
 	}}
 	model := fakellm.New(verdict, verdict, verdict, announce, fakellm.Step{Content: "Er meldet Fehlercode zweiundvierzig."})
-	defer model.Close()
+	t.Cleanup(model.Close)
 
 	ha := fakeha.New()
-	defer ha.Close()
+	t.Cleanup(ha.Close)
 	// Home Assistant's MCP server: Mira does not answer without its prompt.
 	haMCP := fakemcp.HA("")
 	haMCP.Token = ha.Token
-	defer haMCP.Close()
+	t.Cleanup(haMCP.Close)
 	ha.SetRegistry(
 		[]haws.Area{{AreaID: "bad", Name: "Bad"}},
 		[]haws.Device{{ID: "dev-sat-bad", AreaID: "bad", Name: "Echo Bad"}},
@@ -87,28 +76,10 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 	}
 	cfg.Notifier.QuietHours = config.QuietHours{} // the test runs at any hour
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- runAgent(ctx, cfg, prepared{}) }()
-	defer func() {
-		http.DefaultClient.CloseIdleConnections()
-		cancel()
-		select {
-		case <-done:
-		case <-time.After(15 * time.Second):
-			t.Error("agent did not shut down")
-		}
-	}()
-	// The notifier watches the motion sensor, and the API is up.
-	waitUntil(t, "trigger subscriptions", func() bool { return ha.SubscriptionCount() >= 1 })
-	waitUntil(t, "the API", func() bool {
-		resp, err := http.Get("http://" + cfg.Server.Listen + "/v1/health")
-		if err != nil {
-			return false
-		}
-		resp.Body.Close()
-		return true
-	})
+	logs := startAgent(t, cfg)
+	ctx := context.Background()
+	// The notifier watches the motion sensor.
+	<-ha.Await(func() bool { return ha.SubscriptionCount() >= 1 })
 
 	push := func(entity, from, to string) {
 		ha.SetState(entity, from, nil)
@@ -135,17 +106,17 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	var message store.Message
-	waitUntil(t, "the message", func() bool {
-		message, err = st.OpenMessageByDedupeKey(ctx, "inverter:fault")
-		return err == nil
-	})
+	// assess answers once the message is kept.
+	message, err := st.OpenMessageByDedupeKey(ctx, "inverter:fault")
+	if err != nil {
+		t.Fatalf("the message: %v", err)
+	}
 
 	// 2. Motion in the bathroom: exactly one announcement there.
 	push("binary_sensor.bad_motion", "off", "on")
-	waitUntil(t, "the announcement", func() bool { return len(ha.ServiceCalls()) > 0 })
+	<-ha.Await(func() bool { return len(ha.ServiceCalls()) > 0 })
 	push("binary_sensor.bad_motion", "off", "on")
-	time.Sleep(200 * time.Millisecond)
+	<-logs.AwaitN(2, `msg="presence `) // the second motion was handled too
 	calls := ha.ServiceCalls()
 	if len(calls) != 1 || calls[0].Domain != "assist_satellite" || calls[0].Service != "start_conversation" {
 		t.Fatalf("service calls = %+v", calls)

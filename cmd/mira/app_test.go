@@ -18,6 +18,7 @@ import (
 	"github.com/miraassist/mira/internal/testsupport/fakeha"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/testsupport/fakemcp"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 )
 
 func freeAddr(t *testing.T) string {
@@ -44,18 +45,44 @@ func seedExposed(t *testing.T, dbPath string, ids ...string) {
 	}
 }
 
+// startAgent runs the service with cfg until the test ends and returns
+// once Mira is up, with her log (at debug) for the test to await.
+func startAgent(t *testing.T, cfg config.Config) *logcap.Lines {
+	t.Helper()
+	lines := &logcap.Lines{}
+	cfg.Telemetry.LogLevel = "debug"
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runAgent(ctx, cfg, prepared{logTo: lines}) }()
+	t.Cleanup(func() {
+		http.DefaultClient.CloseIdleConnections()
+		cancel()
+		if err := <-done; err != nil {
+			t.Errorf("runAgent: %v", err)
+		}
+	})
+	select {
+	case <-lines.Await(`msg="mira is up"`):
+	case err := <-done:
+		t.Fatalf("runAgent ended: %v", err)
+	}
+	return lines
+}
+
 // TestAgentEndToEnd starts the real wiring against fakes and drives one voice
 // turn through the HTTP API: satellite → area → tool call → answer.
 func TestAgentEndToEnd(t *testing.T) {
+	warmed := []chan struct{}{make(chan struct{}), make(chan struct{}), make(chan struct{})}
 	model := fakellm.New(
-		fakellm.Step{Content: "."}, fakellm.Step{Content: "."}, fakellm.Step{Content: "."}, // startup warmups
+		fakellm.Step{Content: ".", Taken: warmed[0]}, fakellm.Step{Content: ".", Taken: warmed[1]},
+		fakellm.Step{Content: ".", Taken: warmed[2]}, // startup warmups
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__HassTurnOn", `{"name":"Küchenlicht"}`)}},
 		fakellm.Step{Content: "Das Licht in der Küche ist an."},
 	)
-	defer model.Close()
+	t.Cleanup(model.Close)
 
 	ha := fakeha.New()
-	defer ha.Close()
+	t.Cleanup(ha.Close)
 	ha.SetRegistry(
 		[]haws.Area{{AreaID: "kueche", Name: "Küche"}},
 		[]haws.Device{{ID: "sat-kueche", AreaID: "kueche", Name: "Satellit"}},
@@ -64,7 +91,7 @@ func TestAgentEndToEnd(t *testing.T) {
 
 	haMCP := fakemcp.HA("Küchenlicht: aus")
 	haMCP.Token = ha.Token
-	defer haMCP.Close()
+	t.Cleanup(haMCP.Close)
 
 	cfg := config.Default()
 	cfg.Server = config.Server{Listen: freeAddr(t), Token: "api-token"}
@@ -80,44 +107,11 @@ func TestAgentEndToEnd(t *testing.T) {
 	cfg.Telemetry.LogLevel = "error"
 	seedExposed(t, cfg.Store.Path, "light.kueche")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- runAgent(ctx, cfg, prepared{}) }()
-	defer func() {
-		http.DefaultClient.CloseIdleConnections()
-		cancel()
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Errorf("runAgent: %v", err)
-			}
-		case <-time.After(15 * time.Second):
-			t.Error("agent did not shut down")
-		}
-	}()
-
+	startAgent(t, cfg)
 	base := "http://" + cfg.Server.Listen
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		req, _ := http.NewRequest("GET", base+"/v1/health", nil)
-		req.Header.Set("Authorization", "Bearer api-token")
-		if resp, err := http.DefaultClient.Do(req); err == nil {
-			resp.Body.Close()
-			if resp.StatusCode == 200 {
-				break
-			}
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("agent did not come up")
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
 	// Let the startup warmups pass before the turn so the script lines up.
-	for i := 0; len(model.Requests()) < 3; i++ {
-		if i > 200 {
-			t.Fatalf("warmups = %d", len(model.Requests()))
-		}
-		time.Sleep(20 * time.Millisecond)
+	for _, w := range warmed {
+		<-w
 	}
 
 	body := `{"text":"Mach das Licht an","device_id":"sat-kueche","language":"de"}`
@@ -157,12 +151,12 @@ func TestAgentEndToEnd(t *testing.T) {
 // words the user can act on.
 func TestBrokenSkillDoesNotStopTheAgent(t *testing.T) {
 	model := fakellm.New(fakellm.Step{Content: "."}, fakellm.Step{Content: "."}, fakellm.Step{Content: "."})
-	defer model.Close()
+	t.Cleanup(model.Close)
 	ha := fakeha.New()
-	defer ha.Close()
+	t.Cleanup(ha.Close)
 	haMCP := fakemcp.HA("")
 	haMCP.Token = ha.Token
-	defer haMCP.Close()
+	t.Cleanup(haMCP.Close)
 
 	cfg := config.Default()
 	cfg.Server = config.Server{Listen: freeAddr(t), Token: "api-token"}
@@ -179,41 +173,20 @@ func TestBrokenSkillDoesNotStopTheAgent(t *testing.T) {
 	cfg.Skills.Dirs = []string{"../../internal/skills/testdata/skills"}
 	cfg.Skills.Enabled = map[string]map[string]any{"abfall": {}, "gibtsnicht": nil}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- runAgent(ctx, cfg, prepared{}) }()
-	defer func() {
-		http.DefaultClient.CloseIdleConnections()
-		cancel()
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Errorf("runAgent: %v", err)
-			}
-		case <-time.After(15 * time.Second):
-			t.Error("agent did not shut down")
-		}
-	}()
-
+	startAgent(t, cfg)
 	var status struct {
 		Problems []struct{ Source, Name, Text string } `json:"problems"`
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		req, _ := http.NewRequest("GET", "http://"+cfg.Server.Listen+"/v1/status", nil)
-		req.Header.Set("Authorization", "Bearer api-token")
-		if resp, err := http.DefaultClient.Do(req); err == nil {
-			raw, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if resp.StatusCode == 200 {
-				json.Unmarshal(raw, &status)
-				break
-			}
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("agent did not come up")
-		}
-		time.Sleep(50 * time.Millisecond)
+	req, _ := http.NewRequest("GET", "http://"+cfg.Server.Listen+"/v1/status", nil)
+	req.Header.Set("Authorization", "Bearer api-token")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || json.Unmarshal(raw, &status) != nil {
+		t.Fatalf("status: %d %s", resp.StatusCode, raw)
 	}
 	if len(status.Problems) != 2 {
 		t.Fatalf("problems = %+v", status.Problems)

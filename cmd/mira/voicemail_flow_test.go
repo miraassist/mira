@@ -20,9 +20,7 @@ func TestPlayedThroughFollowsTheSpeakersState(t *testing.T) {
 		ha.SetStates([]haws.State{{EntityID: speaker, State: from}})
 		done := make(chan bool, 1)
 		go func() { done <- a.playedThrough(ctx, speaker, 5*time.Second) }()
-		for ha.SubscriptionCount() == 0 {
-			time.Sleep(5 * time.Millisecond)
-		}
+		<-ha.Await(func() bool { return ha.SubscriptionCount() > 0 }) // it watches the speaker
 		for _, s := range states {
 			ha.SetState(speaker, s, nil)
 		}
@@ -44,9 +42,7 @@ func TestAnnounceNextIsPlainAndWaitsForQuiet(t *testing.T) {
 	ha.SetStates([]haws.State{{EntityID: sat, State: "responding"}})
 	done := make(chan bool, 1)
 	go func() { done <- a.announceNext(context.Background(), sat, "Nächste: von Ben.") }()
-	for ha.SubscriptionCount() == 0 {
-		time.Sleep(5 * time.Millisecond)
-	}
+	<-ha.Await(func() bool { return ha.SubscriptionCount() > 0 }) // it watches the satellite
 	if n := len(ha.ServiceCalls()); n != 0 {
 		t.Fatalf("announced into a speaking satellite: %d calls", n)
 	}
@@ -74,9 +70,7 @@ func TestPlaybackSaysHowItEnded(t *testing.T) {
 		}
 		done := make(chan result, 1)
 		go func() { end, err := a.playback(ctx, speaker, 5*time.Second); done <- result{end, err} }()
-		for ha.SubscriptionCount() == 0 {
-			time.Sleep(5 * time.Millisecond)
-		}
+		<-ha.Await(func() bool { return ha.SubscriptionCount() > 0 }) // it watches the speaker
 		for _, s := range states {
 			ha.SetState(speaker, s, nil)
 		}

@@ -7,10 +7,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 	"github.com/miraassist/mira/internal/ui"
 )
 
@@ -201,6 +201,8 @@ func TestZP23_a_time_the_fields_cannot_show_is_not_changed_on_the_page(t *testin
 
 func TestZP24_run_now_runs_the_job_and_shows_its_result(t *testing.T) {
 	a, s, _ := scheduleApp(t)
+	log, lines := logcap.Logger()
+	a.runner.Logger = log
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error)
 	go func() { done <- a.runner.Run(ctx) }()
@@ -209,19 +211,10 @@ func TestZP24_run_now_runs_the_job_and_shows_its_result(t *testing.T) {
 		if err := s.RunNow("plan", "morgen"); err != nil {
 			t.Fatal(err)
 		}
-		deadline := time.Now().Add(5 * time.Second)
-		for {
-			it := item(t, s, "plan", "morgen")
-			if it.State == "" && len(it.Last) == 1 {
-				if it.Last[0].Status != store.RunDone || it.Last[0].Text != "Guten Morgen." {
-					t.Errorf("last run: %+v", it.Last)
-				}
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatalf("run %d did not end: %+v", run, it)
-			}
-			time.Sleep(10 * time.Millisecond)
+		<-lines.AwaitN(run, "scheduled task done", "skill=plan")
+		it := item(t, s, "plan", "morgen")
+		if it.State != "" || len(it.Last) != 1 || it.Last[0].Status != store.RunDone || it.Last[0].Text != "Guten Morgen." {
+			t.Errorf("run %d: %+v", run, it)
 		}
 	}
 	msgs, err := a.store.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}, IncludeExpired: true})

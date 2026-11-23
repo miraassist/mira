@@ -372,6 +372,28 @@ func (s *Server) SetState(entityID, state string, attributes map[string]any) int
 	return sent
 }
 
+// Watching is how many live subscribe_entities subscriptions watch the
+// entity.
+func (s *Server) Watching(entityID string) int {
+	s.mu.Lock()
+	conns := make([]*connState, 0, len(s.conns))
+	for c := range s.conns {
+		conns = append(conns, c)
+	}
+	s.mu.Unlock()
+	n := 0
+	for _, cs := range conns {
+		cs.mu.Lock()
+		for _, want := range cs.entitySubs {
+			if want.match(entityID) {
+				n++
+			}
+		}
+		cs.mu.Unlock()
+	}
+	return n
+}
+
 // SubscriptionCount reports how many live subscriptions exist, which is how a
 // test checks that they survived a reconnect.
 func (s *Server) SubscriptionCount() int {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -37,6 +38,9 @@ type prepared struct {
 	// haFromSetup: Home Assistant's address and token came from the
 	// integration's setup, not from mira.yaml.
 	haFromSetup bool
+	// logTo is where the service logs; standard error when nil (tests
+	// read the log to learn what the service did).
+	logTo io.Writer
 	// code: the pairing code for another Home Assistant, made when one
 	// let go.
 	code string

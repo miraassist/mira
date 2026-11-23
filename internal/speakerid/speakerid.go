@@ -47,6 +47,12 @@ func New(base, token string) *Client {
 	return &Client{base: base, token: token, http: &http.Client{}}
 }
 
+// WithClock makes the client's Timeout wait on clk; for tests.
+func (c *Client) WithClock(clk clock.Clock) *Client {
+	c.clock = clk
+	return c
+}
+
 // call sends one request and decodes the answer into out (nil: none).
 func (c *Client) call(ctx context.Context, method, path string, body, out any) error {
 	var rd io.Reader

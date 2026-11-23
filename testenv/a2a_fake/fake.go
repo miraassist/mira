@@ -125,8 +125,9 @@ type Received struct {
 	Card string `json:"card"`
 	// Kind is "card" (the card was read), a JSON-RPC method (SendMessage,
 	// SendStreamingMessage, GetTask, CancelTask, …), "cancel" (the task was
-	// cancelled), "push" (a push the fake sent) or "stored" (the fake's
-	// task store holds the task completed: what GetTask answers from now).
+	// cancelled), "push" (a push the fake sends), "pushed" (Mira answered
+	// it) or "stored" (the fake's task store holds the task completed: what
+	// GetTask answers from now).
 	Kind string `json:"kind"`
 	// Auth is the credential that came: the Authorization header, or the
 	// API key for CardAPIKey.
@@ -532,6 +533,7 @@ func (s *recordingSender) SendPush(ctx context.Context, config *a2a.PushConfig, 
 			s.f.log.Warn("a2a fake: a push failed", "url", config.URL, "error", err)
 			return err
 		}
+		s.f.record(Received{Kind: "pushed", TaskID: string(config.TaskID), State: state})
 	}
 	return nil
 }

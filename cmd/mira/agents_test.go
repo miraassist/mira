@@ -61,11 +61,8 @@ func deliveryApp(t *testing.T, script ...fakellm.Step) (*app, *fakeha.Server, *f
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go client.Run(ctx)
-	for i := 0; !client.Connected(); i++ {
-		if i > 200 {
-			t.Fatal("home assistant not connected")
-		}
-		time.Sleep(10 * time.Millisecond)
+	if err := client.WaitReady(ctx); err != nil {
+		t.Fatal(err)
 	}
 	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
@@ -189,23 +186,18 @@ func TestThreadAgentRunsAndFillsTheField(t *testing.T) {
 	target := skills.Skill{Name: "geburtstag", Description: "Feier", Body: "Plane.", Target: &skills.Target{
 		Finish: skills.Finish{Name: "memory.save"}, Fields: []skills.TargetField{
 			{Name: "fact", Description: "was", Agent: "spielideen"}}}}
+	finished := &signals{}
 	a.threads = threads.New(threads.Options{Lang: i18n.DE, Store: a.store, Targets: []skills.Skill{target},
-		Finishers: map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, i18n.DE)},
+		Finishers: map[string]threads.Finisher{"memory.save": signalFinisher{threads.MemorySave(a.store, i18n.DE), finished}},
 		Dispatch:  a.dispatchForThread, Cancel: a.agents.Cancel})
 	ctx := context.Background()
 	inv := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
 	if _, err := a.threads.Start(ctx, inv, "geburtstag", "Plane Tims Geburtstag"); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; ; i++ {
-		facts, _ := a.store.AllFacts(ctx)
-		if len(facts) == 1 && facts[0].Text == "Topfschlagen" {
-			break
-		}
-		if i > 200 {
-			t.Fatalf("the agent's result did not reach the thread: %+v", facts)
-		}
-		time.Sleep(10 * time.Millisecond)
+	<-finished.await(func(string) bool { return true }) // the thread's finish worked
+	if facts, _ := a.store.AllFacts(ctx); len(facts) != 1 || facts[0].Text != "Topfschlagen" {
+		t.Fatalf("the agent's result did not reach the thread: %+v", facts)
 	}
 }
 

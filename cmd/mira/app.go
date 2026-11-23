@@ -235,6 +235,8 @@ type buildOptions struct {
 	// haFromSetup: the Home Assistant token came from the integration's
 	// setup (prepared.haFromSetup).
 	haFromSetup bool
+	// logTo is where the log goes (prepared.logTo); standard error when nil.
+	logTo io.Writer
 }
 
 // build wires everything that both run and chat need, and connects to Home
@@ -242,7 +244,7 @@ type buildOptions struct {
 func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, error) {
 	tel, err := telemetry.Setup(ctx, telemetry.Options{
 		ServiceName: cfg.Telemetry.ServiceName, Version: version,
-		OTLPEndpoint: otlpEndpoint(cfg.Telemetry.OTLPEndpoint), LogLevel: cfg.Telemetry.LogLevel,
+		OTLPEndpoint: otlpEndpoint(cfg.Telemetry.OTLPEndpoint), LogLevel: cfg.Telemetry.LogLevel, LogTo: opts.logTo,
 		CaptureContent: cfg.Telemetry.CaptureContent,
 	})
 	if err != nil {
@@ -1060,7 +1062,7 @@ func (a *app) close() {
 func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	a, err := build(ctx, cfg, buildOptions{pairing: p.pairing, configPath: p.path, haFromSetup: p.haFromSetup})
+	a, err := build(ctx, cfg, buildOptions{pairing: p.pairing, configPath: p.path, haFromSetup: p.haFromSetup, logTo: p.logTo})
 	if err != nil {
 		return err
 	}

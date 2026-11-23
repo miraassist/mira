@@ -14,6 +14,7 @@ import (
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/testsupport/fakeha"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 )
 
 // TestUIChangesApplyWithoutRestart edits the notifier and the satellites
@@ -47,17 +48,20 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := func() (stop func()) {
+		lines := &logcap.Lines{}
+		cfg.Telemetry.LogLevel = "debug"
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
-		go func() { done <- runAgent(ctx, cfg, prepared{path: path}) }()
+		go func() { done <- runAgent(ctx, cfg, prepared{path: path, logTo: lines}) }()
+		select {
+		case <-lines.Await(`msg="mira is up"`):
+		case err := <-done:
+			t.Fatalf("runAgent ended: %v", err)
+		}
 		return func() {
 			http.DefaultClient.CloseIdleConnections()
 			cancel()
-			select {
-			case <-done:
-			case <-time.After(15 * time.Second):
-				t.Error("agent did not shut down")
-			}
+			<-done
 		}
 	}
 	api := func(method, path, body string) (int, string) {
@@ -73,10 +77,7 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	}
 
 	stop := start()
-	waitUntil(t, "the API", func() bool { code, _ := api("GET", "/v1/health", ""); return code == 200 })
-	waitUntil(t, "presence subscriptions", func() bool { return ha.SubscriptionCount() >= 1 })
-	time.Sleep(200 * time.Millisecond) // let the structure cache subscribe too
-	before := ha.SubscriptionCount()
+	<-ha.Await(func() bool { return ha.Watching("binary_sensor.bad_motion") == 1 }) // the notifier watches presence
 
 	if code, body := api("GET", "/ui", ""); code != 200 || !strings.Contains(body, "<title>Mira</title>") {
 		t.Fatalf("page: %d", code)
@@ -89,9 +90,12 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	if code != 200 || !strings.Contains(body, `"23:00"`) {
 		t.Fatalf("put: %d %s", code, body)
 	}
-	// Two presence sensors after the restart of the notifier. The old
-	// subscriptions are gone, the new presence sensor is added.
-	waitUntil(t, "subscriptions after the change", func() bool { return ha.SubscriptionCount() == before+1 })
+	// Two presence sensors after the restart of the notifier: the new one is
+	// watched, the old one once, not twice.
+	<-ha.Await(func() bool { return ha.Watching("binary_sensor.flur_motion") == 1 })
+	if n := ha.Watching("binary_sensor.bad_motion"); n != 1 {
+		t.Errorf("the bathroom's sensor is watched %d times", n)
+	}
 
 	// An invalid change is refused and changes nothing.
 	if code, body := api("PUT", "/v1/ui/config", `{"notifier": {"morning_trigger": {"areas": ["keller"]}}}`); code != 422 || !strings.Contains(body, "keller") {

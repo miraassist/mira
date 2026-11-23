@@ -137,9 +137,14 @@ func NewFake(now time.Time) *Fake // a test's clock
    - **heard** (2026-11-23): `Options.Clock` is a `clock.Clock` and carries the watch's limit; the tracker closes a
      channel when a watch ends, for the tests; music playing since before the turn is shown by letting the limit run
      out on the clock.
+   - **cmd/mira** (2026-11-23): the service logs to a writer a test gives (`prepared.logTo`, `telemetry.Options.LogTo`);
+     a test starts it and awaits its line "mira is up", then the lines of what it handled ("presence handled",
+     "scheduled task done"); the fakes are closed after the service stopped. The remote agents' tests run the threads
+     and the calls on a fake clock and await the fake agent's signals (it also reports "pushed" once Mira answered a
+     push), the finished thread and the told messages. A scheduled run is cleared before it is said to be done; the
+     speaker test's timeout runs on the client's clock (`speakerid.Client.WithClock`).
 
-   Open: cmd/mira (a ready signal of `runAgent`, `fakeha.Await`), and the other packages whose tests still sleep or
-   poll.
+   Open: and the other packages whose tests still sleep or poll.
 
 4. **Absence after a positive signal** (rule 6): the "handled" traces the code lacks, each with its log line.
 5. **Python:** `settle()` and `later()` wait on an `asyncio.Event` of the mocked call; `later()` moves the frozen clock.

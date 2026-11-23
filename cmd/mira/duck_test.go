@@ -37,8 +37,7 @@ func TestMU40_OnlyHomeAssistantsVolumeToolsThatSucceededReachTheDucker(t *testin
 		servers = append(servers, config.MCPServer{Name: name, Transport: config.TransportHTTP, URL: srv.Endpoint()})
 	}
 	host := mcp.New(mcp.Options{Servers: servers, IntentServer: haServer, CallTimeout: 5 * time.Second})
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	ctx := context.Background()
 	if err := host.Start(ctx); err != nil {
 		t.Fatal(err)
 	}

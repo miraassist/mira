@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,10 +16,12 @@ import (
 
 	"github.com/miraassist/mira/internal/a2a"
 	"github.com/miraassist/mira/internal/channels/haconv"
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 	"github.com/miraassist/mira/internal/threads"
 	"github.com/miraassist/mira/internal/tools"
 	a2afake "github.com/miraassist/mira/testenv/a2a_fake"
@@ -30,8 +33,12 @@ import (
 type remoteEnv struct {
 	a    *app
 	fake *a2afake.Fake
-	log  *lockedBuffer
+	log  *logcap.Lines
 	mira *httptest.Server
+	// clk is what the threads' waits and the calls' attempts wait on.
+	clk *clock.Fake
+	// toldN signals the number of messages told so far ("1", "2", …).
+	toldN signals
 
 	mu   sync.Mutex
 	told []store.Message
@@ -123,23 +130,6 @@ func (e *remoteEnv) currentHost() *a2a.Host {
 	return e.host
 }
 
-type lockedBuffer struct {
-	mu sync.Mutex
-	b  strings.Builder
-}
-
-func (l *lockedBuffer) Write(p []byte) (int, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.b.Write(p)
-}
-
-func (l *lockedBuffer) String() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.b.String()
-}
-
 // newRemoteEnv: card is the fake's card (a2afake.CardPushOnly, …), skill
 // the behaviour (a2afake.SkillComplete, …); withURL sets server.url.
 func newRemoteEnv(t *testing.T, card, skill string, withURL bool) *remoteEnv {
@@ -156,7 +146,9 @@ func newRemoteEnvBefore(t *testing.T, card, skill string, withURL bool, before f
 func newRemoteEnvWait(t *testing.T, card, skill string, withURL bool, before func(http.Handler) http.Handler, wait time.Duration) *remoteEnv {
 	t.Helper()
 	a, _, _ := deliveryApp(t)
-	env := &remoteEnv{a: a, log: &lockedBuffer{}, runs: &signalRuns{Runs: a.store}, finished: &signals{}}
+	logger, lines := logcap.Logger()
+	env := &remoteEnv{a: a, log: lines, runs: &signalRuns{Runs: a.store}, finished: &signals{},
+		clk: clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))}
 	env.fake = a2afake.New(a2afake.Options{})
 	var agent http.Handler = env.fake
 	if before != nil {
@@ -184,22 +176,23 @@ func newRemoteEnvWait(t *testing.T, card, skill string, withURL bool, before fun
 	if withURL {
 		serverURL = env.mira.URL
 	}
-	logger := slog.New(slog.NewTextHandler(env.log, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	a.remote = a2a.New(a2a.Options{Skills: []skills.Skill{sk}, ServerURL: serverURL, Runs: env.runs,
-		Deliver: a.remoteDelivered, Ask: a.remoteAsked, CallRetry: 10 * time.Millisecond, Logger: logger})
+		Deliver: a.remoteDelivered, Ask: a.remoteAsked, CallRetry: 10 * time.Millisecond, Logger: logger, Clock: env.clk})
 	a.remote.Start(context.Background())
 	t.Cleanup(a.remote.Close)
 	env.setHost(a.remote)
 	a.threads = threads.New(threads.Options{Lang: i18n.DE, Store: a.store, Targets: []skills.Skill{sk},
 		Finishers: map[string]threads.Finisher{"memory.save": signalFinisher{threads.MemorySave(a.store, i18n.DE), env.finished}},
-		Dispatch:  a.dispatchForThread, RemoteFailure: a2a.Failure, AgentWait: wait,
+		Dispatch:  a.dispatchForThread, RemoteFailure: a2a.Failure, AgentWait: wait, Clock: env.clk,
 		Asking: a.remote.Asking, Answer: a.remote.Answer,
 		Cancel: func(id string) bool { return a.agents.Cancel(id) || a.remote.Cancel(id) },
 		Deliver: func(ctx context.Context, n store.Message, _ string) error {
+			_, _, err := a.store.PutMessage(ctx, n)
 			env.mu.Lock()
 			env.told = append(env.told, n)
+			count := len(env.told)
 			env.mu.Unlock()
-			_, _, err := a.store.PutMessage(ctx, n)
+			env.toldN.add(fmt.Sprint(count))
 			return err
 		}, Logger: logger})
 	return env
@@ -213,7 +206,9 @@ func (e *remoteEnv) start(t *testing.T, request string) string {
 		t.Fatal(err)
 	}
 	inv := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
-	if _, err := e.a.threads.Start(ctx, inv, "recherche", request); err != nil {
+	var err error
+	e.clk.Drive(func() { _, err = e.a.threads.Start(ctx, inv, "recherche", request) }) // the turn's wait runs out
+	if err != nil {
 		t.Fatal(err)
 	}
 	sess, err := e.a.store.GetSession(ctx, "telegram:1")
@@ -223,15 +218,29 @@ func (e *remoteEnv) start(t *testing.T, request string) string {
 	return sess.ThreadID
 }
 
-// waitFor waits until cond holds, up to 5 s.
-func waitFor(t *testing.T, what string, cond func() bool) {
-	t.Helper()
-	for i := 0; !cond(); i++ {
-		if i > 500 {
-			t.Fatalf("timed out waiting for %s", what)
+// filled waits until the thread's finish worked: the field is filled.
+func (e *remoteEnv) filled() { <-e.finished.await(func(string) bool { return true }) }
+
+// toldAt waits until n messages were told.
+func (e *remoteEnv) toldAt(n int) {
+	want := fmt.Sprint(n)
+	<-e.toldN.await(func(v string) bool { return v == want })
+}
+
+// got waits until the fake received n things of a kind.
+func (e *remoteEnv) got(kind string, n int) {
+	seen := 0
+	<-e.fake.Await(func(r a2afake.Received) bool {
+		if r.Kind == kind {
+			seen++
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
+		return seen >= n
+	})
+}
+
+// taskKnown waits until the call's state holds the task's id.
+func (e *remoteEnv) taskKnown() {
+	<-e.runs.saved.await(func(v string) bool { return strings.Contains(v, "task_id") })
 }
 
 // fact is the fact the thread saved, "" while none.
@@ -268,7 +277,7 @@ func (e *remoteEnv) messages() []store.Message {
 func TestRM05_AFieldFilledByARemoteAgentByPush(t *testing.T) {
 	env := newRemoteEnv(t, a2afake.CardPushOnly, a2afake.SkillComplete, true)
 	env.start(t, "Welche Wärmepumpe passt?")
-	waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+	env.filled()
 	if got := env.fact(t); got != a2afake.Result {
 		t.Errorf("field = %q, want %q", got, a2afake.Result)
 	}
@@ -296,7 +305,7 @@ func TestRM05_AFieldFilledByARemoteAgentByPush(t *testing.T) {
 func TestRM21_TheStreamFirst(t *testing.T) {
 	env := newRemoteEnv(t, a2afake.CardFull, a2afake.SkillComplete, true)
 	env.start(t, "Welche Wärmepumpe passt?")
-	waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+	env.filled()
 	streams := env.received("SendStreamingMessage")
 	if len(streams) != 1 || streams[0].PushURL != "" || streams[0].PushToken != "" {
 		t.Errorf("streams = %+v", streams)
@@ -311,16 +320,14 @@ func TestRM21_TheStreamFirst(t *testing.T) {
 func TestRM06_AFieldFilledByAStream(t *testing.T) {
 	env := newRemoteEnv(t, a2afake.CardStreamOnly, a2afake.SkillSlow, false)
 	id := env.start(t, "Welche Wärmepumpe passt?")
-	waitFor(t, "the task working", func() bool {
-		return len(env.received("SendStreamingMessage")) == 1 && strings.Contains(env.log.String(), "remote agent called")
-	})
+	env.got("SendStreamingMessage", 1)
+	<-env.log.Await("remote agent called")
 	th, err := env.a.store.GetThread(context.Background(), id)
 	if err != nil || th.Calls["fact"] == "" {
 		t.Fatalf("the field is not being filled: %+v %v", th.Calls, err)
 	}
-	time.Sleep(100 * time.Millisecond)
 	env.fake.Release()
-	waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+	env.filled()
 	if got := env.fact(t); got != a2afake.Result {
 		t.Errorf("field = %q", got)
 	}
@@ -337,7 +344,7 @@ func TestRM07_TheRemoteAgentFails(t *testing.T) {
 		t.Run(c.card+"/"+c.skill, func(t *testing.T) {
 			env := newRemoteEnv(t, c.card, c.skill, true)
 			env.start(t, "Welche Wärmepumpe passt?")
-			waitFor(t, "the question", func() bool { return len(env.messages()) == 1 })
+			env.toldAt(1)
 			say := env.messages()[0].Spoken
 			if !strings.HasPrefix(say, "Hermes konnte das nicht: "+c.text) || !strings.Contains(say, "Die Übersicht") {
 				t.Errorf("said %q", say)
@@ -359,7 +366,7 @@ func TestRM07_TheRemoteAgentFails(t *testing.T) {
 func TestRM08_APushWithAWrongToken(t *testing.T) {
 	env := newRemoteEnv(t, a2afake.CardPushOnly, a2afake.SkillSlow, true)
 	id := env.start(t, "Welche Wärmepumpe passt?")
-	waitFor(t, "the send", func() bool { return len(env.received("SendMessage")) == 1 })
+	env.got("SendMessage", 1)
 	callID := strings.TrimPrefix(env.received("SendMessage")[0].PushURL, env.mira.URL+a2a.PushPath)
 	body := `{"statusUpdate":{"taskId":"x","contextId":"y","status":{"state":"TASK_STATE_COMPLETED"}}}`
 	for _, c := range []struct{ call, header, value string }{
@@ -414,7 +421,7 @@ func TestRM08_APushWithAWrongToken(t *testing.T) {
 		t.Errorf("log:\n%s", env.log.String())
 	}
 	env.fake.Release()
-	waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+	env.filled()
 }
 
 // RM-09 A push twice: the same completed task pushed twice fills the field
@@ -422,9 +429,8 @@ func TestRM08_APushWithAWrongToken(t *testing.T) {
 func TestRM09_APushTwice(t *testing.T) {
 	env := newRemoteEnv(t, a2afake.CardPushOnly, a2afake.SkillPushTwice, true)
 	id := env.start(t, "Welche Wärmepumpe passt?")
-	waitFor(t, "the field", func() bool { return env.fact(t) != "" })
-	waitFor(t, "every push", func() bool { return len(env.received("push")) == 6 })
-	time.Sleep(100 * time.Millisecond)
+	env.filled()
+	env.got("pushed", 6) // Mira answered every push
 	facts, _ := env.a.store.AllFacts(context.Background())
 	if len(facts) != 1 || facts[0].Text != a2afake.Result {
 		t.Errorf("facts %+v", facts)
@@ -459,29 +465,20 @@ func TestRM10_TheThreadIsCancelled(t *testing.T) {
 		t.Run(card, func(t *testing.T) {
 			env := newRemoteEnv(t, card, a2afake.SkillSlow, true)
 			env.start(t, "Welche Wärmepumpe passt?")
-			waitFor(t, "the task", func() bool {
-				return strings.Contains(env.log.String(), "TASK_STATE_WORKING") ||
-					len(env.received("SendMessage"))+len(env.received("SendStreamingMessage")) == 1
-			})
 			// The task id is known once the agent answered the send.
-			waitFor(t, "the task id", func() bool {
-				runs, _ := env.a.store.RunningAgentRuns(context.Background())
-				return len(runs) == 1 && strings.Contains(string(runs[0].Remote), "task_id")
-			})
+			env.taskKnown()
 			inv := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
 			if _, err := env.a.threads.Cancel(context.Background(), inv); err != nil {
 				t.Fatal(err)
 			}
-			waitFor(t, "the cancel", func() bool { return len(env.received("cancel")) == 1 })
+			env.got("cancel", 1)
 			runs, _ := env.a.store.RunningAgentRuns(context.Background())
 			if len(runs) != 0 {
 				t.Errorf("still running: %+v", runs)
 			}
 			// Mira logs the cancel once the agent answered it, after the
 			// fake recorded it: wait for her line, not for the fake's.
-			waitFor(t, "the log of the cancel", func() bool {
-				return strings.Contains(env.log.String(), "remote agent's task cancelled")
-			})
+			<-env.log.Await("remote agent's task cancelled")
 		})
 	}
 }
@@ -491,7 +488,7 @@ func TestRM10_TheThreadIsCancelled(t *testing.T) {
 func TestRM11_LoginAskedDuringTheWork(t *testing.T) {
 	env := newRemoteEnv(t, a2afake.CardStreamOnly, a2afake.SkillLogin, false)
 	env.start(t, "Welche Wärmepumpe passt?")
-	waitFor(t, "the question", func() bool { return len(env.messages()) == 1 })
+	env.toldAt(1)
 	if say := env.messages()[0].Spoken; !strings.HasPrefix(say, "Hermes konnte das nicht: "+a2afake.LoginText) {
 		t.Errorf("said %q", say)
 	}
@@ -509,7 +506,7 @@ func TestRM12_AnAgentRequest(t *testing.T) {
 			env := newRemoteEnv(t, card, a2afake.SkillAsk, true)
 			ctx := context.Background()
 			id := env.start(t, "Welche Wärmepumpe passt?")
-			waitFor(t, "the agent request", func() bool { return len(env.messages()) == 1 })
+			env.toldAt(1)
 			n := env.messages()[0]
 			if n.Kind != store.KindAgentRequest || n.ThreadID != id || n.Spoken != "Hermes fragt: "+a2afake.Question {
 				t.Fatalf("message %+v", n)
@@ -525,7 +522,7 @@ func TestRM12_AnAgentRequest(t *testing.T) {
 			if err != nil || said != "Antwort an Hermes weitergegeben." {
 				t.Fatalf("answer: %q %v", said, err)
 			}
-			waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+			env.filled()
 			if got := env.fact(t); got != a2afake.AnswerResult+"140 Quadratmeter." {
 				t.Errorf("field %q", got)
 			}
@@ -569,7 +566,7 @@ func TestRM13_TheAnswerCannotBeSent(t *testing.T) {
 	env := newRemoteEnvBefore(t, a2afake.CardStreamOnly, a2afake.SkillAsk, false, refuse)
 	ctx := context.Background()
 	env.start(t, "Welche Wärmepumpe passt?")
-	waitFor(t, "the agent request", func() bool { return len(env.messages()) == 1 })
+	env.toldAt(1)
 	inv := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
 	_, err := env.a.threads.AgentAnswer(ctx, inv, "", "140 Quadratmeter")
 	if err == nil || !strings.HasPrefix(err.Error(), "Ich konnte die Antwort nicht weitergeben: ") || !strings.Contains(err.Error(), "403") {
@@ -601,7 +598,7 @@ func (e *remoteEnv) restart(t *testing.T, while func()) {
 	while()
 	logger := slog.New(slog.NewTextHandler(e.log, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	e.a.remote = a2a.New(a2a.Options{Skills: old.Skills(), ServerURL: old.ServerURL(), Runs: e.runs,
-		Deliver: e.a.remoteDelivered, Ask: e.a.remoteAsked, CallRetry: 10 * time.Millisecond, Logger: logger})
+		Deliver: e.a.remoteDelivered, Ask: e.a.remoteAsked, CallRetry: 10 * time.Millisecond, Logger: logger, Clock: e.clk})
 	e.a.remote.Start(context.Background())
 	t.Cleanup(e.a.remote.Close)
 	e.setHost(e.a.remote)
@@ -649,10 +646,7 @@ func TestRemoteTaskNotFoundAfterTheRestart(t *testing.T) {
 	env := newRemoteEnv(t, a2afake.CardStreamOnly, a2afake.SkillSlow, false)
 	ctx := context.Background()
 	env.start(t, "Welche Wärmepumpe passt?")
-	waitFor(t, "the task id", func() bool {
-		runs, _ := env.a.store.RunningAgentRuns(ctx)
-		return len(runs) == 1 && strings.Contains(string(runs[0].Remote), "task_id")
-	})
+	env.taskKnown()
 	env.restart(t, func() {
 		runs, _ := env.a.store.RunningAgentRuns(ctx)
 		var st map[string]any
@@ -663,7 +657,7 @@ func TestRemoteTaskNotFoundAfterTheRestart(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	waitFor(t, "the question", func() bool { return len(env.messages()) == 1 })
+	env.toldAt(1)
 	if say := env.messages()[0].Spoken; !strings.HasPrefix(say, "Hermes konnte das nicht.") {
 		t.Errorf("said %q", say)
 	}
@@ -687,7 +681,7 @@ func TestRM15_MiraAgentStartsTheSkillsThread(t *testing.T) {
 	if err != nil || th.Place != "person:anna" || th.Person != "anna" || th.Request != "Welche Wärmepumpe passt?" {
 		t.Fatalf("thread %+v %v", th, err)
 	}
-	waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+	env.filled()
 	if s := env.received("SendStreamingMessage"); len(s) != 1 || s[0].Text != "Welche Wärmepumpe passt?" {
 		t.Errorf("sent %+v", s)
 	}
@@ -761,7 +755,7 @@ func TestRemoteQuestionInTheWaitingTurn(t *testing.T) {
 	if _, err := env.a.threads.AgentAnswer(next, inv, "", "140 Quadratmeter"); err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+	env.filled()
 }
 
 // RM-22 agent_answer at a satellite waits for the remote agent: what comes

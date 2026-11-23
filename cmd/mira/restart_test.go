@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/miraassist/mira/internal/config"
 )
@@ -39,18 +38,14 @@ func TestBE27_RestartsAtOnceLeaveOneNotifier(t *testing.T) {
 		}()
 	}
 	// Every restart comes back (before, one could wait for ever)
-	if !within(10*time.Second, wg.Wait) {
-		t.Fatal("a restart did not come back")
-	}
+	wg.Wait() // every restart comes back (else go test's timeout names the test)
 	// And stopping the one notifier stops everything it ran: no second one
 	// is left running without its cancel
 	a.proactiveMu.Lock()
 	cancel := a.proactiveCancel
 	a.proactiveMu.Unlock()
 	cancel()
-	if !within(5*time.Second, a.proactiveWG.Wait) {
-		t.Fatal("a notifier still runs after the last one was stopped")
-	}
+	a.proactiveWG.Wait() // nothing it ran is left running (else go test's timeout names the test)
 }
 
 // BE-27: before the first start (and in an eval) a restart starts nothing.
@@ -62,16 +57,5 @@ func TestBE27_ARestartBeforeTheFirstStartStartsNothing(t *testing.T) {
 	a.proactiveMu.Unlock()
 	if started {
 		t.Fatal("a restart before the first start started the notifier")
-	}
-}
-
-func within(d time.Duration, fn func()) bool {
-	done := make(chan struct{})
-	go func() { fn(); close(done) }()
-	select {
-	case <-done:
-		return true
-	case <-time.After(d):
-		return false
 	}
 }

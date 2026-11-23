@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/i18n"
@@ -19,14 +20,14 @@ import (
 
 // Scenarios of docs/spec/speaker-id.md.
 
-// speakerApp is an app whose speaker-id service answers body after delay,
-// with anna and ben as persons; ben is signed in to the HA app as u-ben.
-func speakerApp(t *testing.T, body string, delay time.Duration) *app {
+// speakerApp is an app whose speaker-id service answers body, or holds
+// until the request is given up, with anna and ben as persons; ben is
+// signed in to the HA app as u-ben.
+func speakerApp(t *testing.T, body string, holds bool) *app {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		select {
-		case <-time.After(delay):
-		case <-r.Context().Done():
+		if holds {
+			<-r.Context().Done()
 			return
 		}
 		w.Write([]byte(body))
@@ -55,14 +56,14 @@ func voiceTurn(a *app, alone string) string {
 }
 
 func TestSP01_RecognizedVoiceIsThePerson(t *testing.T) {
-	a := speakerApp(t, annaSaidIt, 0)
+	a := speakerApp(t, annaSaidIt, false)
 	if got := voiceTurn(a, nobody); got != "anna" {
 		t.Errorf("got %q, want anna", got)
 	}
 }
 
 func TestSP02_UncertainVoiceStaysAnonymous(t *testing.T) {
-	a := speakerApp(t, `[{"person": "anna", "score": 0.8, "second": "ben", "second_score": 0.78}]`, 0)
+	a := speakerApp(t, `[{"person": "anna", "score": 0.8, "second": "ben", "second_score": 0.78}]`, false)
 	if got := voiceTurn(a, nobody); got != "" {
 		t.Errorf("got %q, want nobody", got)
 	}
@@ -72,14 +73,14 @@ func TestSP02_UncertainVoiceStaysAnonymous(t *testing.T) {
 }
 
 func TestSP03_VoiceComesBeforeAloneAtHome(t *testing.T) {
-	a := speakerApp(t, annaSaidIt, 0)
+	a := speakerApp(t, annaSaidIt, false)
 	if got := voiceTurn(a, "ben"); got != "anna" {
 		t.Errorf("got %q, want anna", got)
 	}
 }
 
 func TestSP04_SignedInUserComesBeforeVoice(t *testing.T) {
-	a := speakerApp(t, annaSaidIt, 0)
+	a := speakerApp(t, annaSaidIt, false)
 	req := conversation.Request{Channel: config.ChannelVoice, HAUser: "u-ben", Text: "Erinner mich an den Müll"}
 	if got, by := a.identify(context.Background(), req); got != "ben" || by != "" {
 		t.Errorf("got %q by %q, want ben, signed in", got, by)
@@ -87,33 +88,36 @@ func TestSP04_SignedInUserComesBeforeVoice(t *testing.T) {
 }
 
 func TestSP05_SlowServiceHoldsNothingUp(t *testing.T) {
-	a := speakerApp(t, annaSaidIt, 2*time.Second)
-	start := time.Now()
-	got := voiceTurn(a, "ben")
+	a := speakerApp(t, annaSaidIt, true)
+	began := time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC)
+	clk := clock.NewFake(began)
+	a.speaker.WithClock(clk)
+	var got string
+	clk.Drive(func() { got = voiceTurn(a, "ben") })
 	if got != "ben" {
 		t.Errorf("got %q, want the alone-at-home answer ben", got)
 	}
-	if took := time.Since(start); took > speakerid.Timeout+200*time.Millisecond {
-		t.Errorf("the turn waited %v", took)
+	if waited := clk.Since(began); waited != speakerid.Timeout {
+		t.Errorf("the turn waited %v", waited)
 	}
 }
 
 func TestSP06_VoiceOfNobodyHomeAssistantKnows(t *testing.T) {
-	a := speakerApp(t, `[{"person": "zoe", "score": 0.9}]`, 0)
+	a := speakerApp(t, `[{"person": "zoe", "score": 0.9}]`, false)
 	if got := voiceTurn(a, nobody); got != "" {
 		t.Errorf("got %q, want nobody", got)
 	}
 }
 
 func TestSP07_TwoSatellitesHeardTheSamePerson(t *testing.T) {
-	a := speakerApp(t, `[{"person": "anna", "score": 0.81}, {"person": "anna", "score": 0.74}]`, 0)
+	a := speakerApp(t, `[{"person": "anna", "score": 0.81}, {"person": "anna", "score": 0.74}]`, false)
 	if got := voiceTurn(a, nobody); got != "anna" {
 		t.Errorf("got %q, want anna", got)
 	}
 }
 
 func TestSP08_TwoSatellitesDisagree(t *testing.T) {
-	a := speakerApp(t, `[{"person": "anna", "score": 0.81}, {"person": "ben", "score": 0.9}]`, 0)
+	a := speakerApp(t, `[{"person": "anna", "score": 0.81}, {"person": "ben", "score": 0.9}]`, false)
 	if got := voiceTurn(a, "ben"); got != "ben" {
 		t.Errorf("got %q, want the alone-at-home answer ben", got)
 	}
@@ -122,7 +126,7 @@ func TestSP08_TwoSatellitesDisagree(t *testing.T) {
 // The score a voice needs is Mira's to set: speaker_id.threshold for
 // everyone, voice_threshold for a person whose voice scores lower.
 func TestSP09_ThresholdIsMirasPerPersonToo(t *testing.T) {
-	a := speakerApp(t, `[{"person": "ben", "score": 0.62}]`, 0)
+	a := speakerApp(t, `[{"person": "ben", "score": 0.62}]`, false)
 	if got := voiceTurn(a, nobody); got != "" {
 		t.Errorf("at the default threshold: got %q, want nobody", got)
 	}
@@ -142,7 +146,7 @@ func TestSP09_ThresholdIsMirasPerPersonToo(t *testing.T) {
 // A person Mira recognized (by the voice, or alone at home) is named when
 // she does something personal for them; one who signed in is not.
 func TestSP10_RecognizedPersonIsNamedWhenPersonal(t *testing.T) {
-	a := speakerApp(t, annaSaidIt, 0)
+	a := speakerApp(t, annaSaidIt, false)
 	persons := a.persons()
 	voice := a.voiceOf(context.Background(), "Merk dir, dass ich gern Tee trinke", persons)
 	for _, c := range []struct {

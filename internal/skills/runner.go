@@ -378,7 +378,9 @@ func (r *Runner) run(ctx context.Context, j job, log *slog.Logger) {
 		r.keep(ctx, store.RunKey{Skill: SystemSkill, Schedule: j.sys.Name}, run)
 		return
 	}
-	if queued, err := r.RunJob(ctx, j.skill, j.index); err != nil {
+	queued, err := r.RunJob(ctx, j.skill, j.index)
+	r.setState(j, "") // done before it is said to be
+	if err != nil {
 		log.Error("scheduled task failed", "skill", j.skill.Name, "error", err)
 	} else {
 		log.Info("scheduled task done", "skill", j.skill.Name, "message", queued)

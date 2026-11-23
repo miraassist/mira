@@ -53,7 +53,9 @@ func TestHU01_AListOfExposedEntitiesFromTheIntegrationRebuildsTheHouseAtOnce(t *
 	defer st.Close()
 	src := &registryReads{}
 	a := &app{store: st}
-	a.structure = structure.NewCache(structure.Options{Source: src, Exposed: a.exposed, Debounce: time.Hour})
+	rebuilt := make(chan structure.Snapshot, 4)
+	a.structure = structure.NewCache(structure.Options{Source: src, Exposed: a.exposed, Debounce: time.Hour,
+		OnChange: func(s structure.Snapshot) { rebuilt <- s }})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go a.structure.Run(ctx)
@@ -61,12 +63,8 @@ func TestHU01_AListOfExposedEntitiesFromTheIntegrationRebuildsTheHouseAtOnce(t *
 	if err := a.setExposed(ctx, []string{"todo.einkaufsliste"}); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for !a.structure.Snapshot().ExposedEntities["todo.einkaufsliste"] {
-		if time.Now().After(deadline) {
-			t.Fatalf("the house was not rebuilt at once (%d reads)", src.n.Load())
-		}
-		time.Sleep(5 * time.Millisecond)
+	if s := <-rebuilt; !s.ExposedEntities["todo.einkaufsliste"] { // rebuilt at once, not after the debounce
+		t.Fatalf("the house was rebuilt without the list (%d reads)", src.n.Load())
 	}
 	if n := src.n.Load(); n != 1 {
 		t.Errorf("the registries were read %d times, want 1", n)
