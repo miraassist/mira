@@ -89,6 +89,32 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
 - **Public repository**: no facts of a real setup (addresses, host names, users, paths, secrets), only abstract
   recipes.
 
+## Reviewing (and building)
+
+A review reads the code for what a *second* party does at the same time, not only for style. Every question below is
+asked of the code it covers, and each finding comes with evidence: best a test that forces the bad order or the odd
+input and fails; else it is called an assumption. Findings are ranked by harm (a hang or a function lost for good, a
+wrong action like a tool run twice, a lost result, a false error).
+
+- **Lifecycle: what ends is cleaned up only when everyone using it is done.** For every `cancel()`, `Close()`,
+  `delete`, dropped row or session: who else still holds it (a turn, a loop, a wait, a send on its way)? One party
+  being finished never cuts or deletes what another still uses ([Endings](docs/spec/endings.md)).
+- **Order.** For every flow with two channels (an answer and a push, a stream and a timeout, a turn and an agent's
+  result, a start and a stop): what happens when the other one comes first? A test forces each order by a signal.
+- **Concurrency.** For every shared state (a map of waits, a connection, a thread's row): what happens with two callers
+  at once? Who alone writes it? The transport is separate from the logic over it, and one loop decides
+  ([Remote agent calls](docs/spec/remote-agent-calls.md), [MCP connections](docs/spec/mcp-connections.md)).
+- **Input from outside.** For every list or answer of Home Assistant, a server, a file: what happens when one entry
+  has a type Mira does not expect? Not everything is read leniently; an entry is left out only where the rest still
+  tells the truth; a parse error never crashes or hangs, always leaves a trace, and makes a repair when it keeps an
+  important function from working ([Reading what comes in](docs/spec/parsing.md)). The test HA carries such entries on
+  purpose.
+- **Time.** Every read of the time and every wait goes through a clock; a bound of a call on the real time is marked
+  `// real time:` with why; a test reads its own clock or a fixed date, and every part of a test that shares data
+  shares its clock ([Tests](docs/spec/tests.md), rules 1 to 7; checked by `docs/clocks_test.go`).
+- **Under load.** A test of an order or a race also runs repeated on two cores (`taskset -c 0,1 go test -count=20`),
+  as GitHub's runners do; a race found there is a bug of the code until shown otherwise.
+
 ## Releasing
 
 - **Semantic versioning**: a patch for fixes, a minor version for features and changed configuration. Every live
