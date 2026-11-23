@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/testsupport/fakeha"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 )
 
 func quietLogger() *slog.Logger {
@@ -81,6 +83,63 @@ func TestRegistryReads(t *testing.T) {
 	entities, err := c.Entities(ctx)
 	if err != nil || len(entities) != 1 {
 		t.Fatalf("Entities = %+v (%v)", entities, err)
+	}
+}
+
+// HU-05 An entry of a registry that Mira cannot read is left out, the rest is
+// built (docs/spec/context.md, 1.3, decision 5).
+func TestHU05_AnEntryOfARegistryThatMiraCannotReadIsLeftOutTheRestIsBuilt(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	// Given an entry of the device registry has a field of another type than
+	// Mira reads (a name as a number)
+	srv.SetRawList(haws.CmdDeviceRegistryList, `[
+		{"id": "dev-good", "name": "Satellit", "identifiers": [["techo5", "show"]]},
+		{"id": "dev-bad", "name": 12, "identifiers": [["some_integration", 4711]]},
+		{"id": "dev-also-good", "name": "Lampe", "identifiers": [["zha", 4711]]}
+	]`)
+	// An identifier and a unique_id as numbers are kept (Home Assistant
+	// stores them as an integration gave them).
+	srv.SetRawList(haws.CmdEntityRegistryList, `[
+		{"entity_id": "sensor.power", "unique_id": 4712, "platform": "some_integration"},
+		{"entity_id": "sensor.odd", "unique_id": {"a": 1}},
+		{"entity_id": "light.lamp", "unique_id": "lamp-1"}
+	]`)
+	log, lines := logcap.Logger()
+	c, ctx, _ := startOnClock(t, srv, haws.Options{Token: "test-token", Logger: log})
+
+	// When the list is read, it is built from the other entries
+	devices, err := c.Devices(ctx)
+	if err != nil {
+		t.Fatalf("Devices: %v", err)
+	}
+	if len(devices) != 2 || devices[0].ID != "dev-good" || devices[1].ID != "dev-also-good" {
+		t.Fatalf("Devices = %+v", devices)
+	}
+	// And the log names the list, the entry and why it was left out
+	line := lines.Line("registry entry left out")
+	for _, want := range []string{haws.CmdDeviceRegistryList, "id=dev-bad", "cannot unmarshal number", `\"name\":12`} {
+		if !strings.Contains(line, want) {
+			t.Errorf("the log line lacks %q: %s", want, line)
+		}
+	}
+
+	if devices[1].Identifiers[0][1] != "4711" {
+		t.Errorf("the identifier as a number = %q", devices[1].Identifiers[0][1])
+	}
+	entities, err := c.Entities(ctx)
+	if err != nil || len(entities) != 2 || entities[0].UniqueID != "4712" || entities[1].UniqueID != "lamp-1" {
+		t.Fatalf("Entities = %+v (%v)", entities, err)
+	}
+	if line := lines.Line("registry entry left out", "id=sensor.odd"); !strings.Contains(line, "where text is expected") {
+		t.Errorf("the entity left out is not named with why: %s", lines.String())
+	}
+
+	// A list that is not a list fails, and the error names its answer.
+	srv.SetRawList(haws.CmdAreaRegistryList, `{"areas": "none"}`)
+	if _, err := c.Areas(ctx); err == nil || !strings.Contains(err.Error(), haws.CmdAreaRegistryList) ||
+		!strings.Contains(err.Error(), `areas`) {
+		t.Errorf("Areas error = %v", err)
 	}
 }
 

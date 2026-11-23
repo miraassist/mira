@@ -39,6 +39,9 @@ type Server struct {
 	devices  []haws.Device
 	entities []haws.Entity
 	states   []haws.State
+	// rawLists are answers given as they are, by command, in place of the
+	// typed registry (SetRawList).
+	rawLists map[string]json.RawMessage
 
 	calls []ServiceCall
 	// refusals are the actions the fake refuses (domain.service -> error),
@@ -144,6 +147,17 @@ func (s *Server) SetRegistry(areas []haws.Area, devices []haws.Device, entities 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.areas, s.devices, s.entities = areas, devices, entities
+}
+
+// SetRawList makes the fake answer a list command with raw as it is: an
+// entry of another type than Mira reads, as an integration may store one.
+func (s *Server) SetRawList(cmdType string, raw string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.rawLists == nil {
+		s.rawLists = map[string]json.RawMessage{}
+	}
+	s.rawLists[cmdType] = json.RawMessage(raw)
 }
 
 func (s *Server) SetStates(states []haws.State) {
@@ -485,7 +499,12 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 
 	s.mu.Lock()
 	areas, devices, entities := s.areas, s.devices, s.entities
+	raw, isRaw := s.rawLists[cmdType]
 	s.mu.Unlock()
+	if isRaw {
+		reply(raw)
+		return
+	}
 
 	switch cmdType {
 	case "auth/current_user":

@@ -154,9 +154,9 @@ func (a *app) phoneSensors() (messages, missed, device string) {
 			continue
 		}
 		switch {
-		case strings.HasSuffix(e.UniqueID, "_new_messages"):
+		case strings.HasSuffix(string(e.UniqueID), "_new_messages"):
 			messages, device = id, e.DeviceID
-		case strings.HasSuffix(e.UniqueID, "_missed_calls"):
+		case strings.HasSuffix(string(e.UniqueID), "_missed_calls"):
 			missed, device = id, e.DeviceID
 		}
 	}

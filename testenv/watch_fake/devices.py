@@ -17,6 +17,7 @@ from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoredExtraData, RestoreEntity
@@ -33,6 +34,32 @@ DEVICES = [
 ]
 # The entities' names in the house's language (the test HA speaks German).
 NAMES = {"battery": "Batterie", "moisture": "Wasser", "humidity": "Luftfeuchtigkeit", "signal_strength": "Signal", "outlet": None}
+
+
+# Odd entries (docs/spec/fake-devices.md, step 11): registry entries with values of another type than Home
+# Assistant declares. An integration stored a device's identifier as a number in issue 8, and Mira lost the whole
+# device registry; the test HA has such entries on purpose, so that a reader that is too strict fails here first.
+# Home Assistant 2026.11 keeps a device's identifiers and an entity's unique_id as they come; model and the
+# versions it turns into text itself (and refuses them from 2026.12), so they never reach Mira as numbers and are
+# not here. (device name, identifier, the unique_id of its one entity)
+ODD_DEVICES = [
+    ("Fake Wechselrichter", 4711, 4712),
+]
+
+
+def register_odd_devices(hass: HomeAssistant, config_entry_id: str) -> None:
+    """Register the odd devices under the config entry "Fake Geräte", each with one entity of the registry only
+    (no state: nothing watches it)."""
+    devices = dr.async_get(hass)
+    entities = er.async_get(hass)
+    for name, identifier, unique_id in ODD_DEVICES:
+        device = devices.async_get_or_create(
+            config_entry_id=config_entry_id, identifiers={(DOMAIN, identifier)}, name=name, manufacturer="Fake Maker"
+        )
+        entities.async_get_or_create(
+            "sensor", DOMAIN, unique_id, config_entry=hass.config_entries.async_get_entry(config_entry_id),
+            device_id=device.id, suggested_object_id=slugify(f"{name} Leistung"), original_name="Leistung",
+        )
 
 
 def entities_of(domain: str) -> list[Entity]:

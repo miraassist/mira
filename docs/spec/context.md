@@ -83,7 +83,9 @@ start waits for one fetch, or for a fetch of all versions when its version does 
 
 Steps:
 1. **The service:** companion apps are asking devices; an unknown asking device joins the comparison on its turn;
-   the sentence of decision 5. Scenarios AD-01 to AD-05. Built.
+   the sentence of decision 5. Scenarios AD-01 to AD-06. Built. Companion apps are found by the domain `mobile_app` in
+   the device's identifiers; Home Assistant types an identifier as text but does not enforce it, so its parts are read
+   as they come (an integration may store a number, issue 8), and only the domain is compared, as text.
 
 The same rule applies to the **tools**: the list is fetched once without a device and once as each asking device and merged, and every call carries the asking device's id, so that HA serves it like its own agents (timers, room for commands without a room; [Scheduled actions](scheduled-actions.md)). **What Home Assistant offers we do not rebuild, and nothing is lost because the context does not come along.**
 
@@ -129,7 +131,7 @@ Testable rules: [context.feature](context.feature).
 
 ### 1.3 When the house changes
 
-Status 2026-11-09: built (steps 1 and 2), not released.
+Status 2026-11-23: built (steps 1 to 3); step 3 not released.
 
 HA's prompt follows the house: when the house structure (`internal/ha/structure`) is rebuilt and differs, the prompt is
 fetched again ([Mira in Home Assistant](ha-integration.md), exposure). The structure is rebuilt after a change in the
@@ -149,6 +151,8 @@ Decided 2026-11-09:
 | 2 | Changes in the registries | As before: one rebuild 30 s after the last change |
 | 3 | What stays | A turn between the change in Home Assistant and the integration's send still has the old prompt: about a second (the integration's gathering) and the rebuild. Checked on the test HA before decision 4 (2026-11-09): a new list "Baumarkt" created at 09:40:22, the rebuild after the registry change at 09:40:27 found nothing new, because the structure lists only what the integration's list names; the integration sent only with its status check at 09:41:12, the structure and the prompt followed within 40 ms, and a turn at 09:41:13 put the item on the new list |
 | 4 | A new entity (2026-11-09) | Home Assistant exposes a new entity on its own (the default for new entities) without an exposure event, so until now it reached Mira only with the integration's next status check, up to a minute later. The integration now sends the list when the entity registry reports a new entity of any domain, gathered with the other changes (1 s). Checked on the test HA (2026-11-09): a new list created at 11:11:48.34, sent at 11:11:49.35, HA's prompt with it at 11:11:49.41 |
+| 5 | An entry of a registry Mira cannot read (2026-11-23, issue 8) | Until now one field of another type in one entry (an integration stored a device's identifier as a number, where Home Assistant types it as text) made the whole list unreadable: no structure, and every turn refused. Now each entry of the three lists is read on its own; an entry that cannot be read is left out, the rest is built, and the log names it (below). Left out, Mira does not know that entry's names and areas, the same as for an entity not exposed; Home Assistant's prompt and its tools still know it. Checked on the test HA (2026-11-23, Home Assistant 2026.11.1): a device's identifiers and an entity's `unique_id` are stored as the integration gave them (a number stays a number; for a `unique_id` Home Assistant only logs an error), while `model`, `sw_version` and `hw_version` it turns into text itself (with a warning that this breaks in 2026.12). So the identifiers and the `unique_id` are read as text or number (a number as its digits); only the identifiers' domain is compared ([1.1](#11-has-assist-prompt-the-common-prefix-in-part-1-the-device-in-the-turn)). The test HA has such entries on purpose ([Fake devices](fake-devices.md), step 11) |
+| 6 | A failed read before the first structure (2026-11-23, issue 8) | The turn was refused with "I am still waiting for the connection to Home Assistant", while the connection stood and the read had failed. Now, when no structure has been built since the start and the last read failed, the turn is refused with its own sentence: Mira cannot read which devices and areas Home Assistant has, and Mira's log says why. Before the first read (no connection yet, or the integration's list not yet sent) the sentence stays as it is |
 
 Steps of a send of the integration (`PUT /v1/ui/ha` with `exposed`):
 1. The list is kept in the database, as before. When that fails, the integration gets the error (500) and sends again
@@ -156,7 +160,13 @@ Steps of a send of the integration (`PUT /v1/ui/ha` with `exposed`):
 2. The structure is rebuilt at once, in the background: the three registries are read from Home Assistant (areas,
    devices, entities; three calls over the WebSocket). The send does not wait for it. When a read fails, the last
    structure stays, the log has "structure rebuild failed" with the error, and the next send or registry change
-   tries again.
+   tries again. When no structure has been built since the start, a turn is then refused with the sentence of
+   decision 6, and the log has "turn refused: the house structure could not be read from home assistant".
+   Each entry of a list is read on its own (decision 5): an entry that cannot be read is left out, and the log has the
+   error "registry entry left out" with the list (its command), the entry's id, why, and the entry's start (up to 300
+   characters, as every error's input); the structure is built from the rest. When the list itself is not a list, the read fails as above,
+   and the error names the command and the answer's start. It costs nothing more: the same three calls, each entry
+   decoded once.
 3. When the structure differs, HA's prompt is fetched again (as before: once without a device and once as each
    asking device, one MCP call each, so it grows with the number of asking devices, 1.1), and with a changed prompt the warm-up
    runs. A failed fetch keeps the last prompt (1.2).
@@ -169,6 +179,8 @@ waits for it.
 Steps:
 1. **The service:** a send of the integration rebuilds the structure at once. Scenarios HU-01 to HU-03. Built.
 2. **The integration:** a new entity in the entity registry sends the list (decision 4). Scenario HU-04. Built.
+3. **The service:** an entry that cannot be read is left out, the rest is built (decision 5); a failed read before the
+   first structure has its own sentence (decision 6). Scenarios HU-05 to HU-07. Built.
 
 What is not in the context: **states of devices.** The model queries them when needed via tools; the rules require that.
 

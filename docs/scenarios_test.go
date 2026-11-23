@@ -41,7 +41,7 @@ var builtSteps = map[string][]int{
 	"CO": {2, 4},                       // docs/spec/oauth.md; step 3 is tested in pytest
 	"HP": {1, 3},                       // docs/spec/context.md, 1.2; step 2 is tested in pytest
 	"AD": {1},                          // docs/spec/context.md, 1.1 (every asking device is compared)
-	"HU": {1},                          // docs/spec/context.md, 1.3; step 2 is tested in pytest
+	"HU": {1, 3},                       // docs/spec/context.md, 1.3; step 2 is tested in pytest
 	"FD": {3, 4},                       // docs/spec/found-devices.md, Steps
 	"WA": {3},                          // docs/spec/waiting-indicator.md, Steps
 	"IN": {1, 2, 3, 4, 6, 7, 8, 9, 10}, // docs/spec/inbox.md, Steps; step 5 (the guide, an end-to-end test) has no scenarios; IN-26's integration side in pytest

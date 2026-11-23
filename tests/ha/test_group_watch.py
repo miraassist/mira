@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import label_registry as lr
 from homeassistant.helpers.template import Template
@@ -535,3 +536,12 @@ async def test_GW26_a_restart_floods_nothing(hass, house, freezer):
     # And the check the next day names it
     await until(hass, freezer, 21, 30)
     assert len(house) == 3 and house[-1].data["text"] == "Fake Steckdose Garage"
+
+
+async def test_fg33_the_test_ha_has_registry_entries_of_another_type_on_purpose(hass: HomeAssistant, house) -> None:
+    """FG-33 (docs/spec/fake-devices.md, step 11): a device whose identifier is a number, and its entity whose
+    unique_id is a number, as Home Assistant keeps them."""
+    device = next(d for d in dr.async_get(hass).devices if d.name == "Fake Wechselrichter")
+    assert ("watch_fake", 4711) in device.identifiers
+    entity = next(e for e in er.async_entries_for_device(er.async_get(hass), device.id))
+    assert entity.unique_id == 4712

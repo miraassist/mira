@@ -61,6 +61,8 @@ type Cache struct {
 
 	mu   sync.RWMutex
 	snap Snapshot
+	// built is whether a structure has been built since the start.
+	built bool
 
 	// dirty signals the debounce loop that a rebuild is due; now that it is
 	// due at once.
@@ -97,8 +99,21 @@ func (c *Cache) Snapshot() Snapshot {
 }
 
 // Rebuild reads the registries and replaces the snapshot. It reports whether
-// the house changed.
+// the house changed. When the read fails before any structure was built, the
+// snapshot says so (ReadFailed); a built one stays as it is.
 func (c *Cache) Rebuild(ctx context.Context) (bool, error) {
+	changed, err := c.read(ctx)
+	if err != nil {
+		c.mu.Lock()
+		if !c.built {
+			c.snap.ReadFailed = true
+		}
+		c.mu.Unlock()
+	}
+	return changed, err
+}
+
+func (c *Cache) read(ctx context.Context) (bool, error) {
 	areas, err := c.src.Areas(ctx)
 	if err != nil {
 		return false, err
@@ -125,6 +140,7 @@ func (c *Cache) Rebuild(ctx context.Context) (bool, error) {
 	c.mu.Lock()
 	changed := !Same(c.snap, snap)
 	c.snap = snap
+	c.built = true
 	c.mu.Unlock()
 
 	if !snap.ExposureKnown {

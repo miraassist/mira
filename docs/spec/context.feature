@@ -86,6 +86,26 @@ Feature: The house structure from Home Assistant's prompt (docs/spec/context.md,
     When a new entity is created
     Then the integration sends the list of exposed entities after a moment, with the new entity
 
+  @step3
+  Scenario: HU-05 An entry of a registry that Mira cannot read is left out, the rest is built
+    Given an entry of the device registry has a field of another type than Mira reads
+    When the house structure is built
+    Then it is built from the other entries
+    And the log names the list, the entry and why it was left out
+
+  @step3
+  Scenario: HU-06 A failed read before the first structure is said as such
+    Given no house structure has been built since the start
+    When reading Home Assistant's registries fails
+    Then a turn is refused with the sentence that Mira cannot read Home Assistant's devices and areas
+    And the log says why the turn was refused
+
+  @step3
+  Scenario: HU-07 Before the first read the turn still waits for Home Assistant
+    Given no house structure has been built since the start and no read has failed
+    When a turn comes
+    Then it is refused with the sentence that Mira is still waiting for Home Assistant
+
   # docs/spec/context.md, 1.1: every asking device is compared
 
   @step1
@@ -119,3 +139,10 @@ Feature: The house structure from Home Assistant's prompt (docs/spec/context.md,
     When its turn comes
     Then Mira says that she lacks what Home Assistant says about this device
     And the sentence does not mention Repairs
+
+  @step1
+  Scenario: AD-06 An identifier that is not text does not break the device registry
+    Given an integration stores a device's identifier as a number
+    When the device registry is read
+    Then the house structure is built
+    And a companion app is still known by the domain mobile_app

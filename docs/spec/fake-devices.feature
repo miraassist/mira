@@ -162,3 +162,8 @@ Feature: FG Fake satellites that behave like the real ones
     When a test calls mira_fritz.fake_reset
     Then get_messages lists nothing and the count is 0
 
+  @step11
+  Scenario: FG-33 The test HA has registry entries of another type on purpose
+    Given watch_fake is set up
+    Then the device registry has a device whose identifier is a number
+    And the entity registry has an entity of that device whose unique_id is a number

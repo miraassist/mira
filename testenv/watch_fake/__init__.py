@@ -42,6 +42,7 @@ from homeassistant.helpers.discovery import async_load_platform
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
+from .devices import register_odd_devices
 from .house import PHONES, ensure_structure
 
 DOMAIN = "watch_fake"
@@ -190,6 +191,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """The fake devices (devices.py)."""
     hass.data.setdefault(DOMAIN, {"settable": [], "devices": []})["devices"].clear()
+    register_odd_devices(hass, entry.entry_id)
     await hass.config_entries.async_forward_entry_setups(entry, DEVICE_PLATFORMS)
     return True
 

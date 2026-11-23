@@ -18,6 +18,8 @@ import (
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/tools"
 
+	"github.com/miraassist/mira/internal/ha/structure"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -245,6 +247,49 @@ func TestTurnWaitsForTheExposureList(t *testing.T) {
 	}
 	if n := len(model.Requests()); n != 0 {
 		t.Errorf("the model was asked %d times", n)
+	}
+}
+
+// HU-06 A failed read before the first structure is said as such
+// (docs/spec/context.md, 1.3, decision 6); HU-07: before the first read the
+// turn still waits. Neither asks the model.
+func TestHU06_AFailedReadBeforeTheFirstStructureIsSaidAsSuch(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		snap structure.Snapshot
+		want string
+	}{
+		{"read failed", structure.Snapshot{ReadFailed: true}, "Ich kann gerade nicht lesen, welche Geräte und Räume es in Home Assistant gibt"},
+		{"HU-07 not read yet", structure.Snapshot{}, "warte noch auf die Verbindung mit Home Assistant"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			model := fakellm.New(fakellm.Step{Content: "must not be asked"})
+			defer model.Close()
+			st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer st.Close()
+			cfg := config.Default()
+			log, lines := logcap.Logger()
+			engine := conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
+				Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "local"}),
+				Store: st, Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st)...),
+				Guard:     tools.NewGuard(i18n.DE, cfg.Security, st, nil, hooks.Load("", i18n.DE, nil)),
+				Structure: func() structure.Snapshot { return c.snap },
+				Logger:    log, Location: time.UTC,
+			})
+			resp := handle(t, engine, config.ChannelTelegram, "Mach das Licht an")
+			if !strings.Contains(resp.Text, c.want) {
+				t.Errorf("answer = %q", resp.Text)
+			}
+			if n := len(model.Requests()); n != 0 {
+				t.Errorf("the model was asked %d times", n)
+			}
+			if c.snap.ReadFailed && lines.Line("turn refused: the house structure could not be read") == "" {
+				t.Errorf("the log lacks the refusal: %s", lines.String())
+			}
+		})
 	}
 }
 

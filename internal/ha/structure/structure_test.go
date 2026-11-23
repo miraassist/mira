@@ -377,6 +377,26 @@ func TestAD01_ACompanionAppIsAnAskingDevice(t *testing.T) {
 	}
 }
 
+// AD-06 An identifier that is not text does not break the device registry
+// (docs/spec/context.md, 1.1; issue 8): some integrations store a device's id
+// as a number; the list is read, and the domain still decides.
+func TestAD06_AnIdentifierThatIsNotTextDoesNotBreakTheRegistry(t *testing.T) {
+	var devices []haws.Device
+	rows := `[
+		{"id": "dev-phone", "name": "Phone", "identifiers": [["mobile_app", "abc"]]},
+		{"id": "dev-num", "name": "Inverter", "identifiers": [["some_integration", 4711]]},
+		{"id": "dev-num-app", "name": "Odd phone", "identifiers": [["mobile_app", 12]]},
+		{"id": "dev-three", "name": "Old style", "identifiers": [["legacy", "a", 3]]}
+	]`
+	if err := json.Unmarshal([]byte(rows), &devices); err != nil {
+		t.Fatalf("the registry does not decode: %v", err)
+	}
+	snap := Build(Registry{Devices: devices, Exposed: map[string]bool{}})
+	if got := strings.Join(snap.AskingDevices, ","); got != "dev-num-app,dev-phone" {
+		t.Errorf("asking devices = %q", got)
+	}
+}
+
 func TestSR05_ATurnsAreaIsTheSatelliteEntitysElseItsDevices(t *testing.T) {
 	snap := Build(Registry{
 		Devices: []haws.Device{
@@ -475,5 +495,44 @@ func TestHU03_AFailedRebuildKeepsTheLastStructureAndTheNextOneTriesAgain(t *test
 	c.Now()
 	if s := <-changed; s.AreaNames["kueche"] != "Wohnküche" {
 		t.Fatalf("not the new structure: %v", s.AreaNames)
+	}
+}
+
+// HU-06 A failed read before the first structure is said as such
+// (docs/spec/context.md, 1.3, decision 6): the snapshot says the read failed
+// until a structure is built; a failure after that keeps the built one.
+func TestHU06_AFailedReadBeforeTheFirstStructureIsSaidAsSuch(t *testing.T) {
+	src := &fakeSource{}
+	src.set(sampleRegistry())
+	src.fail(errors.New("connection lost"))
+	c := NewCache(Options{Source: src, Exposed: src.exposed, Debounce: time.Hour})
+	ctx := context.Background()
+	if _, err := c.Rebuild(ctx); err == nil {
+		t.Fatal("the read did not fail")
+	}
+	if s := c.Snapshot(); !s.ReadFailed || s.ExposureKnown {
+		t.Fatalf("after a failed first read: ReadFailed=%v ExposureKnown=%v", s.ReadFailed, s.ExposureKnown)
+	}
+	src.fail(nil)
+	if _, err := c.Rebuild(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c.Snapshot().ReadFailed {
+		t.Fatal("a built structure still says the read failed")
+	}
+	src.fail(errors.New("connection lost"))
+	_, _ = c.Rebuild(ctx) // fails; the built structure stays (HU-03)
+	if s := c.Snapshot(); s.ReadFailed || s.AreaNames["kueche"] == "" {
+		t.Fatalf("a failure after a build: ReadFailed=%v areas=%v", s.ReadFailed, s.AreaNames)
+	}
+}
+
+// HU-07 Before the first read the turn still waits for Home Assistant: the
+// snapshot of a cache that has not read says neither that it failed nor what
+// is exposed.
+func TestHU07_BeforeTheFirstReadTheTurnStillWaitsForHomeAssistant(t *testing.T) {
+	c := NewCache(Options{Source: &fakeSource{}, Debounce: time.Hour})
+	if s := c.Snapshot(); s.ReadFailed || s.ExposureKnown {
+		t.Fatalf("before any read: ReadFailed=%v ExposureKnown=%v", s.ReadFailed, s.ExposureKnown)
 	}
 }

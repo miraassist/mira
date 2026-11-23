@@ -438,6 +438,17 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	turnBegan := time.Now()
 	now := e.clock()
 	key := ts.SessionKey
+	if snap.ReadFailed {
+		// No structure since the start, and reading the registries failed:
+		// say that, not that Mira waits (docs/spec/context.md, 1.3, decision 6).
+		// The read's error is in the log where it failed.
+		e.log.Warn("turn refused: the house structure could not be read from home assistant", "session", key)
+		lang := e.lang(ctx)
+		if e.languages != nil {
+			lang = e.languages.Turn(ctx, req.Language, "", "")
+		}
+		return Response{ConversationID: req.ConversationID, Text: i18n.Pick(catalog, lang).structureUnreadable}, nil
+	}
 	if !snap.ExposureKnown {
 		// What Assist may see comes from the integration (docs/spec/ha-integration.md).
 		// Until it has sent that, no tool runs: Home Assistant's MCP server would

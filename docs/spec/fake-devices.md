@@ -1,6 +1,6 @@
 # Fake satellites that behave like the real ones – Spec
 
-Status 2026-11-18: steps 1–10 built (step 10: speaking as the Show does, 2026-11-18; step 9: a question, 2026-11-17) (step 5: the watched devices, extended with the device watch's step 7; step 7: the answering machine, 2026-11-14; step 8: the fake A2A agent, 2026-11-14); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
+Status 2026-11-23: steps 1–11 built (step 11: odd registry entries, 2026-11-23; step 10: speaking as the Show does, 2026-11-18; step 9: a question, 2026-11-17) (step 5: the watched devices, extended with the device watch's step 7; step 7: the answering machine, 2026-11-14; step 8: the fake A2A agent, 2026-11-14); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
 fake TECHO5 devices ([testenv/README.md](../../testenv/README.md), Fake TECHO5 devices) and on
 [How a TECHO5 satellite behaves](satellite.md#how-a-techo5-satellite-behaves).
 
@@ -247,3 +247,12 @@ turn at the conversation agent.
     speaks an answer its speaker reports `playing` (the Show's does, streaming row 12), the wake word cuts the answer
     off (speaker `idle`, then satellite `listening`; `techo5_fake.say` answers with `interrupted`), and an empty
     answer is not spoken (Home Assistant's pipeline skips it). Tested in pytest (FG-20 to FG-22).
+11. **Odd registry entries** (2026-11-23, issue 8; [Context](context.md), 1.3, decision 5): an integration may store
+    a value of another type than Home Assistant declares, and Home Assistant keeps it; one such device made Mira lose
+    the whole device registry. `watch_fake` has such entries on purpose, under "Fake Geräte", so that a reader that is
+    too strict fails on the test HA first: the device "Fake Wechselrichter" with the identifier `4711` as a number, and an entity of the registry only, without a state, whose `unique_id` is
+    the number `4712` (Home Assistant logs an error for it at its creation and keeps it). Nothing watches them; they
+    have no area. Not here: `model`, `sw_version` and `hw_version` as numbers, which Home Assistant 2026.11 turns into
+    text itself (with a warning that it refuses them from 2026.12; checked 2026-11-23), so they never reach Mira as
+    numbers. A further kind found in a user's Home Assistant joins this list. Tested in pytest (FG-33); Mira's
+    reading of them in Go (AD-06, HU-05).

@@ -6,7 +6,13 @@
 // behalf of the model never go through here — those are MCP.
 package ws
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+
+	"github.com/miraassist/mira/internal/excerpt"
+)
 
 // Message types of the Home Assistant WebSocket API.
 const (
@@ -73,15 +79,50 @@ type Device struct {
 	// ConfigurationURL is where the device's own web interface is.
 	ConfigurationURL string `json:"configuration_url"`
 	// Identifiers are the device's [domain, id] pairs; a companion app's
-	// domain is "mobile_app".
-	Identifiers [][]string `json:"identifiers"`
+	// domain is "mobile_app". Home Assistant types them as text but stores
+	// what an integration gives (issue 8: an id as a number), so each part
+	// is Text.
+	Identifiers [][]Text `json:"identifiers"`
+}
+
+// Text is a registry field Home Assistant types as text but stores as an
+// integration gave it (checked on Home Assistant 2026.11: a device's
+// identifiers and an entity's unique_id are kept as numbers; model and the
+// versions it turns into text itself). A number or true/false is read as its
+// literal, null as empty; an object or a list is an error, and the entry is
+// left out (docs/spec/context.md, 1.3, decision 5).
+type Text string
+
+func (t *Text) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	switch {
+	case len(b) == 0:
+		return fmt.Errorf("empty value where text is expected")
+	case b[0] == '"':
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		*t = Text(s)
+	case string(b) == "null":
+		*t = ""
+	case b[0] == '{' || b[0] == '[':
+		return fmt.Errorf("%s where text is expected", excerpt.Bytes(b))
+	default:
+		var n json.Number
+		if err := json.Unmarshal(b, &n); err != nil && string(b) != "true" && string(b) != "false" {
+			return err
+		}
+		*t = Text(b)
+	}
+	return nil
 }
 
 // HasIdentifierOf reports whether one of the device's identifiers is of the
 // domain.
 func (d Device) HasIdentifierOf(domain string) bool {
 	for _, id := range d.Identifiers {
-		if len(id) > 0 && id[0] == domain {
+		if len(id) > 0 && string(id[0]) == domain {
 			return true
 		}
 	}
@@ -104,7 +145,7 @@ type Entity struct {
 	Name         string         `json:"name"`
 	OriginalName string         `json:"original_name"`
 	Platform     string         `json:"platform"`
-	UniqueID     string         `json:"unique_id"`
+	UniqueID     Text           `json:"unique_id"`
 	Aliases      []string       `json:"aliases"`
 	Labels       []string       `json:"labels"`
 	DisabledBy   string         `json:"disabled_by"`

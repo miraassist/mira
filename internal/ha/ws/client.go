@@ -653,16 +653,47 @@ func (c *Client) ServicesOf(ctx context.Context, domain string) (map[string]Serv
 	return out, nil
 }
 
+// callList reads a registry list entry by entry: an entry that cannot be read
+// is left out with a log line, the rest is kept (docs/spec/context.md, 1.3,
+// decision 5). One field of another type in one entry, as an integration's
+// identifier stored as a number (issue 8), no longer loses the whole list.
 func callList[T any](ctx context.Context, c *Client, cmdType string) ([]T, error) {
 	raw, err := c.Call(ctx, map[string]any{"type": cmdType})
 	if err != nil {
 		return nil, err
 	}
-	var out []T
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, fmt.Errorf("decode %s: %w", cmdType, err)
+	var rows []json.RawMessage
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, fmt.Errorf("decode %s %q: %w", cmdType, excerpt.Bytes(raw), err)
+	}
+	out := make([]T, 0, len(rows))
+	for i, row := range rows {
+		var v T
+		if err := json.Unmarshal(row, &v); err != nil {
+			c.log.Error("registry entry left out; Mira does not know its names and area until it can be read",
+				"list", cmdType, "index", i, "id", entryID(row), "error", err, "entry", excerpt.Bytes(row))
+			continue
+		}
+		out = append(out, v)
 	}
 	return out, nil
+}
+
+// entryID is a registry entry's own id, for the log: a device's or an area's
+// "id", an entity's "entity_id"; empty when it has neither as text.
+func entryID(row json.RawMessage) string {
+	var ids struct {
+		ID       any `json:"id"`
+		EntityID any `json:"entity_id"`
+		AreaID   any `json:"area_id"`
+	}
+	_ = json.Unmarshal(row, &ids) // only for the log line; the entry's own error is logged beside it
+	for _, id := range []any{ids.EntityID, ids.ID, ids.AreaID} {
+		if s, ok := id.(string); ok && s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 // Ping checks a live connection.

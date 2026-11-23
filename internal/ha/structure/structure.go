@@ -59,6 +59,11 @@ type Snapshot struct {
 	// ExposureKnown is false while the integration has not sent which
 	// entities are exposed; then nothing counts as exposed.
 	ExposureKnown bool
+	// ReadFailed is true while no structure has been built since the start
+	// and the last read of the registries failed: a turn then says so
+	// instead of waiting (docs/spec/context.md, 1.3, decision 6). A built
+	// snapshot never has it.
+	ReadFailed bool
 	// Devices are every device by id; Entities every entity not switched
 	// off, by id; DeviceEntities those of each device, sorted. A
 	// satellite's speaker, node name or phone line is looked up here, kept
