@@ -1,6 +1,6 @@
 # Tests without time – spec
 
-Status 2026-11-23: decided; steps 1 to 3 built. Scenarios:
+Status 2026-11-23: decided and built (steps 1 to 6). Scenarios:
 [tests.feature](tests.feature). The inventory behind it (private): `docs/test-review.local.md`.
 
 ## Goal
@@ -151,6 +151,20 @@ func NewFake(now time.Time) *Fake // a test's clock
      store, watch and channels/haconv. No Go test waits in real time any more.
 
 4. **Absence after a positive signal** (rule 6): the "handled" traces the code lacks, each with its log line.
+   Built 2026-11-23 for every absence a test checks: debug lines for a run waiting for a place at its model or for one
+   of the places of the runs (agent), a turn waiting for the turn before it in its session (conversation), a wait
+   ended before it was shown (waiting), a playback ended with its run (voicemail), and an info line for a run of
+   Mira's own schedule that is done (skills); where the decision is made while the event is handled, a test checks
+   once its call returned. A new absence check names its signal the same way.
 5. **Python:** `settle()` and `later()` wait on an `asyncio.Event` of the mocked call; `later()` moves the frozen clock.
+   Built 2026-11-23, in part otherwise: `tests/ha/settle.py`'s `settle(hass)` waits for Home Assistant's executor jobs
+   and then until the event loop has nothing ready to run, instead of a fixed number of rounds (a run waiting in a
+   delay stays a timer, which `async_block_till_done` would wait for); `later()` of the fake devices' tests moves the
+   frozen clock (`freezer`) instead of counting from the real time. The fake satellite knows whether its speech ended
+   by its time or was cut off, instead of measuring the loop's time. An `asyncio.Event` per mocked call was not
+   needed: the loop running empty is the signal that what a change set off has run.
 6. **Against relapse:** `check.sh` refuses `time.Sleep`, `time.After` and polling loops in `_test.go` outside a short
-   list of reasons (the clock's own tests).
+   list of reasons (the clock's own tests). Built 2026-11-23: its step "tests without time" refuses `time.Sleep`,
+   `time.After`, `time.NewTimer`, `time.NewTicker`, `time.Tick`, `context.WithTimeout`, `time.Since` and comparisons
+   with `time.Now()` in Go tests outside `internal/clock`, and `time.sleep` and an `asyncio.sleep` other than of 0 in
+   the integration's tests.

@@ -40,6 +40,21 @@ if [[ -n "$unformatted" ]]; then
 	exit 1
 fi
 
+step "tests without time"
+# docs/spec/tests.md, rule 1 and step 6: no Go test waits in real time; it
+# waits for a signal or moves the test's clock. The clock's own tests are
+# the one exception.
+waits=$(grep -rnE --include='*_test.go' \
+	'time\.(Sleep|After|NewTimer|NewTicker|Tick)\(|context\.WithTimeout\(|time\.Now\(\)\.(Before|After)\(|time\.Since\(' \
+	internal cmd testenv | grep -v '^internal/clock/' || true)
+# The integration's tests: no sleep but the one that yields to the loop.
+waits+=$(grep -rnE --include='*.py' 'time\.sleep\(|asyncio\.sleep\([^0)]' tests || true)
+if [[ -n "$waits" ]]; then
+	echo "$waits"
+	echo "a test waits in real time: wait for a signal or move the clock (docs/spec/tests.md)"
+	exit 1
+fi
+
 step "go vet"
 go vet ./...
 
