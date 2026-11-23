@@ -140,7 +140,7 @@ func (m *Manager) AgentAnswer(ctx context.Context, inv tools.Invocation, id, tex
 		m.log.Info("agent_answer refused: the question came in this turn", "thread", th.ID, "call_id", callID)
 		return "", fmt.Errorf(t.answerTooSoon, label)
 	}
-	var result chan string
+	var result *waiter
 	if inv.Channel == config.ChannelVoice {
 		// Registered before the send: the agent may answer at once.
 		result = m.await(th.ID)

@@ -28,10 +28,14 @@ type show struct {
 	mu      sync.Mutex
 	untitle bool  // the satellite cannot title its player
 	playErr error // what playing on the speaker returns
-	shown   []string
-	played  []string
-	stopped []string
-	notes   []string
+	// holdPlay keeps the play call until its run ends; playing tells
+	// that it was called.
+	holdPlay bool
+	playing  chan struct{}
+	shown    []string
+	played   []string
+	stopped  []string
+	notes    []string
 	// started closes as a clip starts to play; it plays until stopped or
 	// its run ends.
 	started chan struct{}
@@ -71,7 +75,12 @@ func (s *show) player() *Player {
 			s.told()
 			return nil
 		},
-		Play: func(_ context.Context, speaker, url string) error {
+		Play: func(ctx context.Context, speaker, url string) error {
+			if s.holdPlay {
+				s.playing <- struct{}{}
+				<-ctx.Done()
+				return ctx.Err()
+			}
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			if s.playErr != nil {
@@ -274,5 +283,24 @@ func TestPlayingWhileTheClipSounds(t *testing.T) {
 	<-s.log.Await("clip played", "end=stopped")
 	if p.Playing("dev-show") {
 		t.Fatal("still playing after it stopped")
+	}
+}
+
+// EN-03 A playback stopped on purpose is no error (docs/spec/endings.md):
+// the clip's run ends while its play call is on its way; no error is
+// logged and the next turn is not told it failed.
+func TestEN03_APlaybackStoppedOnPurposeIsNoError(t *testing.T) {
+	s := &show{holdPlay: true, playing: make(chan struct{}, 1)}
+	p := s.player()
+	if _, err := call(p, config.ChannelVoice, quizArgs); err != nil {
+		t.Fatal(err)
+	}
+	<-s.playing
+	p.StopThread(context.Background(), "th1")
+	<-s.log.Await("a clip ended with its run before it played")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.notes) != 0 || s.log.Line("could not play a clip") != "" {
+		t.Errorf("notes %v, log %q", s.notes, s.log.String())
 	}
 }

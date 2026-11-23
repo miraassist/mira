@@ -32,14 +32,7 @@ func (r *Runtime) Job(ctx context.Context, spec Spec, cc CallContext, fn func(ct
 	defer cancel(nil)
 	ctx, stop := clock.WithTimeout(ctx, r.clock(), maxRunTime)
 	defer stop()
-	r.mu.Lock()
-	r.cancels[cc.CallID] = cancel
-	r.mu.Unlock()
-	defer func() {
-		r.mu.Lock()
-		delete(r.cancels, cc.CallID)
-		r.mu.Unlock()
-	}()
+	defer r.keepCancel(cc.CallID, cancel)()
 
 	rights := cc.Rights.And(spec.Rights)
 	me := &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: rights,

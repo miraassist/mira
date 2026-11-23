@@ -224,6 +224,9 @@ type Engine struct {
 	// of different sessions run at once, limited only by the access to the
 	// model (docs/spec/agents.md, Several conversations at once).
 	sessions sessionLocks
+	// turns counts the turns running, for the stop of the service
+	// (docs/spec/endings.md, EN-06).
+	turns sync.WaitGroup
 	// webSeen notes the conversations that read web content, and when: what
 	// Mira writes down in a later turn of one (a plan) counts as foreign.
 	webMu   sync.Mutex
@@ -326,6 +329,8 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	if req.ConversationID == "" {
 		req.ConversationID = ulid.Make().String()
 	}
+	e.turns.Add(1)
+	defer e.turns.Done()
 	person, personBy := "", ""
 	if e.identify != nil {
 		person, personBy = e.identify(ctx, req)
@@ -1097,6 +1102,19 @@ func (s *sessionLocks) inUse() []string {
 		out = append(out, key)
 	}
 	return out
+}
+
+// WaitTurns waits for the turns still running, until ctx ends: the stop of
+// the service closes the store only after them (docs/spec/endings.md, EN-06).
+func (e *Engine) WaitTurns(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() { e.turns.Wait(); close(done) }()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // SessionsInUse are the histories turns run in now: the purge of expired

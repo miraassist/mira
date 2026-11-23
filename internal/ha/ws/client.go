@@ -290,6 +290,9 @@ func (c *Client) readLoop(ctx context.Context, conn *websocket.Conn) error {
 		case typeEvent:
 			c.mu.Lock()
 			sub, ok := c.subs[msg.ID]
+			if ok && sub.cancelled {
+				ok = false // unsubscribed by its caller: its handler is not called again
+			}
 			c.mu.Unlock()
 			if !ok {
 				continue
@@ -516,10 +519,25 @@ func (c *Client) issueSubscribe(ctx context.Context, sub *subscription) (int, er
 		}
 		return id, nil
 	case <-ctx.Done():
+		// Home Assistant may still subscribe: its answer stays awaited, and
+		// a late yes is unsubscribed again, so no subscription is left
+		// behind whose events go nowhere (docs/spec/endings.md, EN-05). A
+		// lost connection closes the wait.
 		c.mu.Lock()
-		delete(c.pending, id)
 		delete(c.subs, id)
 		c.mu.Unlock()
+		go func() {
+			msg, ok := <-ch
+			if !ok || msg.Success == nil || !*msg.Success {
+				return
+			}
+			c.log.Info("a subscription Mira gave up on was made late; unsubscribing it", "command", sub.command["type"], "id", id)
+			unsubCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), c.callTimeout)
+			defer stop()
+			if _, err := c.callNow(unsubCtx, map[string]any{"type": CmdUnsubscribeEvents, "subscription": id}, c.callTimeout); err != nil {
+				c.log.Warn("could not unsubscribe a late subscription", "id", id, "error", err)
+			}
+		}()
 		return 0, ctx.Err()
 	}
 }

@@ -94,6 +94,7 @@ type run struct {
 	mu           sync.Mutex
 	stopped      bool
 	active       bool   // video: loading, playing or paused since the last start
+	sent         bool   // video: its play call returned (docs/spec/endings.md, EN-02)
 	played       bool   // video: seen playing since the last start
 	timerID      string // timer: the running timer's id
 	seen         bool   // timer: seen in the satellite's timers since it started
@@ -229,7 +230,7 @@ func (w *Waiting) Stop(ctx context.Context, thread string) {
 		close(r.done)
 	}
 	r.stopped = true
-	unwatch, playing, id := r.unwatch, r.active, r.timerID
+	unwatch, playing, id := r.unwatch, r.active || r.sent, r.timerID
 	r.unwatch = nil
 	r.mu.Unlock()
 	for _, u := range unwatch {
@@ -376,6 +377,18 @@ func (w *Waiting) play(ctx context.Context, r *run) {
 	if err := w.o.HA.CallService(ctx, "esphome", r.node+"_play_video", map[string]any{"url": url, "title": w.label()}, nil); err != nil {
 		w.log.Warn("could not show the wait", "satellite", r.node, "thread", r.thread, "error", err)
 		w.end(r)
+		return
+	}
+	r.mu.Lock()
+	stopped := r.stopped
+	r.sent = true
+	r.mu.Unlock()
+	if stopped {
+		// Stopped while the video was being started: Stop did not know of it
+		// yet (docs/spec/endings.md, EN-02), so it is stopped here.
+		if err := w.o.HA.CallService(context.WithoutCancel(ctx), "esphome", r.node+"_stop_video", nil, nil); err != nil {
+			w.log.Warn("could not stop the wait video; it ends by itself", "satellite", r.node, "error", err)
+		}
 	}
 }
 

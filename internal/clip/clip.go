@@ -148,6 +148,13 @@ func (p *Player) play(ctx context.Context, inv tools.Invocation) (string, error)
 		p.setSounding(this, true)
 		if err := p.o.Play(ctx, sat.Speaker, address); err != nil {
 			p.setSounding(this, false)
+			if ctx.Err() != nil {
+				// Ended by a newer clip or its thread, on purpose: no error,
+				// and the next turn is not told it failed
+				// (docs/spec/endings.md, EN-03).
+				p.log.Debug("a clip ended with its run before it played", "speaker", sat.Speaker)
+				return
+			}
 			p.log.Error("could not play a clip; the next turn is told", "host", hostOf(address), "speaker", sat.Speaker, "error", err)
 			p.note(ctx, thread)
 			return

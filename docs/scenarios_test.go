@@ -27,6 +27,7 @@ var builtSteps = map[string][]int{
 	"MO": {1, 2, 3, 4, 5, 7},           // docs/spec/models.md, Steps; step 6 in Go (MO-50 to 54) and pytest (MO-55)
 	"SM": {1, 2},                       // docs/spec/skill-mcp.md
 	"MX": {1, 2},                       // docs/spec/mcp-connections.md
+	"EN": {1},                          // docs/spec/endings.md
 	"SP": {3},                          // docs/spec/speaker-id.md
 	"BK": {1},                          // docs/spec/backup.md; steps 2 and 3 are tested in pytest
 	"RA": {2, 3, 4},                    // docs/spec/radio.md, Steps

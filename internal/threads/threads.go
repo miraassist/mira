@@ -45,6 +45,9 @@ type Result struct {
 	Done string
 	// Cancel ends the thread: it cannot be done; the text says why.
 	Cancel string
+	// cancelled: the work was cancelled with its thread (runWork); nothing
+	// to apply.
+	cancelled bool
 }
 
 // Finisher is a core building block that ends a thread.
@@ -144,7 +147,7 @@ type Manager struct {
 	// waiting are the turns waiting for a thread's agents, by thread id:
 	// a result that comes in time goes to them instead of a message.
 	waitMu  sync.Mutex
-	waiting map[string]chan string
+	waiting map[string]*waiter
 	// holders count the turns that hold a thread (Hold); ended is how a
 	// thread ended while held, its summary waiting for the last holder
 	// (docs/spec/thread-history.md, decision 9).
@@ -165,7 +168,7 @@ func New(opts Options) *Manager {
 		opts.AgentWait = 10 * time.Second
 	}
 	m := &Manager{opts: opts, log: opts.Logger.With("component", "threads"), targets: map[string]skills.Skill{},
-		waiting: map[string]chan string{}, holders: map[string]int{}, ended: map[string]string{}}
+		waiting: map[string]*waiter{}, holders: map[string]int{}, ended: map[string]string{}}
 	for _, sk := range opts.Targets {
 		if sk.Target != nil {
 			m.targets[sk.Name] = sk
@@ -498,7 +501,7 @@ func (m *Manager) begin(ctx context.Context, inv tools.Invocation, target, reque
 	}
 	// At a satellite the user waits for the answer: a quick agent's result
 	// comes in it rather than as a message afterwards.
-	var result chan string
+	var result *waiter
 	if len(launches) > 0 && inv.Channel == config.ChannelVoice {
 		result = m.await(th.ID)
 	}
@@ -531,59 +534,87 @@ func (m *Manager) begin(ctx context.Context, inv tools.Invocation, target, reque
 	return out, th, nil
 }
 
+// ErrWorkCancelled is what Options.Run returns for a work cancelled with its
+// thread (Cancel): no failure (docs/spec/endings.md, EN-04).
+var ErrWorkCancelled = errors.New("the thread's work was cancelled")
+
+// waiter is a turn waiting for its thread's agents. A result is offered to
+// it, and it takes it only while it still answers: a turn that ended (its
+// caller gone, barge-in) or stopped waiting says no, and the result comes as
+// a message (docs/spec/endings.md, EN-01).
+type waiter struct {
+	offers chan offer
+	// gone is closed once the turn stopped waiting.
+	gone chan struct{}
+}
+
+type offer struct {
+	said string
+	took chan bool
+}
+
 // await registers a turn waiting for th's agents.
-func (m *Manager) await(id string) chan string {
-	ch := make(chan string, 1)
+func (m *Manager) await(id string) *waiter {
+	w := &waiter{offers: make(chan offer), gone: make(chan struct{})}
 	m.waitMu.Lock()
-	m.waiting[id] = ch
+	m.waiting[id] = w
 	m.waitMu.Unlock()
-	return ch
+	return w
 }
 
 // unawait takes back a turn's wait registered with await, when it is still
-// that one.
-func (m *Manager) unawait(id string, ch chan string) {
+// that one; offers after it are refused.
+func (m *Manager) unawait(id string, w *waiter) {
 	m.waitMu.Lock()
-	defer m.waitMu.Unlock()
-	if m.waiting[id] == ch {
+	if m.waiting[id] == w {
 		delete(m.waiting, id)
+	}
+	m.waitMu.Unlock()
+	select {
+	case <-w.gone:
+	default:
+		close(w.gone)
 	}
 }
 
 // waitFor waits up to AgentWait for an agent's result for thread id; what
-// it would have said comes back. Past that the result comes as a message.
-func (m *Manager) waitFor(ctx context.Context, id string, ch chan string) string {
+// it would have said comes back. Past that, or once the turn ended, the
+// result comes as a message.
+func (m *Manager) waitFor(ctx context.Context, id string, w *waiter) string {
 	timer := m.opts.Clock.NewTimer(m.opts.AgentWait)
 	defer timer.Stop()
+	defer m.unawait(id, w)
 	select {
-	case said := <-ch:
-		return said
+	case o := <-w.offers:
+		if ctx.Err() != nil {
+			o.took <- false // the turn ended meanwhile: nobody would hear it
+			return ""
+		}
+		o.took <- true
+		return o.said
 	case <-timer.C():
 	case <-ctx.Done():
 	}
-	m.waitMu.Lock()
-	delete(m.waiting, id)
-	m.waitMu.Unlock()
-	// A result that came just now is taken still.
-	select {
-	case said := <-ch:
-		return said
-	default:
-		return ""
-	}
+	return ""
 }
 
-// handOver gives an agent's result to the turn waiting for it; false when
-// none waits.
+// handOver offers an agent's result to the turn waiting for it; false when
+// none waits or it no longer takes it, and the caller sends it as a
+// message.
 func (m *Manager) handOver(id, said string) bool {
 	m.waitMu.Lock()
-	ch, ok := m.waiting[id]
-	delete(m.waiting, id)
+	w, ok := m.waiting[id]
 	m.waitMu.Unlock()
-	if ok {
-		ch <- said
+	if !ok {
+		return false
 	}
-	return ok
+	took := make(chan bool, 1)
+	select {
+	case w.offers <- offer{said: said, took: took}:
+		return <-took
+	case <-w.gone:
+		return false
+	}
 }
 
 // Fill takes field values from the model, checks them and, once all are
@@ -751,6 +782,9 @@ func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Threa
 	defer timer.Stop()
 	select {
 	case res := <-inTime:
+		if res.cancelled {
+			return t.cancelled, nil
+		}
 		return m.apply(ctx, th, res, false), nil
 	case <-timer.C():
 	}
@@ -758,6 +792,9 @@ func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Threa
 	defer mu.Unlock()
 	select {
 	case res := <-inTime: // arrived just now
+		if res.cancelled {
+			return t.cancelled, nil
+		}
 		return m.apply(ctx, th, res, false), nil
 	default:
 		abandoned = true
@@ -780,7 +817,13 @@ func (m *Manager) runWork(ctx context.Context, fin Finisher, th store.Thread) Re
 	} else {
 		err = work(ctx)
 	}
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrWorkCancelled):
+		// Its thread ended and cancelled it: no failure (docs/spec/endings.md,
+		// EN-04); the thread is ended already.
+		m.log.Info("thread work cancelled with its thread", "thread", th.ID)
+		return Result{cancelled: true}
+	case err != nil:
 		m.log.Error("thread work failed", "thread", th.ID, "error", err)
 		res = Result{Cancel: fmt.Sprintf(m.texts().workFailed, th.Request)}
 	}

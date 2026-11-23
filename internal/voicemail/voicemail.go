@@ -462,6 +462,13 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 			}
 			m.setCurrent(this, p.msg.ID)
 			if err := m.o.Play(ctx, sat.Speaker, p.msg.MediaContentID); err != nil {
+				if ctx.Err() != nil {
+					// Its run was ended (a newer one, the thread, "Abbrechen"):
+					// stopped on purpose, no error (docs/spec/endings.md, EN-03).
+					m.setCurrent(this, "")
+					m.log.Debug("a playback of the answering machine ended with its run", "message", p.msg.ID, "thread", threadID)
+					return
+				}
 				// docs/spec/fallbacks.md, row 22.
 				m.log.Error("could not play a message; the playback ends and it stays new", "message", p.msg.ID, "speaker", sat.Speaker, "error", err)
 				return

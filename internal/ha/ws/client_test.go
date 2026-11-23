@@ -533,3 +533,26 @@ func TestWatchStatesKeepsADomain(t *testing.T) {
 		t.Error("another domain came in")
 	}
 }
+
+// EN-05 A subscription made after Mira gave up is unsubscribed
+// (docs/spec/endings.md): the caller's wait ends before Home Assistant
+// answers; its late yes is unsubscribed at once.
+func TestEN05_ASubscriptionMadeAfterMiraGaveUpIsUnsubscribed(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	c, _ := startClient(t, srv, "test-token")
+	release := srv.HoldSubscribe()
+	ctx, giveUp := context.WithCancel(context.Background())
+	failed := make(chan error, 1)
+	go func() {
+		_, err := c.Subscribe(ctx, "state_changed", func(haws.Event) {})
+		failed <- err
+	}()
+	<-subscriptions(srv, 1) // Home Assistant has it, its answer is held
+	giveUp()
+	if err := <-failed; err == nil {
+		t.Fatal("the subscribe did not give up")
+	}
+	release()
+	<-subscriptions(srv, 0)
+}

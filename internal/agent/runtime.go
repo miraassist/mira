@@ -80,7 +80,7 @@ type Runtime struct {
 	slots   map[string]chan struct{}
 	warm    map[string]*WarmSlots
 	agents  map[string]Spec
-	cancels map[string]context.CancelCauseFunc
+	cancels map[string]*canceler
 
 	// async holds a place per asynchronous run; base ends them all on
 	// shutdown.
@@ -97,7 +97,7 @@ func New(o Options) *Runtime {
 	}
 	base, stop := context.WithCancel(context.Background())
 	return &Runtime{o: o, log: o.Logger.With("component", "agent"), slots: map[string]chan struct{}{},
-		agents: map[string]Spec{}, cancels: map[string]context.CancelCauseFunc{},
+		agents: map[string]Spec{}, cancels: map[string]*canceler{},
 		async: make(chan struct{}, maxAsync), base: base, stop: stop}
 }
 
@@ -770,4 +770,24 @@ func extractJSON(s string) string {
 		return s
 	}
 	return s[start : end+1]
+}
+
+// canceler is a run's cancel, by its call id; a run removes only its own
+// (docs/spec/endings.md, EN-08).
+type canceler struct{ cancel context.CancelCauseFunc }
+
+// keepCancel registers a run's cancel and returns its removal, which leaves
+// another run's of the same id alone.
+func (r *Runtime) keepCancel(id string, cancel context.CancelCauseFunc) (remove func()) {
+	c := &canceler{cancel: cancel}
+	r.mu.Lock()
+	r.cancels[id] = c
+	r.mu.Unlock()
+	return func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if r.cancels[id] == c {
+			delete(r.cancels, id)
+		}
+	}
 }

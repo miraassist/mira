@@ -42,6 +42,9 @@ type Server struct {
 	// rawLists are answers given as they are, by command, in place of the
 	// typed registry (SetRawList).
 	rawLists map[string]json.RawMessage
+	// holdSubscribe keeps the answer to subscribe_events until it is closed
+	// (HoldSubscribe).
+	holdSubscribe chan struct{}
 
 	calls []ServiceCall
 	// refusals are the actions the fake refuses (domain.service -> error),
@@ -147,6 +150,16 @@ func (s *Server) SetRegistry(areas []haws.Area, devices []haws.Device, entities 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.areas, s.devices, s.entities = areas, devices, entities
+}
+
+// HoldSubscribe makes the fake take subscriptions but answer them only once
+// release is called, as a slow Home Assistant would.
+func (s *Server) HoldSubscribe() (release func()) {
+	gate := make(chan struct{})
+	s.mu.Lock()
+	s.holdSubscribe = gate
+	s.mu.Unlock()
+	return func() { close(gate) }
 }
 
 // SetRawList makes the fake answer a list command with raw as it is: an
@@ -556,6 +569,13 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		cs.mu.Lock()
 		cs.subs[id] = eventType
 		cs.mu.Unlock()
+		s.mu.Lock()
+		gate := s.holdSubscribe
+		s.mu.Unlock()
+		if gate != nil {
+			s.changed()
+			<-gate
+		}
 		reply(nil)
 	case haws.CmdFlowSubscribe:
 		// Its events are a list, not a bus event (PushFlows).

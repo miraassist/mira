@@ -147,17 +147,13 @@ func (r *Runtime) launch(rec store.AgentRun, spec Spec, cc CallContext, steps []
 	ctx, cancel := context.WithCancelCause(r.base)
 	// The time limit as the runtime's clock counts it, also across a restart.
 	ctx, stopDeadline := clock.WithTimeout(ctx, r.clock(), rec.Deadline.Sub(r.now()))
-	r.mu.Lock()
-	r.cancels[rec.CallID] = cancel
-	r.mu.Unlock()
+	removeCancel := r.keepCancel(rec.CallID, cancel)
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
 		defer stopDeadline()
 		defer func() {
-			r.mu.Lock()
-			delete(r.cancels, rec.CallID)
-			r.mu.Unlock()
+			removeCancel()
 			cancel(nil)
 		}()
 		began := r.clock().Now()
@@ -352,10 +348,10 @@ func (r *Runtime) Close(ctx context.Context) {
 // call ID.
 func (r *Runtime) Cancel(callID string) bool {
 	r.mu.Lock()
-	cancel, ok := r.cancels[callID]
+	c, ok := r.cancels[callID]
 	r.mu.Unlock()
 	if ok {
-		cancel(ErrCancelled)
+		c.cancel(ErrCancelled)
 	}
 	return ok
 }

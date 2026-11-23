@@ -839,8 +839,12 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 		// Bound late: the runtime is built after the threads.
 		Run: func(ctx context.Context, id, name string, work func(context.Context) error) error {
-			return a.agents.Job(ctx, agent.Spec{Name: name, Profile: agent.Isolated, Rights: agent.AllRights},
+			err := a.agents.Job(ctx, agent.Spec{Name: name, Profile: agent.Isolated, Rights: agent.AllRights},
 				agent.CallContext{CallID: id, Origin: agent.FromCode, Rights: agent.AllRights}, work)
+			if errors.Is(err, agent.ErrCancelled) {
+				return threads.ErrWorkCancelled // cancelled with its thread, no failure
+			}
+			return err
 		},
 		Cancel:        func(id string) bool { return a.agents.Cancel(id) || a.remote.Cancel(id) },
 		Dispatch:      a.dispatchForThread,
@@ -1056,6 +1060,15 @@ func (a *app) close() {
 	a.proactiveWG.Wait()
 	if a.notifyShared != nil {
 		a.notifyShared.Wait()
+	}
+	// Turns still running store their answer before the store closes; the
+	// limit is the stop's safety net only (docs/spec/endings.md, EN-06).
+	if a.engine != nil {
+		turnsCtx, stopTurns := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := a.engine.WaitTurns(turnsCtx); err != nil {
+			a.log.Warn("turns still running at the stop; the store closes under them", "after", "10s")
+		}
+		stopTurns()
 	}
 	if a.store != nil {
 		a.store.Close()

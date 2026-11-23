@@ -143,7 +143,9 @@ func (f *File) Call(ctx context.Context, name string, args json.RawMessage, env 
 		for {
 			select {
 			case <-ctx.Done():
-				thread.Cancel("the tool took longer than " + Timeout.String())
+				// Its own limit, or its caller ended (the turn): each says
+				// so (docs/spec/endings.md, EN-07).
+				thread.Cancel(cancelReason(ctx.Err()))
 				return
 			case <-tick.C():
 				if heapBytes() > base+limit {
@@ -492,4 +494,13 @@ func queryValue(v starlark.Value) (string, bool, error) {
 		return time.Time(x).UTC().Format(time.RFC3339), false, nil
 	}
 	return "", false, fmt.Errorf("a %s cannot go into an address", v.Type())
+}
+
+// cancelReason is why a tool's run is cancelled when its context ends: its
+// own time limit, or its caller's end (docs/spec/endings.md, EN-07).
+func cancelReason(err error) string {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "the tool took longer than " + Timeout.String()
+	}
+	return "the tool's caller ended"
 }

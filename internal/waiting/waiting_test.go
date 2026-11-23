@@ -22,6 +22,8 @@ type fakeHA struct {
 	states   map[string]string
 	watchers map[string][]func(string)
 	nextID   int
+	// hold keeps a call (domain.service) from returning until it is closed.
+	hold map[string]chan struct{}
 	// changed is closed and made anew with every call, for awaitCalls.
 	changed chan struct{}
 }
@@ -69,6 +71,12 @@ func (f *fakeHA) record(domain, service string, data map[string]any, target *haw
 
 func (f *fakeHA) CallService(_ context.Context, domain, service string, data map[string]any, target *haws.Target) error {
 	f.record(domain, service, data, target)
+	f.mu.Lock()
+	gate := f.hold[domain+"."+service]
+	f.mu.Unlock()
+	if gate != nil {
+		<-gate
+	}
 	return nil
 }
 
@@ -316,4 +324,23 @@ func TestWA06_StoppedBeforeTheSatelliteIsIdleShowsNothing(t *testing.T) {
 	if n := len(ha.callsOf("esphome.show_timer_start_silent")); n != 0 {
 		t.Errorf("the timer started after the stop (%d)", n)
 	}
+}
+
+// EN-02 A wait stopped while its video starts stops the video
+// (docs/spec/endings.md): Stop comes before the start returned, and the
+// video is stopped once it did.
+func TestEN02_AWaitStoppedWhileItsVideoStartsStopsTheVideo(t *testing.T) {
+	ha := newFakeHA()
+	ha.states["sensor.show_video_state"] = "idle"
+	gate := make(chan struct{})
+	ha.hold = map[string]chan struct{}{"esphome.show_play_video": gate}
+	w, _ := newWaiting(ha, "esphome.show_play_video")
+	w.Start(context.Background(), thread)
+	ha.awaitCalls("esphome.show_play_video", 1) // sent, not yet returned
+	w.Stop(context.Background(), thread)
+	if got := ha.callsOf("esphome.show_stop_video"); len(got) != 0 {
+		t.Fatalf("stopped before the start returned: %v", got)
+	}
+	close(gate)
+	ha.awaitCalls("esphome.show_stop_video", 1)
 }
