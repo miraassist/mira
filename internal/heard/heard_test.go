@@ -1,14 +1,15 @@
 package heard
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"log/slog"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/miraassist/mira/internal/clock"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 )
 
 // docs/spec/streaming.md, step 10.
@@ -66,14 +67,14 @@ func (s *speakerFake) set(state string, at time.Time) {
 	s.changed(state, at)
 }
 
-func setup(t *testing.T, speaker string) (*Tracker, *memKV, *speakerFake, *bytes.Buffer) {
+func setup(t *testing.T, speaker string) (*Tracker, *memKV, *speakerFake, *logcap.Lines) {
 	t.Helper()
 	kv := &memKV{m: map[string]string{}}
 	sp := &speakerFake{}
-	var log bytes.Buffer
+	log, lines := logcap.Logger()
 	tr := New(Options{Speaker: func(string) string { return speaker }, Watch: sp.watch, KV: kv, NotFound: errMissing,
-		Logger: slog.New(slog.NewTextHandler(&log, nil))})
-	return tr, kv, sp, &log
+		Logger: log, Clock: clock.NewFake(time.Date(2026, 11, 18, 19, 0, 0, 0, time.UTC))})
+	return tr, kv, sp, lines
 }
 
 // play runs one answer through the tracker: it plays from t0 for played
@@ -86,19 +87,19 @@ func play(t *testing.T, tr *Tracker, sp *speakerFake, key, text string, played f
 	<-watched
 	sp.set("playing", t0)
 	sp.set("idle", t0.Add(time.Duration(played*float64(time.Second))))
-	waitFor(t, func() bool { return idle(tr) })
+	settled(tr)
 }
 
-func idle(tr *Tracker) bool {
-	tr.mu.Lock()
-	defer tr.mu.Unlock()
-	return len(tr.tracks) == 0
-}
-
-func waitFor(t *testing.T, ok func() bool) {
-	t.Helper()
-	for i := 0; i < 100 && !ok(); i++ {
-		time.Sleep(5 * time.Millisecond)
+// settled waits until no watch runs, on the tracker's signal.
+func settled(tr *Tracker) {
+	for {
+		tr.mu.Lock()
+		done, changed := len(tr.tracks) == 0, tr.changed
+		tr.mu.Unlock()
+		if done {
+			return
+		}
+		<-changed
 	}
 }
 
@@ -175,7 +176,10 @@ func TestST19_PlayingSinceBeforeTheTurnIsNotTheAnswer(t *testing.T) {
 	<-watched
 	sp.set("playing", began.Add(-time.Hour))
 	sp.set("idle", began.Add(5*time.Second))
-	time.Sleep(30 * time.Millisecond)
+	clk := tr.o.Clock.(*clock.Fake)
+	<-clk.AwaitWaiters(1)    // the watch waits for the answer to play
+	clk.Advance(waitPlaying) // it never played: the watch gives up
+	settled(tr)
 	if _, ok := tr.Take("voice:d"); ok {
 		t.Error("a note from music")
 	}

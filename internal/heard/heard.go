@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/miraassist/mira/internal/clock"
 )
 
 // The start value until a satellite has measurements (row 12).
@@ -58,8 +60,10 @@ type Options struct {
 	KV      KV
 	// NotFound is the store's error for a key it does not have.
 	NotFound error
-	Clock    func() time.Time
-	Logger   *slog.Logger
+	// Clock is the time of a speaker's changes and what the watch's limit
+	// waits on; nil is the real one.
+	Clock  clock.Clock
+	Logger *slog.Logger
 }
 
 // Tracker keeps the notes and runs one watch per satellite.
@@ -69,17 +73,18 @@ type Tracker struct {
 	notes  map[string]string // conversation → last heard sentence ("" for none)
 	tracks map[string]*context.CancelFunc
 	warned map[string]bool
+	// changed is closed and made anew whenever a watch ends, for tests.
+	changed chan struct{}
 }
 
 // New makes a tracker.
 func New(o Options) *Tracker {
-	if o.Clock == nil {
-		o.Clock = time.Now
-	}
+	o.Clock = clock.Or(o.Clock)
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	return &Tracker{o: o, notes: map[string]string{}, tracks: map[string]*context.CancelFunc{}, warned: map[string]bool{}}
+	return &Tracker{o: o, notes: map[string]string{}, tracks: map[string]*context.CancelFunc{}, warned: map[string]bool{},
+		changed: make(chan struct{})}
 }
 
 // Take gives the note of a conversation once: the last sentence the user
@@ -124,6 +129,8 @@ func (t *Tracker) Spoke(key, device, text string, began time.Time) {
 			if t.tracks[device] == ref {
 				delete(t.tracks, device)
 			}
+			close(t.changed)
+			t.changed = make(chan struct{})
 			t.mu.Unlock()
 		}()
 		t.track(ctx, key, device, speaker, text, began)
@@ -153,19 +160,19 @@ func (t *Tracker) track(ctx context.Context, key, device, speaker, text string, 
 	chars := utf8.RuneCountInString(spoken)
 	fixed, perChar := t.line(ctx, device)
 	var playing time.Time
-	limit := time.NewTimer(waitPlaying)
+	limit := t.o.Clock.NewTimer(waitPlaying)
 	defer limit.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-limit.C:
+		case <-limit.C():
 			if playing.IsZero() {
 				t.o.Logger.Info("no note of an interrupted answer: the speaker did not play it", "speaker", speaker,
 					"session", key, "waited_s", waitPlaying.Seconds())
 			} else {
 				t.o.Logger.Info("no note of an interrupted answer: the speaker plays far longer than the answer", "speaker", speaker,
-					"session", key, "playing_s", t.o.Clock().Sub(playing).Seconds())
+					"session", key, "playing_s", t.o.Clock.Since(playing).Seconds())
 			}
 			return
 		case c := <-changes:

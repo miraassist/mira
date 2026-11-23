@@ -126,9 +126,20 @@ func NewFake(now time.Time) *Fake // a test's clock
      until the request is given up, and the test lets the timeout run out with `Drive`.
    - **hooks** (2026-11-23): Watch's next look is a timer of the engine's clock set anew once a look is done; the test
      moves the clock look by look.
+   - **waiting** (2026-11-23): `Options.Clock` carries the wait for the satellite to be idle; the fake Home Assistant
+     reports each call; a wait stopped before it showed says so in a debug line, the signal of the test that nothing
+     shows after a stop. A replay is decided while the state change is handled, so a test checks it once the fake's
+     push returned.
+   - **clip** (2026-11-23): the fake satellite reports what it was told; a test awaits it, and the log line of a clip
+     that played, instead of polling; a refused clip is checked at once, as nothing is handed on after the answer.
+   - **voicemail** (2026-11-23): a playback ended with its run says so in a debug line, the signal of the tests that
+     nothing more of it plays or is ticked; the fake box reports what it ticked and stopped.
+   - **heard** (2026-11-23): `Options.Clock` is a `clock.Clock` and carries the watch's limit; the tracker closes a
+     channel when a watch ends, for the tests; music playing since before the turn is shown by letting the limit run
+     out on the clock.
 
-   Open: waiting, clip, voicemail, heard, cmd/mira (a ready signal of `runAgent`, `fakeha.Await`), and the other
-   packages whose tests still sleep or poll.
+   Open: cmd/mira (a ready signal of `runAgent`, `fakeha.Await`), and the other packages whose tests still sleep or
+   poll.
 
 4. **Absence after a positive signal** (rule 6): the "handled" traces the code lacks, each with its log line.
 5. **Python:** `settle()` and `later()` wait on an `asyncio.Event` of the mocked call; `later()` moves the frozen clock.
