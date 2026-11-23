@@ -145,6 +145,12 @@ type Manager struct {
 	// a result that comes in time goes to them instead of a message.
 	waitMu  sync.Mutex
 	waiting map[string]chan string
+	// holders count the turns that hold a thread (Hold); ended is how a
+	// thread ended while held, its summary waiting for the last holder
+	// (docs/spec/thread-history.md, decision 9).
+	holdMu  sync.Mutex
+	holders map[string]int
+	ended   map[string]string
 }
 
 func New(opts Options) *Manager {
@@ -159,7 +165,7 @@ func New(opts Options) *Manager {
 		opts.AgentWait = 10 * time.Second
 	}
 	m := &Manager{opts: opts, log: opts.Logger.With("component", "threads"), targets: map[string]skills.Skill{},
-		waiting: map[string]chan string{}}
+		waiting: map[string]chan string{}, holders: map[string]int{}, ended: map[string]string{}}
 	for _, sk := range opts.Targets {
 		if sk.Target != nil {
 			m.targets[sk.Name] = sk
@@ -979,10 +985,54 @@ func (m *Manager) endHow(ctx context.Context, th store.Thread, state, how string
 	if m.opts.Ended != nil {
 		m.opts.Ended(ctx, th)
 	}
-	// The summary waits for the answer of a turn that ended it.
+	// The summary and the drop of the history wait for the turns that hold
+	// the thread (decision 9), else for the answer of a turn that ended it.
+	if m.endHeld(th.ID, how) {
+		m.log.Info("thread ended while a turn holds it; its summary waits for that turn", "thread", th.ID)
+		return
+	}
 	if !tools.TurnOf(ctx).HoldSummary(th.ID, how) {
 		m.Summarize(ctx, th.ID, how)
 	}
+}
+
+// Hold keeps a thread's summary and history while a turn that belongs to it
+// runs (docs/spec/thread-history.md, decision 9): a thread that ends
+// meanwhile is ended at once, and the last holder to let go writes its
+// summary and drops its history. release is called once, after the turn
+// stored its answer.
+func (m *Manager) Hold(threadID string) (release func(ctx context.Context)) {
+	m.holdMu.Lock()
+	m.holders[threadID]++
+	m.holdMu.Unlock()
+	var once sync.Once
+	return func(ctx context.Context) {
+		once.Do(func() {
+			m.holdMu.Lock()
+			m.holders[threadID]--
+			how, ended := m.ended[threadID]
+			last := m.holders[threadID] == 0
+			if last {
+				delete(m.holders, threadID)
+				delete(m.ended, threadID)
+			}
+			m.holdMu.Unlock()
+			if last && ended {
+				m.Summarize(ctx, threadID, how)
+			}
+		})
+	}
+}
+
+// endHeld: the thread is held; its end waits for the last holder.
+func (m *Manager) endHeld(threadID, how string) bool {
+	m.holdMu.Lock()
+	defer m.holdMu.Unlock()
+	if m.holders[threadID] == 0 {
+		return false
+	}
+	m.ended[threadID] = how
+	return true
 }
 
 // Run ends threads nobody answered in time, until ctx ends.

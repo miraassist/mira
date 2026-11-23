@@ -80,3 +80,11 @@ Feature: The thread's history (docs/spec/thread-history.md)
     Given a turn in a thread's history, and later a turn after the thread ended
     Then the first is told that the history is the thread's, with several speakers
     And the second sees the record's header that says what it is and how to use it
+
+  @step5
+  Scenario: TV-13 A thread that ends while a turn runs in it keeps its history until that turn is done
+    Given a turn runs in a thread's history
+    When the thread ends meanwhile, not by that turn (an agent's result)
+    Then the thread is ended at once
+    And its history stays until the turn has stored its answer
+    And then the summary is written, with the turn's last sentence, and the history is dropped

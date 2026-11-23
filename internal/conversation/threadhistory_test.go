@@ -42,6 +42,10 @@ func (m *scriptModel) Chat(_ context.Context, req llm.ChatRequest) (*llm.ChatRes
 		return &llm.ChatResponse{Choices: []llm.Choice{{Message: llm.Message{Role: llm.RoleAssistant,
 			ToolCalls: []llm.ToolCall{{ID: "c2", Type: "function", Function: llm.FunctionCall{Name: "fertig", Arguments: `{}`}}}}}}}, nil
 	}
+	if last.Role == llm.RoleUser && strings.Contains(last.Content, "Von außen") {
+		return &llm.ChatResponse{Choices: []llm.Choice{{Message: llm.Message{Role: llm.RoleAssistant,
+			ToolCalls: []llm.ToolCall{{ID: "c3", Type: "function", Function: llm.FunctionCall{Name: "extern", Arguments: `{}`}}}}}}}, nil
+	}
 	if last.Role == llm.RoleUser && strings.Contains(last.Content, "Lass uns kochen") {
 		return &llm.ChatResponse{Choices: []llm.Choice{{Message: llm.Message{Role: llm.RoleAssistant,
 			ToolCalls: []llm.ToolCall{{ID: "c1", Type: "function", Function: llm.FunctionCall{Name: threads.ToolStart,
@@ -136,6 +140,13 @@ func newHistoryHouse(t *testing.T) *historyHouse {
 			h.threads.Finish(ctx, h.threads.TurnThread(ctx, inv))
 			return "Ergebnis: fertig.", nil
 		}}
+	// extern ends the turn's thread from outside the turn, as an agent's
+	// result does: with a context of its own.
+	extern := tools.InternalTool{Name: "extern", Description: "beendet den Vorgang von außen", Schema: `{"type":"object","properties":{}}`,
+		Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
+			h.threads.Finish(context.Background(), h.threads.TurnThread(ctx, inv))
+			return "Ergebnis: von außen beendet.", nil
+		}}
 	snap := structure.Build(structure.Registry{
 		Areas:   []haws.Area{{AreaID: "wohnzimmer", Name: "Wohnzimmer"}, {AreaID: "kueche", Name: "Küche"}},
 		Devices: []haws.Device{{ID: "sat-wohnzimmer", AreaID: "wohnzimmer"}, {ID: "sat-kueche", AreaID: "kueche"}},
@@ -143,12 +154,12 @@ func newHistoryHouse(t *testing.T) *historyHouse {
 	})
 	cfg := config.Default()
 	h.engine = conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
-		Config: cfg, LLM: h.model, Store: st, Tools: tools.NewRegistry(nil, append(h.threads.Tools(), fertig)...),
+		Config: cfg, LLM: h.model, Store: st, Tools: tools.NewRegistry(nil, append(h.threads.Tools(), fertig, extern)...),
 		Guard:     tools.NewGuard(i18n.DE, cfg.Security, st, houseSnapshot, hooks.Load("", i18n.DE, nil)),
 		Structure: func() structure.Snapshot { return snap },
 		Identify:  func(context.Context, conversation.Request) (string, string) { return h.person, "" },
 		Thread:    h.threads.Context, JoinThread: h.threads.Join, SummarizeThread: h.threads.Summarize,
-		Logger: quietLogger(), Location: time.UTC,
+		HoldThread: h.threads.Hold, Logger: quietLogger(), Location: time.UTC,
 	})
 	return h
 }
@@ -358,6 +369,32 @@ func TestTV09_ADoneThreadsSummaryGoesIntoEveryParticipantsOwnHistory(t *testing.
 		}
 	}
 	// The thread's history went with the thread.
+	if _, err := h.st.GetSession(context.Background(), "voice:thread:"+th.ID); err == nil {
+		t.Error("the thread's history is still there")
+	}
+}
+
+// TV-13 A thread that ends while a turn runs in it keeps its history until
+// that turn is done (docs/spec/thread-history.md, decision 9): ended from
+// outside the turn, as a remote agent's result does, it is ended at once;
+// its summary, with the turn's last sentence, and the drop of its history
+// wait for the turn.
+func TestTV13_AThreadThatEndsWhileATurnRunsInItKeepsItsHistoryUntilThatTurnIsDone(t *testing.T) {
+	h := newHistoryHouse(t)
+	th := h.startAt(t, "kochen", "area:wohnzimmer")
+	h.announce(t, th, "Wie viele Eier?")
+	h.say(t, "anna", "c9", "Drei")
+	// The turn runs in the thread's history; the thread ends meanwhile.
+	h.say(t, "anna", "c9", "Von außen")
+	if got, _ := h.st.GetThread(context.Background(), th.ID); got.State != store.ThreadDone {
+		t.Fatalf("state %s", got.State)
+	}
+	got := h.history(t, "voice:person:anna")
+	for _, want := range []string{"„kochen“ erledigt", "Zuletzt gesagt: Gut."} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the summary misses %q: %q", want, got)
+		}
+	}
 	if _, err := h.st.GetSession(context.Background(), "voice:thread:"+th.ID); err == nil {
 		t.Error("the thread's history is still there")
 	}

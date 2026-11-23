@@ -158,6 +158,10 @@ type Options struct {
 	// SummarizeThread writes the summary of a thread a tool of the turn
 	// ended, after the turn's answer (docs/spec/thread-history.md).
 	SummarizeThread func(ctx context.Context, threadID, how string)
+	// HoldThread holds the turn's thread while it runs: a thread that ends
+	// meanwhile keeps its history until release (docs/spec/thread-history.md,
+	// decision 9).
+	HoldThread func(threadID string) (release func(ctx context.Context))
 	// PersonName names a person key for the model (Home Assistant's name);
 	// without it, or when it returns "", the model sees the key.
 	PersonName func(person string) string
@@ -202,6 +206,7 @@ type Engine struct {
 	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (string, bool)
 	joinThread  func(ctx context.Context, sessionKey, threadID string) error
 	summarize   func(ctx context.Context, threadID, how string)
+	holdThread  func(threadID string) (release func(ctx context.Context))
 	identify    func(ctx context.Context, req Request) (person, by string)
 	// follow are the voice conversations Mira's last answer left listening,
 	// by conversation id: whose they are, at which satellite, since when.
@@ -272,6 +277,7 @@ func New(opts Options) *Engine {
 		thread:      opts.Thread,
 		joinThread:  opts.JoinThread,
 		summarize:   opts.SummarizeThread,
+		holdThread:  opts.HoldThread,
 		identify:    opts.Identify,
 		personName:  opts.PersonName,
 		persona:     opts.Persona,
@@ -340,6 +346,12 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	pre.own = own
 	if pre.thread != "" && threadHistoryFor(req.Channel) {
 		key = threadHistoryKey(req.Channel, pre.thread)
+	}
+	// The turn holds its thread: an end meanwhile drops nothing under it;
+	// let go last, once its answer is stored and its held summaries written.
+	if pre.thread != "" && e.holdThread != nil {
+		release := e.holdThread(pre.thread)
+		defer release(context.WithoutCancel(ctx))
 	}
 	// The summaries of the threads the turn ended are written after its
 	// answer, once its history is free again.

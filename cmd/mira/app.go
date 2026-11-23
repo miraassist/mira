@@ -915,7 +915,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Guard: guard, Agents: a.agents,
 		Structure: snapshot, StructurePrompt: a.assist.Text,
 		Music: func(l i18n.Lang) string { return music.Section(l, musicPlayers(snapshot())) }, DeviceHints: a.assist.TailFor, DeviceTools: a.mcp.DeviceTools, Telemetry: tel, Logger: a.log,
-		Thread: a.threads.Context, JoinThread: a.threads.Join, SummarizeThread: a.threads.Summarize, Identify: a.identify, PersonName: func(p string) string { return a.persons()[p].Name },
+		Thread: a.threads.Context, JoinThread: a.threads.Join, SummarizeThread: a.threads.Summarize, HoldThread: a.threads.Hold, Identify: a.identify, PersonName: func(p string) string { return a.persons()[p].Name },
 		Persona: func() string { return a.liveConfig().Prompt.Persona },
 		// No listening while a clip plays (docs/spec/music-quiz.md).
 		Playing:   a.clip.Playing,

@@ -1,6 +1,6 @@
 # The thread's history – Spec
 
-Status 2026-11-16: decided (decisions 1 to 8); steps 1 to 3 built (released); the run at the Show (step 4) is open. Builds on [Threads](threads.md) (Assignment) and
+Status 2026-11-23: decided (decisions 1 to 9); steps 1 to 3 built (released), step 5 built; the run at the Show (step 4) is open. Builds on [Threads](threads.md) (Assignment) and
 [Context](context.md) (History and thread). Terms: [Glossary](../glossary.md), Conversation. Scenarios:
 [thread-history.feature](thread-history.feature).
 
@@ -34,6 +34,7 @@ be bound to the thread, not to whoever is recognised.
 | 6 | Turns that come into a thread late | A turn that starts a thread or takes up a waiting one (3c, the model's choice) began in the speaker's own history; after the turn, it moves into the thread's history whole |
 | 7 | How long the thread's history lives | As long as the thread is open, not the voice conversation's five minutes |
 | 8 | A rule that makes Mira ask back when an answer refers to something not in her context | **Not built.** It would mend a broken history after the fact; with decision 1 there is no such break |
+| 9 | A thread that ends while a turn still runs in it (2026-11-23, by the maintainer) | Ending is not dropping. A thread that ends (done, cancelled, expired, by a tool, an agent's result, the page) is ended at once; its summary and the drop of its history wait until no turn holds it any more. Every turn that belongs to the thread holds it for its duration; the last one to let go writes the summary and drops the history. Seen on the test Mira (2026-11-23, also in 0.30.1): a remote agent's result ended the thread while the turn that had answered its question still ran in the thread's history; the history was dropped under it, the turn could not store its answer ("FOREIGN KEY constraint failed"), and the satellite said "Something went wrong" |
 
 ## Building blocks
 
@@ -114,9 +115,13 @@ It counts as a turn for compaction. An own history lives by its channel's time a
 a turn); the record keeps it alive for that time or starts it anew, so it is there for the next turns. Then the
 thread's history is dropped: it lived as long as its thread (decision 7).
 
-**When:** a thread ended by a tool within a conversation's turn gets its summary after that turn's answer, so the
-last sentence is in it; the turn holds it until then. A thread ended outside such a turn (expired, cancelled from the
-page, a background result, an agent's run) gets it at once.
+**When** (decision 9): every turn that belongs to a thread holds it while it runs (`Manager.Hold`). A thread that
+ends while it is held is ended at once, whoever ends it (a tool of the turn, an agent's result, the expiry, the
+page); its summary is written and its history dropped when the last turn holding it has stored its answer, so the
+last sentence is in the summary and no turn loses its history. A thread ended by a tool of a turn that does not
+belong to it (another thread's turn, a turn in an own history) gets its summary after that turn's answer, as before.
+A thread nobody holds gets it at once. **Fails:** nothing new: a holder that never lets go cannot happen (the turn
+lets go in a deferred step, also when it fails or is ended by its caller).
 
 **The model is told** (the same step), where it reads it, so the cached instruction stays as it is: the heading of the
 current thread in the turn's context says that the history above is this thread's, even where different people spoke
@@ -162,5 +167,8 @@ Nothing changes: the conversation id comes from Home Assistant as today.
    (decision 2); AG-114 dropped. TV-03 to TV-08. Built 2026-11-16.
 3. **The summary** at the end for every kind, what tells the model of it. TV-09 to TV-12.
    Built 2026-11-16.
+5. **Dropped only when all are done** (decision 9): `Manager.Hold`, the conversation's turn holding its thread,
+   `Manager.end` leaving the summary to the last holder. TV-13 in Go. Built 2026-11-23; run on the test Mira with
+   a remote agent answering within the turn.
 4. **The run end to end** at the Show: the Matter dialog above with two voices (or one recognised as two), an
    appointment entered and then asked about ("wann war der Termin nochmal?").
