@@ -77,6 +77,11 @@ the repair stays, the log has the error once per change of the file.
    and `/v1/conversation` with the sentence; the integration's repair `config_problem` (de, en). Run on the test HA:
    a copy of the test Mira's config with an unknown field started it limited, the repair appeared, a voice turn at
    the fake Show got the sentence, and once the field was removed Mira started anew and the repair went.
-3. **The assumptions**, each proven first.
+3. **The assumptions**, each proven first. Looked at 2026-11-23: the group watch's members by a device's name is
+   **disproven** (a device whose name is no text gets no entity at all: Home Assistant itself fails to make one); the
+   alarms' variables are text as Mira writes them and as Home Assistant keeps them, a number only by an edit by hand
+   (possible, not seen). The others are not proven yet (a calendar's events, a model server's other format, a third
+   party's tool list, config flows' unique id) and stay open; the answering machine's messages and the phone book come
+   from Mira FRITZ!Box, whose format is Mira's own.
 4. **The integration's name** (row 5). PA-05 in pytest; the repair `registry_problem` (de, en) and its removal
    (PA-01 in pytest too). Built 2026-11-23.
