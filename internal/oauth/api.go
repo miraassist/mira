@@ -33,6 +33,7 @@ func (m *Manager) Request(ctx context.Context, skill, method, raw string, body [
 	if len(body) > 0 {
 		rd = bytes.NewReader(body)
 	}
+	// real time: a bound of a call to the service's API; no test waits for it
 	ctx, cancel := context.WithTimeout(ctx, apiTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), rd)

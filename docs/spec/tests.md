@@ -172,10 +172,17 @@ func NewFake(now time.Time) *Fake // a test's clock
 7. **Reading the time** (rule 7): every place of the code that reads the time for something it keeps or compares takes
    its clock (the Mira service has one, its store too); the measures of durations are marked; `cmd/testha`, a tool
    against a real Home Assistant, and the fakes of `internal/testsupport` are left out. Every store in a test names its
-   clock. TS-01, TS-02 in Go (`docs`). Built 2026-11-23: the store has `Now()`, which the service's own code, the pages
+   clock. TS-01 to TS-03 in Go (`docs`). Built 2026-11-23: the store has `Now()`, which the service's own code, the pages
    and the integration's server take for what they keep in it or compare with it; the engine, the model client, the
    Wi-Fi onboarding and its join, Starlark's requests, mail and inbox take their clocks; the defaults read
    `clock.Real()`. In the tests, the stores of four places share the test's fake clock now (the threads' history, a
    thread's end, the answering machine, the remote agents' calls), which showed two tests that relied on the real
    time passing between two steps (the history house now moves its clock; the answering machine compares with its
-   own time); every other test store names the real clock.
+   own time); every other test store names the real clock. The same day the check of the code was widened to the
+   waits (rule 2): every `time.Sleep`, `After`, timer, ticker and `context.WithTimeout` of the code goes through a
+   clock or is marked `// real time:` as a bound of a call no test waits for (44 such bounds: Home Assistant's socket,
+   MCP, model servers, downloads, the page's checks, the stop). Twelve waits of a flow moved onto clocks (the assist
+   prompt's refresh, the Wi-Fi's safety nets, the alarm's settle, the cleanup of mails, skills' schedules, the
+   service's session purge, the answering machine's timers); two pauses of 300 ms before a restart became the
+   signal "the answer is written", and the phone book's 5 s after the start became "Home Assistant is connected".
+   The tests read no real time either (TS-03): their stores' or clocks' time, or a fixed date.

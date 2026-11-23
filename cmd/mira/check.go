@@ -43,6 +43,7 @@ func runCheck(ctx context.Context, cfg config.Config) error {
 	for _, name := range names {
 		m := cfg.Models[name]
 		client := llm.New(llm.Options{BaseURL: m.BaseURL, APIKey: m.APIKey, Model: m.Model, Telemetry: tel})
+		// real time: a bound of a call or of the service's start or stop; no test waits for it
 		hctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		report("model "+name, client.Health(hctx), m.BaseURL+" ("+m.Privacy+")")
 		cancel()
@@ -89,6 +90,7 @@ func checkHA(ctx context.Context, cfg config.Config, tel *telemetry.Provider, re
 	runErr := make(chan error, 1)
 	go func() { runErr <- c.Run(runCtx) }()
 
+	// real time: a bound of a call or of the service's start or stop; no test waits for it
 	waitCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	ready := make(chan error, 1)

@@ -278,6 +278,7 @@ const (
 // that has text; it returns the hit's number, address and the text, or
 // nothing.
 func (s *Search) excerpt(ctx context.Context, hits []Result) (n int, addr, text string) {
+	// real time: a bound of reading a web page; no test waits for it
 	ctx, cancel := context.WithTimeout(ctx, excerptTime)
 	defer cancel()
 	for i, h := range hits {

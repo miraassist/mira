@@ -12,6 +12,7 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"github.com/miraassist/mira/internal/clip"
+	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/skills"
@@ -209,6 +210,7 @@ func (a *app) voicemailSatellite(ctx context.Context, deviceID string) voicemail
 // watching its state. A satellite that does not speak within a while gets
 // fn all the same (a safety net, not the signal).
 func (a *app) afterAnswer(entity string, fn func(ctx context.Context)) {
+	// real time: a bound of a call or of the service's start or stop; no test waits for it
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
 	if entity != "" {
@@ -260,7 +262,8 @@ func (a *app) playback(ctx context.Context, speaker string, limit time.Duration)
 		return clip.RanOut, err
 	}
 	defer stop()
-	start, end := time.NewTimer(time.Minute), time.NewTimer(limit)
+	clk := clock.Or(a.clock)
+	start, end := clk.NewTimer(time.Minute), clk.NewTimer(limit)
 	defer start.Stop()
 	defer end.Stop()
 	started := false
@@ -277,11 +280,11 @@ func (a *app) playback(ctx context.Context, speaker string, limit time.Duration)
 			case s == "paused" || s == "off" || s == "unavailable":
 				return clip.Stopped, nil
 			}
-		case <-start.C:
+		case <-start.C():
 			if !started {
 				return clip.NotStarted, nil
 			}
-		case <-end.C:
+		case <-end.C():
 			return clip.RanOut, nil
 		case <-ctx.Done():
 			return clip.RanOut, nil
@@ -347,6 +350,7 @@ func (a *app) watchPhone(ctx context.Context, n *notifier.Notifier) {
 	a.log.Info("watching the answering machine", "sensors", []string{msgID, missedID})
 	count := func() int { s, _ := w.State(msgID); n, _ := strconv.Atoi(s.State); return n }
 	before := count()
+	// real time: a bound of a call or of the service's start or stop; no test waits for it
 	start, done := context.WithTimeout(ctx, 30*time.Second)
 	a.voicemailCounted(start, -1, before)
 	done()
@@ -355,6 +359,7 @@ func (a *app) watchPhone(ctx context.Context, n *notifier.Notifier) {
 		case <-ctx.Done():
 			return
 		case <-changed:
+			// real time: a bound of a call or of the service's start or stop; no test waits for it
 			sync, done := context.WithTimeout(ctx, 30*time.Second)
 			now := count()
 			a.voicemailCounted(sync, before, now)

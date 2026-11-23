@@ -293,6 +293,7 @@ func (t *T) Get(task string) {
 // 30 seconds, unless the service stops.
 func (t *T) Cancel(task string) {
 	t.goOp(func() {
+		// real time: a bound of a call to a remote agent, or of the stop; no test waits for it
 		ctx, cancel := context.WithTimeout(t.o.Base, 30*time.Second)
 		defer cancel()
 		_, err := t.o.Client.CancelTask(ctx, &sdk.CancelTaskRequest{ID: sdk.TaskID(task)})

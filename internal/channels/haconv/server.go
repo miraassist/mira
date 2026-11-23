@@ -99,6 +99,9 @@ type Options struct {
 	// service without them, whose /v1/oauth is then missing.
 	Logins  Logins
 	Restore func(ctx context.Context, r io.Reader) (any, error)
+	// Restored runs once a restore's answer is written: Mira starts anew
+	// then, not after a wait.
+	Restored func()
 	// HA is Mira's connection to Home Assistant, for /v1/ha/…
 	// (docs/spec/ha-api.md); nil when Mira runs without it (503 there).
 	HA HA
@@ -207,6 +210,7 @@ type Health struct {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
+	// real time: a bound of a request of the integration or of a turn; no test waits for it
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	checks := map[string]string{}
@@ -315,6 +319,7 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "text is required")
 		return
 	}
+	// real time: a bound of a request of the integration or of a turn; no test waits for it
 	ctx, cancel := context.WithTimeout(r.Context(), s.opts.TurnTimeout)
 	defer cancel()
 	channel := config.ChannelVoice
@@ -569,6 +574,7 @@ func (s *Server) mail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Reading and matching, each tried twice at most (mailcal.Options).
+	// real time: a bound of a request of the integration or of a turn; no test waits for it
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
 	out, err := s.opts.Mail.Handle(ctx, m)
@@ -785,5 +791,11 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 	default:
 		writeJSON(w, http.StatusOK, res)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		if s.opts.Restored != nil {
+			go s.opts.Restored()
+		}
 	}
 }

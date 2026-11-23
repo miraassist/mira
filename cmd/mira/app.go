@@ -27,6 +27,7 @@ import (
 	"github.com/miraassist/mira/internal/calendar"
 	"github.com/miraassist/mira/internal/channels/haconv"
 	"github.com/miraassist/mira/internal/clip"
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/devices"
@@ -201,7 +202,10 @@ type app struct {
 	// programs gets the programs skills bring (docs/spec/skill-programs.md).
 	programs *programs.Manager
 	remote   *a2a.Host // the skills' remote agents (docs/spec/remote-agents.md)
-	engine   *conversation.Engine
+	// clock is what the service's own loops and waits wait on; nil is the
+	// real one (docs/spec/tests.md, rule 2).
+	clock  clock.Clock
+	engine *conversation.Engine
 
 	// live is the config the proactive parts run with: mira.yaml, what the
 	// page saved into it since, and what Home Assistant sent, held in
@@ -1013,6 +1017,7 @@ func (a *app) startHA(ctx context.Context) error {
 		}
 	}()
 
+	// real time: a bound of a call or of the service's start or stop; no test waits for it
 	waitCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	ready := make(chan error, 1)
@@ -1049,6 +1054,7 @@ func (a *app) close() {
 	if a.agents != nil {
 		// The asynchronous runs stop between rounds and go on after the
 		// next start.
+		// real time: a bound of a call or of the service's start or stop; no test waits for it
 		stopCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
 		a.agents.Close(stopCtx)
 		stop()
@@ -1064,6 +1070,7 @@ func (a *app) close() {
 	// Turns still running store their answer before the store closes; the
 	// limit is the stop's safety net only (docs/spec/endings.md, EN-06).
 	if a.engine != nil {
+		// real time: a bound of a call or of the service's start or stop; no test waits for it
 		turnsCtx, stopTurns := context.WithTimeout(context.Background(), 10*time.Second)
 		if err := a.engine.WaitTurns(turnsCtx); err != nil {
 			a.log.Warn("turns still running at the stop; the store closes under them", "after", "10s")
@@ -1073,6 +1080,7 @@ func (a *app) close() {
 	if a.store != nil {
 		a.store.Close()
 	}
+	// real time: a bound of a call or of the service's start or stop; no test waits for it
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = a.tel.Shutdown(shutdownCtx)
@@ -1153,10 +1161,10 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	}
 	if a.phonebook.IsOn() {
 		a.goRun(ctx, "phonebook", func(ctx context.Context) error {
-			select {
-			case <-ctx.Done():
+			// Once Home Assistant's connection is up: the phone book is read
+			// through it.
+			if err := a.ha.WaitReady(ctx); err != nil {
 				return nil
-			case <-time.After(5 * time.Second):
 			}
 			if _, err := a.phonebook.Contacts(ctx); err != nil {
 				a.log.Warn("phone book not read", "error", err)
@@ -1170,13 +1178,13 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 		a.engine.RequestWarmup(conversation.WarmupStartup)
 	}
 	a.goRun(ctx, "session-purge", func(ctx context.Context) error {
-		t := time.NewTicker(10 * time.Minute)
+		t := clock.Or(a.clock).NewTicker(10 * time.Minute)
 		defer t.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-t.C:
+			case <-t.C():
 				// A history a turn runs in stays until after the turn.
 				if n, err := a.store.PurgeExpiredSessions(ctx, a.engine.SessionsInUse()...); err != nil {
 					a.log.Warn("session purge failed", "error", err)
@@ -1299,6 +1307,7 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	cancel()
 	// A running turn gets a few seconds to finish; after that, and for
 	// clients that hold a connection without sending anything, close hard.
+	// real time: a bound of a call or of the service's start or stop; no test waits for it
 	shutdownCtx, done := context.WithTimeout(context.Background(), 3*time.Second)
 	defer done()
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
@@ -1365,6 +1374,7 @@ func (a *app) startProactive(parent context.Context) {
 	// A new message shows on the room's indicator at once, not at the
 	// next minute.
 	a.store.OnMessage(func() {
+		// real time: a bound of a call or of the service's start or stop; no test waits for it
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		n.SyncIndicators(ctx)
@@ -1648,10 +1658,11 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 				return nil, err
 			}
 			a.log.Info("snapshot restored; starting anew", "from", res.Created, "version", res.Version, "config", res.Config)
-			// Everything is read again at the start, the database put in place.
-			go func() { time.Sleep(300 * time.Millisecond); restart() }()
+			// Everything is read again at the start, the database put in place:
+			// once the answer is written (Restored).
 			return res, nil
 		},
+		Restored: restart,
 	}
 	if a.ha != nil { // a nil *Client would be a non-nil HA
 		opts.HA = a.ha

@@ -224,6 +224,7 @@ func (s *server) connect(ctx context.Context) error {
 			s.in.put(refreshIn{ctx: context.WithoutCancel(ctx)})
 		},
 	})
+	// real time: a bound of a call to an MCP server or of its process ending; no test waits for it
 	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
 	defer cancel()
 	session, err := h.connect(cctx, client, s.cfg)
@@ -259,6 +260,7 @@ func (s *server) refreshTools(ctx context.Context) {
 		return
 	}
 	defer release()
+	// real time: a bound of a call to an MCP server or of its process ending; no test waits for it
 	cctx, cancel := context.WithTimeout(ctx, s.h.callTimeout)
 	defer cancel()
 	tools, unlisted, err := s.h.listTools(cctx, s.cfg, session)

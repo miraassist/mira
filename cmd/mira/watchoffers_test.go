@@ -61,14 +61,14 @@ func offered(t *testing.T, a *app) store.Thread {
 	ctx := context.Background()
 	o := watchOffers{a}
 	id, err := o.Start(ctx, watch.Offer{Entity: "sensor.spuelmaschine", Name: "Spülmaschine", Blueprint: "device_run"},
-		"- [ ] Auf den nächsten Lauf von Spülmaschine warten\n- [ ] Den Wächter anbieten", time.Now().Add(watch.OfferKeep))
+		"- [ ] Auf den nächsten Lauf von Spülmaschine warten\n- [ ] Den Wächter anbieten", a.store.Now().Add(watch.OfferKeep))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := o.SetNumbers(ctx, id, "Gerätelauf: … 120 min, Spitze 1883 W", "nächsten Lauf"); err != nil {
 		t.Fatal(err)
 	}
-	if err := o.Post(ctx, id, "Spülmaschine ist gelaufen. Wie versprochen: Soll ich es jetzt überwachen?", "details", time.Now().Add(watch.OfferKeep)); err != nil {
+	if err := o.Post(ctx, id, "Spülmaschine ist gelaufen. Wie versprochen: Soll ich es jetzt überwachen?", "details", a.store.Now().Add(watch.OfferKeep)); err != nil {
 		t.Fatal(err)
 	}
 	th, err := a.store.GetThread(ctx, id)
@@ -102,7 +102,7 @@ func TestCW36_ADeclinedOffer(t *testing.T) {
 	// Given the offer for the dishwasher came after its run
 	th := offered(t, a)
 	if th.Place != store.PlaceHouse || th.Fields[watch.FieldDevice] != "sensor.spuelmaschine" || th.Fields[watch.FieldNumbers] == "" ||
-		!near(th.ExpiresAt, time.Now().Add(watch.OfferKeep)) {
+		!near(th.ExpiresAt, a.store.Now().Add(watch.OfferKeep)) {
 		t.Fatalf("thread = %+v", th)
 	}
 	if pendingOf(t, a, th.ID) != 1 {
@@ -177,7 +177,7 @@ func TestOfferAcceptedDraftsTheWatch(t *testing.T) {
 	}
 	// Waiting still: nothing to accept.
 	id, err := watchOffers{a}.Start(ctx, watch.Offer{Entity: "sensor.waschmaschine", Name: "Waschmaschine", Blueprint: "device_run"},
-		"- [ ] warten", time.Now().Add(watch.OfferKeep))
+		"- [ ] warten", a.store.Now().Add(watch.OfferKeep))
 	if err != nil {
 		t.Fatal(err)
 	}

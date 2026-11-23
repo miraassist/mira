@@ -463,6 +463,7 @@ func (h *Handler) call(ctx context.Context, method, baseURL, path, apiKey string
 		// A redirect is never followed: the address is the one the caller named.
 		client = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	}
+	// real time: a bound of a call while setting up; no test waits for it
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var rd io.Reader

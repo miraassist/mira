@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/ha/automation"
 	haws "github.com/miraassist/mira/internal/ha/ws"
@@ -58,8 +59,10 @@ type Options struct {
 	Logger *slog.Logger
 	// Watch follows the states of these automations and calls changed on
 	// every change, without blocking; stop ends it.
-	Watch    func(ctx context.Context, entities []string, changed func()) (stop func(), err error)
-	Clock    func() time.Time
+	Watch func(ctx context.Context, entities []string, changed func()) (stop func(), err error)
+	Clock func() time.Time
+	// Waits is what the settle after a cancel waits on; nil is the real one.
+	Waits    clock.Clock
 	Location *time.Location
 	// Speaker is the media_player of a satellite's device; "" if it has none.
 	Speaker func(satellite string) string
@@ -531,7 +534,7 @@ func (c *controller) cancel(ctx context.Context, al Alarm) {
 		c.log.Warn("could not cancel a ringing alarm; deleting it ends its run, the volume stays at 90 %", "automation", al.ID, "error", err)
 		return
 	}
-	deadline := time.After(c.o.Settle)
+	deadline := clock.Or(c.o.Waits).After(c.o.Settle)
 	for !over() {
 		select {
 		case <-changed:

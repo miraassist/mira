@@ -133,6 +133,7 @@ func (c *Client) rest(ctx context.Context, method, path string, body []byte) ([]
 	if body != nil {
 		reader = bytes.NewReader(body)
 	}
+	// real time: a bound of a call on the socket to Home Assistant; no test waits for it
 	ctx, cancel := context.WithTimeout(ctx, c.callTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, base+path, reader)

@@ -219,6 +219,7 @@ func (h *Handler) checkModel(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "no models")
 		return
 	}
+	// real time: a bound of a check the page runs; no test waits for it
 	ctx, cancel := context.WithTimeout(r.Context(), checkTimeout)
 	defer cancel()
 	writeJSON(w, http.StatusOK, h.opts.CheckModel(ctx, r.PathValue("name")))

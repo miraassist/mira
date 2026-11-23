@@ -77,7 +77,7 @@ func TestMS31_AFoundDeviceStartsItsOwnThreadAtTheHouseAndAnEntry(t *testing.T) {
 	a, _ := foundKindApp(t)
 	th := find(t, a, "device:d1", "Hue Lampe")
 	if th.Place != store.PlaceHouse || th.Target != devices.Skill || th.Fields[foundItem] != "device:d1" ||
-		!near(th.ExpiresAt, time.Now().Add(24*time.Hour)) {
+		!near(th.ExpiresAt, a.store.Now().Add(24*time.Hour)) {
 		t.Fatalf("thread = %+v", th)
 	}
 	ms := deviceMessages(t, a)
@@ -116,7 +116,7 @@ func TestMS35_TakenUpTheDevicesThreadMovesIntoTheRoom(t *testing.T) {
 		t.Errorf("no log line:\n%s", log)
 	}
 	// Bound to the house: the answering machine stays the house's.
-	vm, _, err := a.threads.HousePlan(ctx, voicemail.Skill, "AB", "# AB\n- [ ] Oma (id 1)", time.Now().Add(time.Hour))
+	vm, _, err := a.threads.HousePlan(ctx, voicemail.Skill, "AB", "# AB\n- [ ] Oma (id 1)", a.store.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

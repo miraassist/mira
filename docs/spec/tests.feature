@@ -94,3 +94,8 @@ Feature: CK A clock for tests
   @step7
   Scenario: TS-02 Every store in a test names its clock
     Then every store.Options in a Go test sets Clock
+
+  @step7
+  Scenario: TS-03 A test reads the time only from its clocks
+    Then no Go test reads time.Now, time.Since or time.Until outside internal/clock and cmd/testha
+    Unless the line or the line above marks it "real time:"

@@ -2,6 +2,7 @@ package mailcal
 
 import (
 	"context"
+	"github.com/miraassist/mira/internal/clock"
 	"strings"
 	"time"
 )
@@ -51,7 +52,7 @@ func (s *Service) Cleanup(ctx context.Context) error {
 
 // Run cleans up every hour until ctx ends.
 func (s *Service) Run(ctx context.Context) error {
-	t := time.NewTicker(time.Hour)
+	t := clock.Or(s.o.Waits).NewTicker(time.Hour)
 	defer t.Stop()
 	for {
 		if err := s.Cleanup(ctx); err != nil {
@@ -60,7 +61,7 @@ func (s *Service) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-t.C:
+		case <-t.C():
 		}
 	}
 }

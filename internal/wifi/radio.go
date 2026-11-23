@@ -93,6 +93,9 @@ const (
 type NetworkManager struct {
 	conn  *dbus.Conn
 	haURL string
+	// Clock is what the scan's and the join's safety nets wait on; nil is
+	// the real one.
+	Clock clock.Clock
 }
 
 func (n *NetworkManager) Kind() string { return "NetworkManager" }
@@ -208,14 +211,14 @@ func (n *NetworkManager) Scan(ctx context.Context) ([]AP, error) {
 	if err := n.conn.Object(nmDest, d).CallWithContext(ctx, nmWireless+".RequestScan", 0, map[string]dbus.Variant{}).Err; err != nil {
 		return nil, fmt.Errorf("the scan was refused: %w", err)
 	}
-	safety := time.NewTimer(15 * time.Second)
+	safety := clock.Or(n.Clock).NewTimer(15 * time.Second)
 	defer safety.Stop()
 wait:
 	for {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-safety.C:
+		case <-safety.C():
 			return nil, errors.New("the scan did not finish within 15 s")
 		case <-signals:
 			if now, err := n.prop(d, nmWireless, "LastScan"); err == nil && now.String() != before.String() {
@@ -322,7 +325,7 @@ func (n *NetworkManager) waitSignal(ctx context.Context, path dbus.ObjectPath, l
 	signals := make(chan *dbus.Signal, 16)
 	n.conn.Signal(signals)
 	defer n.conn.RemoveSignal(signals)
-	safety := time.NewTimer(limit)
+	safety := clock.Or(n.Clock).NewTimer(limit)
 	defer safety.Stop()
 	for {
 		ok, err := done()
@@ -335,7 +338,7 @@ func (n *NetworkManager) waitSignal(ctx context.Context, path dbus.ObjectPath, l
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-safety.C:
+		case <-safety.C():
 			return fmt.Errorf("the device's Wi-Fi was not up within %s", limit)
 		case <-signals:
 		}

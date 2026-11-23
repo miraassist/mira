@@ -338,7 +338,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			if wait < 0 {
 				wait = 0
 			}
-			timer = time.After(wait)
+			timer = clock.Or(r.Clock).After(wait)
 		}
 		select {
 		case <-ctx.Done():

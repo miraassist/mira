@@ -796,9 +796,9 @@ func (e *editor) ModelList(ctx context.Context, c ui.ModelRequest) ui.ModelListR
 
 // --- restart and writing ---------------------------------------------------
 
-// Restart starts Mira anew in her own process, a moment after the answer.
+// Restart starts Mira anew in her own process; the page calls it once its
+// answer is written and flushed.
 func (e *editor) Restart() {
-	time.Sleep(300 * time.Millisecond)
 	restart()
 }
 

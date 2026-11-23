@@ -93,7 +93,7 @@ func TestRY04_WaitsGrowAsThePolicySays(t *testing.T) {
 }
 
 func TestRY05_ANamedWaitIsKeptOrTheCallFailsAtOnce(t *testing.T) {
-	clk := clock.NewFake(time.Now())
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
 	p := Policy{Attempts: 3, First: time.Millisecond, Clock: clk}
 	var times []time.Time
 	done := make(chan error, 1)
@@ -118,7 +118,7 @@ func TestRY05_ANamedWaitIsKeptOrTheCallFailsAtOnce(t *testing.T) {
 
 	// A named wait longer than the call's deadline fails at once, without
 	// waiting.
-	short, cancel := context.WithDeadline(context.Background(), clk.Now().Add(time.Hour))
+	short, cancel := clock.WithTimeout(context.Background(), clk, time.Hour) // the deadline on the same clock
 	defer cancel()
 	calls := 0
 	err := Do(short, p, func(context.Context) error { calls++; return After(errDown, 2*time.Hour) }, nil)
@@ -197,7 +197,7 @@ func TestNextKeepsAttemptsAcrossTicks(t *testing.T) {
 // driven is Do on a fake clock, moved on to each wait as Do reaches it: the
 // waits pass without real time (docs/spec/tests.md).
 func driven(ctx context.Context, p Policy, fn func(context.Context) error, onRetry OnRetry) error {
-	clk := clock.NewFake(time.Now())
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
 	p.Clock = clk
 	done := make(chan error, 1)
 	go func() { done <- Do(ctx, p, fn, onRetry) }()

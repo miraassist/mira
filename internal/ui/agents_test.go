@@ -40,8 +40,8 @@ func storeRun(t *testing.T, st *store.Store, id, agentName string, started time.
 func TestAGC1_TheStoredRunsAreListed(t *testing.T) {
 	srv, _, st := setup(t)
 	// Given two asynchronous runs, one done and one running
-	storeRun(t, st, "r-done", "wetterlage", time.Now().Add(-2*time.Minute), true)
-	storeRun(t, st, "r-running", "rezept", time.Now().Add(-5*time.Minute), false)
+	storeRun(t, st, "r-done", "wetterlage", st.Now().Add(-2*time.Minute), true)
+	storeRun(t, st, "r-running", "rezept", st.Now().Add(-5*time.Minute), false)
 	// When an admin opens the tab Agenten on Mira's page
 	code, body := asHA(t, srv, "GET", "/v1/ui/agents", "u-admin", true, "")
 	// Then both are listed, the running one first, with agent, status, start, duration, model, model calls and tokens
@@ -63,7 +63,7 @@ func TestAGC2_ARunShowsItsRounds(t *testing.T) {
 	// Given a done run that called a tool and read a web page
 	answer := llm.Message{Role: llm.RoleAssistant, Content: "Ich schaue nach.", ToolCalls: []llm.ToolCall{
 		{ID: "c1", Type: "function", Function: llm.FunctionCall{Name: "web_page", Arguments: `{"url":"https://wetter"}`}}}}
-	storeRun(t, st, "r1", "wetterlage", time.Now().Add(-time.Minute), true,
+	storeRun(t, st, "r1", "wetterlage", st.Now().Add(-time.Minute), true,
 		"answer", answer, "started", llm.Message{ToolCallID: "c1", Name: "web_page"},
 		"result", llm.Message{Role: llm.RoleTool, ToolCallID: "c1", Name: "web_page", Content: "25 Grad"},
 		"state", map[string]bool{"web": true})
@@ -92,7 +92,7 @@ func TestAGC2_ARunShowsItsRounds(t *testing.T) {
 // AG-C3 Only admins see the tab
 func TestAGC3_OnlyAdminsSeeTheTab(t *testing.T) {
 	srv, _, st := setup(t)
-	storeRun(t, st, "r1", "wetterlage", time.Now(), true)
+	storeRun(t, st, "r1", "wetterlage", st.Now(), true)
 	// Given a user of Home Assistant who is no admin
 	// When they open Mira's page
 	// Then there is no tab Agenten, and the runs cannot be read

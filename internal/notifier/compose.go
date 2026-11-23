@@ -62,6 +62,7 @@ func (n *Notifier) composeAs(ctx context.Context, messages []store.Message, afte
 	if afterword {
 		instruction += t.composeAfterword
 	}
+	// real time: a bound of the model call that words a message; no test waits for it
 	cctx, cancel := context.WithTimeout(ctx, composeTimeout)
 	defer cancel()
 	raw, err := n.composer(cctx, instruction, composeSchema)

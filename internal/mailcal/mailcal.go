@@ -93,7 +93,9 @@ type Options struct {
 	Apps     func() map[string]App
 	Location *time.Location
 	Clock    func() time.Time
-	Logger   *slog.Logger
+	// Waits is what the hourly cleanup waits on; nil is the real one.
+	Waits  clock.Clock
+	Logger *slog.Logger
 }
 
 // App is a mail application, from its skill's mail section.

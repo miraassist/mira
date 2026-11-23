@@ -167,6 +167,7 @@ func (m *Manager) fetch(ctx context.Context, p skills.Program) error {
 	if err := os.MkdirAll(m.dir, 0o755); err != nil {
 		return fail(skills.KindProgramDownload, p.URL, err)
 	}
+	// real time: a bound of a program's download; no test waits for it
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.URL, nil)

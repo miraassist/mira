@@ -148,7 +148,7 @@ func TestBE19_NoSourceNoReset(t *testing.T) {
 func TestMessagesAndMemory(t *testing.T) {
 	srv, _, st := setup(t)
 	ctx := context.Background()
-	st.PutMessage(ctx, store.Message{ID: "n1", Kind: store.KindSimple, Source: store.SourceExternal, Importance: 2, Spoken: "Test", ExpiresAt: time.Now().Add(time.Hour)})
+	st.PutMessage(ctx, store.Message{ID: "n1", Kind: store.KindSimple, Source: store.SourceExternal, Importance: 2, Spoken: "Test", ExpiresAt: st.Now().Add(time.Hour)})
 	st.SaveFact(ctx, store.Fact{ID: "f1", Text: "Ben trinkt Kaffee."})
 
 	if code, body := call(t, srv, "GET", "/v1/ui/messages", "secret", ""); code != 200 || !strings.Contains(body, `"spoken":"Test"`) {
@@ -409,7 +409,7 @@ func TestTasksAPI(t *testing.T) {
 	ft := &fakeTasks{enabled: map[string]bool{}, items: []tasks.Item{{ID: "mira_a", Title: "Licht", State: "on", EditURL: "http://ha/x"}}}
 	fth := &fakeThreads{}
 	st.PutThread(context.Background(), &store.Thread{ID: "p1", Target: "aufgabe", Place: "area:bad", State: store.ThreadProposed,
-		Request: "Achte auf das Wasser", Log: []store.ThreadEntry{{Who: "mira", Text: "Vorschlag …"}}, ExpiresAt: time.Now().Add(time.Hour)})
+		Request: "Achte auf das Wasser", Log: []store.ThreadEntry{{Who: "mira", Text: "Vorschlag …"}}, ExpiresAt: st.Now().Add(time.Hour)})
 	h := New(Options{Token: "secret", Store: st, Tasks: ft, Threads: fth, Config: &fakeConfig{sections: map[string]json.RawMessage{}, written: map[string]bool{}, fromHA: map[string]bool{}}})
 	srv = httptest.NewServer(h)
 	defer srv.Close()
@@ -532,7 +532,7 @@ func TestMemoryFile(t *testing.T) {
 func TestMessagesByViewer(t *testing.T) {
 	srv, _, st := setup(t)
 	ctx := context.Background()
-	later := time.Now().Add(time.Hour)
+	later := st.Now().Add(time.Hour)
 	st.PutMessage(ctx, store.Message{ID: "m-house", Kind: store.KindSimple, Source: store.SourceExternal, Importance: 1, Spoken: "Post ist da", ExpiresAt: later})
 	st.PutMessage(ctx, store.Message{ID: "m-anna", Kind: store.KindSimple, Source: store.SourceExternal, Importance: 1, Receiver: "anna", Spoken: "Anna: Zahnarzt", ExpiresAt: later})
 	st.PutMessage(ctx, store.Message{ID: "m-ben", Kind: store.KindSimple, Source: store.SourceExternal, Importance: 1, Receiver: "ben", Spoken: "Ben: Chorprobe", ExpiresAt: later})

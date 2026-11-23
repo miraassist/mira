@@ -185,6 +185,7 @@ var errAuthFailed = errors.New("home assistant rejected the access token")
 // session runs one connection from dial to disconnect; connected says
 // whether it got as far as a working connection.
 func (c *Client) session(ctx context.Context) (connected bool, err error) {
+	// real time: a bound of a call on the socket to Home Assistant; no test waits for it
 	dialCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	conn, _, err := websocket.Dial(dialCtx, c.url, &websocket.DialOptions{HTTPClient: c.httpClient})
 	cancel()
@@ -245,6 +246,7 @@ func (c *Client) session(ctx context.Context) (connected bool, err error) {
 }
 
 func (c *Client) authenticate(ctx context.Context, conn *websocket.Conn) error {
+	// real time: a bound of a call on the socket to Home Assistant; no test waits for it
 	authCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
@@ -361,6 +363,7 @@ func (c *Client) CallFor(ctx context.Context, command map[string]any, timeout ti
 // callNow is Call without waiting for a connection: with none, it fails
 // immediately.
 func (c *Client) callNow(ctx context.Context, command map[string]any, timeout time.Duration) (json.RawMessage, error) {
+	// real time: a bound of a call on the socket to Home Assistant; no test waits for it
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -448,6 +451,7 @@ func (c *Client) subscribeCommand(ctx context.Context, cmd map[string]any, handl
 		if !found {
 			return
 		}
+		// real time: a bound of a call on the socket to Home Assistant; no test waits for it
 		unsubCtx, done := context.WithTimeout(context.Background(), 2*time.Second)
 		defer done()
 		_, _ = c.callNow(unsubCtx, map[string]any{"type": CmdUnsubscribeEvents, "subscription": current}, c.callTimeout)
@@ -459,6 +463,7 @@ func (c *Client) issueSubscribe(ctx context.Context, sub *subscription) (int, er
 	if err := c.WaitReady(ctx); err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrNotConnected, err)
 	}
+	// real time: a bound of a call on the socket to Home Assistant; no test waits for it
 	ctx, cancel := context.WithTimeout(ctx, c.callTimeout)
 	defer cancel()
 
@@ -535,6 +540,7 @@ func (c *Client) issueSubscribe(ctx context.Context, sub *subscription) (int, er
 				return
 			}
 			c.log.Info("a subscription Mira gave up on was made late; unsubscribing it", "command", sub.command["type"], "id", id)
+			// real time: a bound of a call on the socket to Home Assistant; no test waits for it
 			unsubCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), c.callTimeout)
 			defer stop()
 			if _, err := c.callNow(unsubCtx, map[string]any{"type": CmdUnsubscribeEvents, "subscription": id}, c.callTimeout); err != nil {

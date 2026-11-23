@@ -157,8 +157,8 @@ func TestST21_WithoutAMeasuredLineTheStartValueApplies(t *testing.T) {
 
 func TestST22_ASatelliteWhoseSpeakerIsNotKnownGetsNoNote(t *testing.T) {
 	tr, _, _, log := setup(t, "")
-	tr.Spoke("voice:c", "echo", story(), time.Now())
-	tr.Spoke("voice:c", "echo", story(), time.Now())
+	tr.Spoke("voice:c", "echo", story(), time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	tr.Spoke("voice:c", "echo", story(), time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
 	if _, ok := tr.Take("voice:c"); ok {
 		t.Error("a note without a speaker")
 	}

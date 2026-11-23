@@ -296,6 +296,7 @@ func (h *Host) Close() {
 	}()
 	select {
 	case <-done:
+	// real time: a bound of a call to a remote agent, or of the stop; no test waits for it
 	case <-time.After(5 * time.Second):
 		h.log.Warn("remote agents' calls did not stop within 5 seconds")
 	}

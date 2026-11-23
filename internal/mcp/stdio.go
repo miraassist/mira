@@ -72,6 +72,7 @@ func (p *processStdin) Close() error {
 		go func() { _ = p.cmd.Wait(); close(done) }()
 		select {
 		case <-done:
+		// real time: a bound of a call to an MCP server or of its process ending; no test waits for it
 		case <-time.After(5 * time.Second):
 			_ = p.cmd.Process.Kill()
 			<-done

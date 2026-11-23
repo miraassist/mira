@@ -118,7 +118,7 @@ func (h *historyHouse) noteRecorded(r string) {
 
 func newHistoryHouse(t *testing.T) *historyHouse {
 	t.Helper()
-	h := &historyHouse{model: &scriptModel{}, clk: fakeclock.NewFake(time.Now())}
+	h := &historyHouse{model: &scriptModel{}, clk: fakeclock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))}
 	// The store reads the house's clock: what the threads keep, it compares.
 	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: h.clk.Now})
 	if err != nil {
@@ -201,7 +201,7 @@ func (h *historyHouse) announce(t *testing.T, th store.Thread, question string) 
 	t.Helper()
 	ctx := context.Background()
 	n := store.Message{ID: "m-" + th.ID, Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "q-" + th.ID,
-		Importance: 2, Spoken: question, ThreadID: th.ID, ExpiresAt: time.Now().Add(time.Hour)}
+		Importance: 2, Spoken: question, ThreadID: th.ID, ExpiresAt: h.clk.Now().Add(time.Hour)}
 	if _, _, err := h.st.PutMessage(ctx, n); err != nil {
 		t.Fatal(err)
 	}

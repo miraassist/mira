@@ -103,6 +103,7 @@ func ListModels(ctx context.Context, client *http.Client, baseURL, apiKey string
 
 // getJSON reads one JSON object from a model server.
 func getJSON(ctx context.Context, client *http.Client, u string, header func(*http.Request)) (map[string]any, error) {
+	// real time: a bound of asking the model server; no test waits for it
 	cctx, cancel := context.WithTimeout(ctx, contextTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(cctx, http.MethodGet, u, nil)

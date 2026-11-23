@@ -259,6 +259,7 @@ func (h *Handler) mcpCheck(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, errBadBody.Error())
 		return
 	}
+	// real time: a bound of a check the page runs; no test waits for it
 	ctx, cancel := context.WithTimeout(r.Context(), mcpTimeout)
 	defer cancel()
 	writeJSON(w, http.StatusOK, h.opts.Editor.CheckMCP(ctx, r.PathValue("name"), c))
@@ -287,6 +288,7 @@ func (h *Handler) modelList(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "the endpoint is needed")
 		return
 	}
+	// real time: a bound of a check the page runs; no test waits for it
 	ctx, cancel := context.WithTimeout(r.Context(), mcpTimeout)
 	defer cancel()
 	writeJSON(w, http.StatusOK, h.opts.Editor.ModelList(ctx, c))

@@ -278,6 +278,7 @@ func (k *Keeper) whoami(w http.ResponseWriter, integration bool, c Caller) {
 func (k *Keeper) record(r *http.Request, c Caller, status int) {
 	k.log.Info("partner call", "token", c.Name, "partner_user", c.PartnerUser, "method", r.Method,
 		"path", r.URL.Path, "status", status)
+	// real time: a bound of writing the access log; no test waits for it
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), recordTimeout)
 	defer cancel()
 	err := k.store.RecordAccessCall(ctx, store.AccessCall{TokenID: c.TokenID, TokenName: c.Name,

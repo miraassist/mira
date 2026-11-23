@@ -125,6 +125,7 @@ func (w *Onboarding) on() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.o.Clock.Since(w.freeAt) > time.Minute {
+		// real time: a bound of a call to the Supervisor or the device; no test waits for it
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		why := w.o.Radio.Free(ctx)
 		cancel()
@@ -308,6 +309,7 @@ func (w *Onboarding) run(ctx context.Context, thread string, f Family, ssid stri
 		w.ask(ctx, thread, t.joinFailed)
 		return
 	}
+	// real time: a bound of a call to the Supervisor or the device; no test waits for it
 	hctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	err = f.Handover(hctx, w.o.HTTP, w.o.Base(f), home)
 	cancel()

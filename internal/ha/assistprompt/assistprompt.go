@@ -28,6 +28,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/miraassist/mira/internal/clock"
 	"log/slog"
 	"slices"
 	"strings"
@@ -42,6 +43,8 @@ type Source interface {
 }
 
 type Options struct {
+	// Clock is what the refresh's interval waits on; nil is the real one.
+	Clock  clock.Clock
 	Source Source
 	Server string
 	Name   string // "" for the server's prompt, whatever its name
@@ -337,13 +340,13 @@ func (c *Cache) Trigger(ctx context.Context) {
 
 // Run refreshes on the interval until ctx ends.
 func (c *Cache) Run(ctx context.Context) error {
-	t := time.NewTicker(c.opts.Interval)
+	t := clock.Or(c.opts.Clock).NewTicker(c.opts.Interval)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-t.C:
+		case <-t.C():
 			if _, err := c.Refresh(ctx); err != nil {
 				c.log.Warn("could not refresh the assist prompt", "error", err)
 			}

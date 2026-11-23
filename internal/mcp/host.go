@@ -607,6 +607,7 @@ func (h *Host) callOn(ctx context.Context, s *server, qualified, toolName string
 		params.Meta = sdk.Meta{deviceMeta: device}
 	}
 	call := func(session *sdk.ClientSession) (*sdk.CallToolResult, error) {
+		// real time: a bound of a call to an MCP server or of its process ending; no test waits for it
 		cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
 		defer cancel()
 		return session.CallTool(cctx, params)
@@ -711,6 +712,7 @@ func (h *Host) PromptAs(ctx context.Context, serverName, name, device string) (s
 	}
 	if name == "" {
 		list, err := onConn(ctx, s, func(session *sdk.ClientSession) (*sdk.ListPromptsResult, error) {
+			// real time: a bound of a call to an MCP server or of its process ending; no test waits for it
 			cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
 			defer cancel()
 			return session.ListPrompts(cctx, nil)
@@ -728,6 +730,7 @@ func (h *Host) PromptAs(ctx context.Context, serverName, name, device string) (s
 		params.Meta = sdk.Meta{deviceMeta: device}
 	}
 	res, err := onConn(ctx, s, func(session *sdk.ClientSession) (*sdk.GetPromptResult, error) {
+		// real time: a bound of a call to an MCP server or of its process ending; no test waits for it
 		cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
 		defer cancel()
 		return session.GetPrompt(cctx, params)

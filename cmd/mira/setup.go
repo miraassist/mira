@@ -24,6 +24,7 @@ func (s setupCalls) Call(ctx context.Context, who, skill, tool string, args json
 	if !ok || sk.MCP == nil || !sk.MCP.IsSetup(tool) || a.mcp == nil {
 		return ui.SetupResult{}, fmt.Errorf("%w: %s %s", ui.ErrNoSetupTool, skill, tool)
 	}
+	// real time: a bound of a call or of the service's start or stop; no test waits for it
 	ctx, cancel := context.WithTimeout(ctx, setupTimeout)
 	defer cancel()
 	res, err := a.mcp.CallSetup(ctx, sk.MCP.Name, tool, args)

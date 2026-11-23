@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -288,13 +289,14 @@ func CardData(c Card) map[string]any {
 	}
 }
 
+// wait is Options.Wait's default: d on the real clock, or until ctx ends.
 func wait(ctx context.Context, d time.Duration) error {
-	timer := time.NewTimer(d)
+	timer := clock.Real().NewTimer(d)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-timer.C:
+	case <-timer.C():
 		return nil
 	}
 }

@@ -43,7 +43,7 @@ func askMail(t *testing.T, a *app, person, line string) store.Thread {
 	ctx := context.Background()
 	q := inbox.Question{Person: person, Doc: inbox.Doc{Key: "mail:x:" + line, Title: line, Ref: "Mail"},
 		Kind: store.KindAppointment, Line: line, Fields: map[string]string{"title": line, "proposals": "2026-12-03 19:30–20:30"},
-		Deadline: time.Now().Add(24 * time.Hour)}
+		Deadline: a.store.Now().Add(24 * time.Hour)}
 	if err := a.inboxAsk(ctx, q); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestIN48_EachItemIsAnEntryOfTheMessageOfItsKind(t *testing.T) {
 	a := inboxKindApp(t)
 	ctx := context.Background()
 	doc := inbox.Doc{Key: "paperless:5444", Title: "Elternbrief", Ref: "Paperless 5444"}
-	deadline := time.Now().Add(48 * time.Hour)
+	deadline := a.store.Now().Add(48 * time.Hour)
 	if err := a.inboxAsk(ctx, inbox.Question{Person: "anna", Doc: doc, Kind: store.KindAppointment, Line: "Elternbrief: Elternabend",
 		Fields: map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30"}, Deadline: deadline}); err != nil {
 		t.Fatal(err)

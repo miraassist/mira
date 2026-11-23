@@ -27,6 +27,7 @@ func newLanguages(cfg config.Config, st *store.Store, log *slog.Logger) *languag
 // haServerLanguage reads Home Assistant's own language (Settings → System →
 // General); any user may.
 func haServerLanguage(ctx context.Context, ha config.HA) (string, error) {
+	// real time: a bound of a call or of the service's start or stop; no test waits for it
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(ha.URL, "/")+"/api/config", nil)

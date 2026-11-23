@@ -105,7 +105,7 @@ func TestPA08_ACorrectedMiraYAMLStartsMiraAnew(t *testing.T) {
 	go watchConfig(ctx, clk, file, log, func() { close(started) })
 	<-clk.AwaitWaiters(1)
 
-	later := time.Now().Add(time.Hour)
+	later := time.Date(2030, 1, 1, 10, 0, 0, 0, time.UTC) // a file time ahead of any the test made
 	if err := os.WriteFile(file, []byte("models:\n  main: [immer noch kaputt\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

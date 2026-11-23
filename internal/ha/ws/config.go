@@ -121,6 +121,7 @@ func (c *Client) configRequest(ctx context.Context, kind, method, id string, bod
 	if client == nil {
 		client = http.DefaultClient
 	}
+	// real time: a bound of a call on the socket to Home Assistant; no test waits for it
 	ctx, cancel := context.WithTimeout(ctx, c.callTimeout)
 	defer cancel()
 	resp, err := client.Do(req.WithContext(ctx))
