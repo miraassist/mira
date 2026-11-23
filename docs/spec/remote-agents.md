@@ -1,7 +1,7 @@
 # Remote agents (A2A) – Spec
 
 Status 2026-11-15: specified (decisions 1 to 7, 13, 16, 52 and 59 to 61 by the maintainer, the others taken while
-writing or building, to be confirmed); steps 0 to 6, 8 and 9 built, step 7 deferred. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
+writing or building, to be confirmed); steps 0 to 6 and 8 to 10 built, step 7 deferred. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
 carries the number in its name (`TestRM07_…`).
@@ -137,6 +137,7 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 |---|---|---|
 | 62 | Which list | `thread_start`'s list of targets: a remote agent works only for a skill's target (decision 2), and a skill with a target is listed there, not in `skill_open`'s list (which the check before decision 61 looked at). Several remote agents in one skill: one sentence naming them all ("Die Agenten dieses Skills heißen Hermes, Kim.") |
 | 63 | Before the card is read | With the skill's `name` for the agent the sentence is there from the start. Without it the entry has no sentence until the card is read, also while the card cannot be read (A.4 says what happens then); a card with an empty name gives none either. The agent's key is not said: it is no name (unlike decision 58, where a failure must name something). The list is made at every turn (the tool descriptions in the turn's language), so the name shows from the first turn after the card was read; the prompt's cached start changes once then |
+| 64 | A push that ends the call while Mira's send is on its way (2026-11-23) | With push, the agent can report its result before the HTTP answer to Mira's message is back (seen in the release of 0.30.1: RM-12, push-only, "context canceled"). The push ended the call, and ending the call cut the send still on its way: Mira said she could not pass the answer on, though the agent had it. A send with push now runs on its own context, which only the stop of the service ends, not the end of its call; a send that comes back after the call ended changes nothing (its result is taken as for an ended call, so a call cancelled meanwhile still gets its `CancelTask`, decision 19). With streaming the send is the stream that reports the result, so it stays bound to its call. Seen with the same test: when the result filled the last field while the answer was being noted in the thread, the finish saved the thread as it was before and failed ("changed in the meantime"), and the thread was never finished; the finish now reads the thread again before it marks it working, as every change of a thread does |
 
 ## What a skill writes
 
@@ -395,3 +396,8 @@ Run against Hermes v0.23.1 (its official image) on the test Mira's machine, 2026
    (`internal/a2a`). **Fails:** nothing in this step calls out; an agent without a known name (no `name`, its card
    not read yet or without a name) is listed without the sentence (decision 63), and its card's failure is logged and
    shown as A.4 says. Measured in the evals ([Evals](evals.md), Remote agents and delegate).
+10. **A push that ends the call does not cut Mira's send** (decision 64): `sendMessage` with push sends on a context
+    of the service, not of the call; the finish after an agent filled the last field reads the thread again. Built 2026-11-23. RM-26 in Go
+    (`cmd/mira`). **Fails:** a send that fails after
+    its call ended is logged as every failed send ("the answer did not reach the remote agent"), and its caller is
+    told as before.

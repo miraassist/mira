@@ -223,9 +223,16 @@ func (m *Manager) finishInBackground(ctx context.Context, th store.Thread) {
 		m.log.Warn("a thread cannot finish", "thread", th.ID, "error", err)
 		return
 	}
-	th.State = store.ThreadWorking
-	if err := m.save(ctx, &th); err != nil {
-		m.log.Error("could not save a thread", "thread", th.ID, "error", err)
+	// Read again: the thread may have changed since its last field was
+	// filled (the owner's answer to the agent noted meanwhile,
+	// docs/spec/remote-agents.md, decision 64).
+	id := th.ID
+	th, err = m.change(ctx, id, func(now *store.Thread) error {
+		now.State = store.ThreadWorking
+		return nil
+	})
+	if err != nil {
+		m.log.Error("could not save a thread; its finish does not run", "thread", id, "error", err)
 		return
 	}
 	res := m.runWork(ctx, fin, th)

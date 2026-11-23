@@ -172,3 +172,10 @@ Feature: Remote agents (docs/spec/remote-agents.md)
     Then the skill's entry names no agent
     When the card is read
     Then the next turn's entry names the card's name
+
+  @step10
+  Scenario: RM-26 The agent's result comes by push before the answer to Mira's message
+    Given an agent request waits, with push
+    When the owner answers and the agent reports its result by push before the HTTP answer to that message is back
+    Then Mira says the answer was passed on
+    And the thread gets the agent's result

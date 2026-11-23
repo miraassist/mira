@@ -371,6 +371,11 @@ func (h *Host) sendMessage(c *call, m *sdk.Message, reached func()) error {
 	p := h.policy3()
 	warn := retry.Warn(h.log, "sending to the remote agent", p, "agent", c.agent.Name, "call_id", c.id)
 	if push {
+		// The agent's push can end the call before this send's answer is
+		// back: the send runs on the service's context, not the call's, so
+		// that end does not cut it (docs/spec/remote-agents.md, decision 64).
+		// What it brings back is taken as for an ended call.
+		ctx := h.base
 		req := &sdk.SendMessageRequest{Message: m, Config: &sdk.SendMessageConfig{ReturnImmediately: true,
 			PushConfig: &sdk.PushConfig{ID: c.id, URL: h.pushURL(c.id), Token: token}}}
 		var res sdk.SendMessageResult

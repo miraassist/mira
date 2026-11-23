@@ -98,11 +98,19 @@ func (s *signals) await(match func(string) bool) <-chan struct{} {
 type signalRuns struct {
 	a2a.Runs
 	saved signals
+	ended signals
 }
 
 func (r *signalRuns) SetAgentRunRemote(ctx context.Context, callID string, remote json.RawMessage) error {
 	err := r.Runs.SetAgentRunRemote(ctx, callID, remote)
 	r.saved.add(string(remote))
+	return err
+}
+
+// EndAgentRun tells when a call ended (its call id).
+func (r *signalRuns) EndAgentRun(ctx context.Context, callID, status, output, errText string, done bool, usage store.AgentUsage) error {
+	err := r.Runs.EndAgentRun(ctx, callID, status, output, errText, done, usage)
+	r.ended.add(callID)
 	return err
 }
 
@@ -546,6 +554,49 @@ func TestRM12_AnAgentRequest(t *testing.T) {
 				t.Errorf("the agent request is not done: %+v %v", m, err)
 			}
 		})
+	}
+}
+
+// RM-26 The agent's result comes by push before the answer to Mira's message
+// (docs/spec/remote-agents.md, decision 64): the fake holds the HTTP answer to
+// the owner's answer until the push of the result has ended the call; the
+// send is not cut, and Mira says the answer was passed on.
+func TestRM26_TheAgentsResultComesByPushBeforeTheAnswerToMirasMessage(t *testing.T) {
+	var env *remoteEnv
+	holdAnswer := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			if !strings.Contains(string(body), "140 Quadratmeter") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			rec := httptest.NewRecorder()
+			next.ServeHTTP(rec, r)
+			// The push of the result ends the call before the answer is back.
+			<-env.runs.ended.await(func(string) bool { return true })
+			for k, v := range rec.Header() {
+				w.Header()[k] = v
+			}
+			w.WriteHeader(rec.Code)
+			_, _ = w.Write(rec.Body.Bytes())
+		})
+	}
+	env = newRemoteEnvBefore(t, a2afake.CardPushOnly, a2afake.SkillAsk, true, holdAnswer)
+	ctx := context.Background()
+	id := env.start(t, "Welche Wärmepumpe passt?")
+	env.toldAt(1)
+	inv := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
+	if _, err := env.a.threads.Take(ctx, inv, id); err != nil {
+		t.Fatal(err)
+	}
+	said, err := env.a.threads.AgentAnswer(ctx, inv, "", "140 Quadratmeter")
+	if err != nil || said != "Antwort an Hermes weitergegeben." {
+		t.Fatalf("answer: %q %v", said, err)
+	}
+	env.filled()
+	if got := env.fact(t); got != a2afake.AnswerResult+"140 Quadratmeter." {
+		t.Errorf("field %q", got)
 	}
 }
 
