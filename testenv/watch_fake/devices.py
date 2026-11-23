@@ -58,6 +58,10 @@ def register_odd_devices(hass: HomeAssistant, config_entry_id: str) -> None:
         device = devices.async_get_or_create(
             config_entry_id=config_entry_id, identifiers={(DOMAIN, identifier)}, name=name, manufacturer="Fake Maker"
         )
+        if not isinstance(name, str):
+            # Home Assistant itself fails to make an entity for a device whose name is no text ('int' object has
+            # no attribute 'casefold', 2026.11.1): such a device has none (docs/spec/parsing.md).
+            continue
         entities.async_get_or_create(
             "sensor", DOMAIN, unique_id, config_entry=hass.config_entries.async_get_entry(config_entry_id),
             device_id=device.id, suggested_object_id=slugify(f"{name} Leistung"), original_name="Leistung",
