@@ -1,7 +1,7 @@
 # Remote agents (A2A) – Spec
 
 Status 2026-11-15: specified (decisions 1 to 7, 13, 16, 52 and 59 to 61 by the maintainer, the others taken while
-writing or building, to be confirmed); steps 0 to 6 and 8 to 10 built, step 7 deferred. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
+writing or building, to be confirmed); steps 0 to 6 and 8 to 11 built, step 7 deferred. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
 carries the number in its name (`TestRM07_…`).
@@ -401,3 +401,6 @@ Run against Hermes v0.23.1 (its official image) on the test Mira's machine, 2026
     (`cmd/mira`). **Fails:** a send that fails after
     its call ended is logged as every failed send ("the answer did not reach the remote agent"), and its caller is
     told as before.
+11. **Transport and call loop** ([Remote agents: transport and call loop](remote-agent-calls.md)): the call split
+    into a transport that sends and receives and one loop per call that handles everything in order and alone stores
+    and decides. Built 2026-11-23. RM-27 to RM-31 in Go (`internal/a2a`, `internal/a2a/transport`).

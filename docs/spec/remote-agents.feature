@@ -179,3 +179,38 @@ Feature: Remote agents (docs/spec/remote-agents.md)
     When the owner answers and the agent reports its result by push before the HTTP answer to that message is back
     Then Mira says the answer was passed on
     And the thread gets the agent's result
+
+  # docs/spec/remote-agent-calls.md: transport and call loop
+
+  @step11
+  Scenario: RM-27 The transport knows nothing of the call
+    Then the package of the transport imports neither the store, the threads nor the call logic
+    And it reports to its call only what it sent and received
+
+  @step11
+  Scenario: RM-28 An answer counts as passed on by the first sign of the agent
+    Given an agent request waits
+    When the owner answers and the agent reports on the task before the answer to the send comes
+    Then the owner hears that the answer was passed on
+    And a send that fails after that is only a log line
+
+  @step11
+  Scenario: RM-29 A cancel while the first send is on its way
+    Given the first send of a call has not been answered yet
+    When the thread ends
+    Then the call ends cancelled at once
+    And when the send's answer brings the task, Mira cancels that task
+
+  @step11
+  Scenario: RM-30 Closing the transport does not cut a send
+    Given a send of a call is on its way
+    When the transport is closed
+    Then the send is finished and its answer reported
+    And nothing that comes after the close is received
+
+  @step11
+  Scenario: RM-31 The stop of the service ends the loops, not the calls
+    Given a call is open
+    When the Mira service stops
+    Then its loop and its transport end
+    And its row stays running, to be taken up at the next start

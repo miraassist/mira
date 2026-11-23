@@ -3,34 +3,32 @@ package a2a
 import (
 	"context"
 	"crypto/rand"
-	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"iter"
-	"net"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
 
+	"github.com/miraassist/mira/internal/a2a/transport"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/retry"
 	"github.com/miraassist/mira/internal/store"
 )
 
 // The calls of the remote agents (docs/spec/remote-agents.md, B to E and
-// G): a thread's field or plan is due, Mira sends the work, follows the
-// stream (or takes the pushes of an agent without one) and hands the result
-// to the thread as an agent's run is handed to it. Each call is a row of
-// agent_runs with the remote task in its column remote.
+// G; docs/spec/remote-agent-calls.md): a thread's field or plan is due, Mira
+// sends the work and hands the result to the thread as an agent's run is
+// handed to it. Each call is a row of agent_runs with the remote task in
+// its column remote. A call has a transport (package transport) that sends
+// and receives, and one loop that handles, in order and alone, what the
+// transport reports and what Mira asks: only the loop reads and writes the
+// call's state, stores it, closes the transport and tells the thread.
 
 // PushPath is where the remote agents push, followed by the call id
 // (decision 13).
@@ -100,112 +98,109 @@ type state struct {
 	Said  string `json:"said,omitempty"`
 }
 
-// call is one call in memory.
+// wire is what the loop needs of its transport (transport.T; a fake in
+// tests).
+type wire interface {
+	Send(m *sdk.Message)
+	Follow(task string, attempt int)
+	Get(task string)
+	Cancel(task string)
+	Close()
+}
+
+// call is one call: its loop and what only the loop touches.
 type call struct {
+	h     *Host
 	id    string
 	agent *Agent
 	label string
 	rec   store.AgentRun
+	tr    wire
 
-	mu        sync.Mutex
+	in inbox
+
+	// Only the loop's goroutine reads and writes these.
 	st        state
 	artifacts []*sdk.Artifact
-	// saving keeps the call's writes of its state in order: each writes the
-	// state as it is then, so an older one never comes last.
-	saving    sync.Mutex
 	ended     bool
 	cancelled bool
-	// stop ends what follows the call now: its stream, its send.
-	ctx  context.Context
-	stop context.CancelFunc
-	// queue are pushes not yet taken, in order.
-	queue    []sdk.Event
-	draining bool
+	// heard: the agent reported something for the call since it started.
+	heard bool
+	// inflight counts the transport's operations not yet over: the loop
+	// runs until the call ended and they are (decision 13).
+	inflight int
 	// rank is how far the task got since Mira's last message: a state that
-	// comes later but is behind it is stale (docs/spec/remote-agents.md,
-	// decision 37a).
+	// comes later but is behind it is stale (decision 37a).
 	rank int
+	// answer is the owner's answer on its way (decision 11).
+	answer *pendingAnswer
+	// follows counts the subscriptions after a stream that ended early.
+	follows int
+
+	// view is what others may read (decision 14), published by the loop.
+	viewMu sync.Mutex
+	view   view
 }
+
+type view struct {
+	ended         bool
+	state, asked  string
+	label, taskID string
+}
+
+type pendingAnswer struct {
+	messageID string
+	reply     chan error
+}
+
+// The loop's inputs besides the transport's reports.
+type (
+	answerIn struct {
+		text  string
+		reply chan error
+	}
+	cancelIn struct{}
+	// runIn is a step of the loop's own: its start, a take-up.
+	runIn struct{ fn func() }
+)
+
+// inbox is the loop's queue: never full, so neither the transport nor Mira
+// ever waits to put something in.
+type inbox struct {
+	mu    sync.Mutex
+	items []any
+	ready chan struct{}
+}
+
+func (q *inbox) put(v any) {
+	q.mu.Lock()
+	q.items = append(q.items, v)
+	q.mu.Unlock()
+	select {
+	case q.ready <- struct{}{}:
+	default:
+	}
+}
+
+func (q *inbox) take() []any {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	items := q.items
+	q.items = nil
+	return items
+}
+
+// Push is a remote agent's push as the A2A protocol defines it (a
+// StreamResponse: a task, a message, a status or an artifact update); here
+// only to describe the route, as an open object: the remote agent's
+// protocol, not Mira's.
+type Push map[string]any
+
+func (h *Host) now() time.Time { return h.clock.Now() }
 
 // StatusError is an answer of a remote agent with an HTTP status Mira reads
-// as an error.
-type StatusError struct {
-	URL    string
-	Status int
-	// Body is the start of the answer.
-	Body string
-	// Wait is the wait the agent named (Retry-After).
-	Wait time.Duration
-}
-
-func (e *StatusError) Error() string {
-	return fmt.Sprintf("%s: %d %s, the answer begins %q", e.URL, e.Status, http.StatusText(e.Status), e.Body)
-}
-
-// statusTransport turns an answer of the remote agent that is no A2A
-// answer into a StatusError, so the error says what came: a 408, a 429 or
-// a 5xx always, another 4xx unless it carries a JSON-RPC error, which the
-// SDK reads itself.
-type statusTransport struct{ next http.RoundTripper }
-
-func (t statusTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	resp, err := t.next.RoundTrip(r)
-	if err != nil || resp.StatusCode < 400 {
-		return resp, err
-	}
-	always := resp.StatusCode == http.StatusRequestTimeout || resp.StatusCode == http.StatusTooManyRequests ||
-		resp.StatusCode >= 500
-	if !always && strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
-		return resp, nil
-	}
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-	resp.Body.Close()
-	e := &StatusError{URL: r.URL.Redacted(), Status: resp.StatusCode, Body: bodyStart(body)}
-	if secs, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil && secs > 0 {
-		e.Wait = time.Duration(secs) * time.Second
-	}
-	return nil, e
-}
-
-// notReached says that a send did not reach the remote agent, so sending
-// it again cannot make the work twice (decision 26): the connection was
-// refused, no route, the name unknown, or the agent answered 429 or 503.
-func notReached(err error) bool {
-	var se *StatusError
-	if errors.As(err, &se) {
-		return se.Status == http.StatusTooManyRequests || se.Status == http.StatusServiceUnavailable
-	}
-	var dns *net.DNSError
-	return errors.As(err, &dns) || errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.EHOSTUNREACH) ||
-		errors.Is(err, syscall.ENETUNREACH)
-}
-
-// classify marks an error of a call for internal/retry: an A2A error in
-// the answer and a 4xx are fatal, a lost connection, a timeout, a 408, 429
-// and 5xx retryable (Retries); a wait the agent named is kept.
-func classify(err error) error {
-	var ae *sdk.Error
-	var se *StatusError
-	switch {
-	case errors.As(err, &ae):
-		return retry.Fatal(err)
-	case errors.As(err, &se) && se.Wait > 0:
-		return retry.After(err, se.Wait)
-	case errors.As(err, &se) && se.Status != http.StatusRequestTimeout && se.Status != http.StatusTooManyRequests &&
-		se.Status < 500:
-		return retry.Fatal(err)
-	}
-	return retry.Transient(err)
-}
-
-// classifySend is classify for a send: tried again only when it did not
-// reach the agent (decision 26).
-func classifySend(err error) error {
-	if !notReached(err) {
-		return retry.Fatal(err)
-	}
-	return classify(err)
-}
+// as an error (package transport).
+type StatusError = transport.StatusError
 
 func (h *Host) policy3() retry.Policy {
 	return retry.Policy{Attempts: 3, First: h.callRetry, Growth: retry.Exponential, Clock: h.clock}
@@ -228,10 +223,9 @@ func (h *Host) Remote(name string) bool {
 	return ok
 }
 
-// Send starts a call: its row, then the send in the background. An error
-// when the agent cannot take work now (its card not read, the skill's
-// connection not made) or the row cannot be written; the caller fails the
-// field with it.
+// Send starts a call: its row, then its loop, which sends. An error when the
+// agent cannot take work now (its card not read, the skill's connection not
+// made) or the row cannot be written; the caller fails the field with it.
 func (h *Host) Send(ctx context.Context, req Request) error {
 	a, ok := h.Agent(req.Agent)
 	if !ok {
@@ -267,14 +261,14 @@ func (h *Host) Send(ctx context.Context, req Request) error {
 	if err := h.runs.PutAgentRun(ctx, rec); err != nil {
 		return fmt.Errorf("could not store the call of %s: %w", a.Name, err)
 	}
-	c := h.track(rec, a, info.Label, st)
 	way := "stream"
 	if st.Push {
 		way = "push"
 	}
-	h.log.Info("remote agent called", "agent", a.Name, "name", info.Label, "call_id", c.id, "way", way,
+	h.log.Info("remote agent called", "agent", a.Name, "name", info.Label, "call_id", rec.CallID, "way", way,
 		"endpoint", info.Endpoint)
-	h.wg.Go(func() { h.deliverSend(c, msg) })
+	c := h.track(rec, a, info.Label, st, client)
+	c.in.put(runIn{func() { c.send(msg) }})
 	return nil
 }
 
@@ -291,213 +285,217 @@ func (h *Host) why(a *Agent) string {
 	return "its card was not read yet"
 }
 
-// track keeps a call in memory, with what ends it.
-func (h *Host) track(rec store.AgentRun, a *Agent, label string, st state) *call {
-	c := &call{id: rec.CallID, agent: a, label: label, rec: rec, st: st}
-	c.ctx, c.stop = context.WithCancel(h.base)
-	h.mu.Lock()
-	h.calls[c.id] = c
-	h.mu.Unlock()
+// track makes a call with its transport (none without a client) and starts
+// its loop.
+func (h *Host) track(rec store.AgentRun, a *Agent, label string, st state, client transport.Client) *call {
+	c := h.newCall(rec, a, label, st)
+	if client != nil {
+		t := transport.Open(transport.Options{Client: client, Push: st.Push, PushURL: h.pushURL(c.id), Token: st.Token,
+			Base: h.base, Retry: h.policy3(), Report: func(r transport.Report) { c.in.put(r) }, Agent: a.Name,
+			Call: c.id, Log: h.log}, &h.wg)
+		c.tr = t
+		if st.Push {
+			h.router.Add(c.id, t)
+		}
+	}
+	h.start(c)
 	return c
 }
 
-// firstMessage is the work as one A2A message (decision 10): the input's
-// "input" as a text part, the input's other fields as a data part beside
-// it; the card's skill in the metadata (decision 27). Its id is the call
-// id, so a send tried again keeps it. text is what the row shows.
-func firstMessage(callID, skill string, input json.RawMessage) (*sdk.Message, string, error) {
-	var in map[string]any
-	if len(input) > 0 {
-		if err := json.Unmarshal(input, &in); err != nil {
-			return nil, "", fmt.Errorf("the input of the remote agent is no JSON object (%v): %q", err, bodyStart(input))
-		}
-	}
-	var parts []*sdk.Part
-	text, _ := in["input"].(string)
-	if strings.TrimSpace(text) != "" {
-		parts = append(parts, sdk.NewTextPart(text))
-	}
-	rest := map[string]any{}
-	for k, v := range in {
-		if k != "input" {
-			rest[k] = v
-		}
-	}
-	if len(rest) > 0 {
-		parts = append(parts, sdk.NewDataPart(rest))
-		raw, _ := json.Marshal(rest)
-		text = strings.TrimSpace(text + "\n" + string(raw))
-	}
-	if len(parts) == 0 {
-		return nil, "", errors.New("the input of the remote agent is empty")
-	}
-	m := sdk.NewMessage(sdk.MessageRoleUser, parts...)
-	m.ID = callID
-	if skill != "" {
-		m.Metadata = map[string]any{skillMeta: skill}
-	}
-	return m, text, nil
+// newCall makes a call without its transport and without starting it.
+func (h *Host) newCall(rec store.AgentRun, a *Agent, label string, st state) *call {
+	return &call{h: h, id: rec.CallID, agent: a, label: label, rec: rec, st: st, in: inbox{ready: make(chan struct{}, 1)}}
 }
 
-// skillMeta is the key of a message's metadata naming the card's skill
-// (decision 27).
-const skillMeta = "skill"
+// start lists a call and starts its loop.
+func (h *Host) start(c *call) {
+	c.publish()
+	h.mu.Lock()
+	h.calls[c.id] = c
+	h.mu.Unlock()
+	h.wg.Go(c.run)
+}
 
-// deliverSend sends a message of a call and follows what comes back: the
-// stream, or for a push agent the answer of the send.
-func (h *Host) deliverSend(c *call, m *sdk.Message) {
-	if err := h.sendMessage(c, m, nil); err != nil {
-		h.fail(c, fmt.Sprintf("the send failed: %v", err))
+// run is the loop: it takes the inputs in order until the call ended and
+// nothing of its transport is under way, or the service stops (the call
+// then stays running in its row, G).
+func (c *call) run() {
+	for {
+		select {
+		case <-c.in.ready:
+		case <-c.h.base.Done():
+			return
+		}
+		for _, v := range c.in.take() {
+			c.step(v)
+		}
+		if c.ended && c.inflight == 0 {
+			return
+		}
 	}
 }
 
-// sendMessage sends m and takes what comes back; an error when the send did
-// not get through (after its retries) or broke off where nothing can follow
-// it. With a stream it returns once the stream ends. reached, when set, is
-// told once the agent took the message (the answer of the send, the
-// stream's first event).
-func (h *Host) sendMessage(c *call, m *sdk.Message, reached func()) error {
-	client := c.agent.Client()
-	if client == nil {
-		return fmt.Errorf("the remote agent %s is not ready", c.agent.Name)
-	}
-	if reached == nil {
-		reached = func() {}
-	}
-	c.mu.Lock()
-	push, token, task := c.st.Push, c.st.Token, c.st.TaskID
-	c.mu.Unlock()
-	ctx := c.ctx
-	p := h.policy3()
-	warn := retry.Warn(h.log, "sending to the remote agent", p, "agent", c.agent.Name, "call_id", c.id)
-	if push {
-		// The agent's push can end the call before this send's answer is
-		// back: the send runs on the service's context, not the call's, so
-		// that end does not cut it (docs/spec/remote-agents.md, decision 64).
-		// What it brings back is taken as for an ended call.
-		ctx := h.base
-		req := &sdk.SendMessageRequest{Message: m, Config: &sdk.SendMessageConfig{ReturnImmediately: true,
-			PushConfig: &sdk.PushConfig{ID: c.id, URL: h.pushURL(c.id), Token: token}}}
-		var res sdk.SendMessageResult
-		err := retry.Do(ctx, p, func(ctx context.Context) error {
-			var err error
-			res, err = client.SendMessage(ctx, req)
-			if err != nil {
-				return classifySend(err)
-			}
-			return nil
-		}, warn)
-		if err != nil {
-			return err
+// step handles one input.
+func (c *call) step(v any) {
+	switch v := v.(type) {
+	case runIn:
+		v.fn()
+	case answerIn:
+		c.doAnswer(v)
+	case cancelIn:
+		c.doCancel()
+	case transport.Received:
+		c.agentReported()
+		c.take(v.Event)
+	case transport.Answered:
+		c.inflight--
+		if c.answer != nil && c.answer.messageID == v.MessageID {
+			c.answerPassed()
 		}
-		reached()
-		h.take(c, res)
-		return nil
-	}
-	req := &sdk.SendMessageRequest{Message: m}
-	var got int
-	err := retry.Do(ctx, p, func(ctx context.Context) error {
-		n, err := h.consume(c, client.SendStreamingMessage(ctx, req), reached)
-		got += n
-		switch {
-		case err == nil:
-			return nil
-		case n > 0:
-			// The send reached the agent; what broke is the stream.
-			return retry.Fatal(&brokenStream{err})
+		c.take(v.Event)
+	case transport.SendFailed:
+		c.inflight--
+		c.sendFailed(v)
+	case transport.StreamEnded:
+		c.inflight--
+		c.streamEnded(v)
+	case transport.Got:
+		c.inflight--
+		c.gotTask(v)
+	case transport.CancelDone:
+		c.inflight--
+		if v.Err != nil {
+			c.h.log.Warn("could not cancel the remote agent's task", "agent", c.agent.Name, "call_id", c.id,
+				"task_id", v.TaskID, "error", v.Err)
+			return
 		}
-		return classifySend(err)
-	}, warn)
-	var broken *brokenStream
-	switch {
-	case ctx.Err() != nil:
-		return nil
-	case err != nil && !errors.As(err, &broken):
-		return err
+		c.h.log.Info("remote agent's task cancelled", "agent", c.agent.Name, "call_id", c.id, "task_id", v.TaskID)
 	}
-	if got == 0 && task == "" {
-		return errors.New("the stream ended without an answer")
-	}
-	h.afterStream(c, err)
-	return nil
 }
 
-// brokenStream is a stream that broke off after the send reached the agent.
-type brokenStream struct{ err error }
+// publish keeps a copy of what others may read (decision 14).
+func (c *call) publish() {
+	c.viewMu.Lock()
+	defer c.viewMu.Unlock()
+	c.view = view{ended: c.ended, state: c.st.State, asked: c.st.Asked, label: c.label, taskID: c.st.TaskID}
+}
 
-func (b *brokenStream) Error() string { return "the stream broke off: " + b.err.Error() }
-func (b *brokenStream) Unwrap() error { return b.err }
+func (c *call) read() view {
+	c.viewMu.Lock()
+	defer c.viewMu.Unlock()
+	return c.view
+}
 
-// afterStream: a stream ended. When the task waits for an answer (the
-// stream closes at input-required) or the call ended, nothing more; else
-// Mira subscribes to the task again, with the retries of a read.
-func (h *Host) afterStream(c *call, why error) {
-	c.mu.Lock()
-	open := !c.ended && c.st.State != string(sdk.TaskStateInputRequired) && c.st.TaskID != ""
-	task := c.st.TaskID
-	c.mu.Unlock()
-	if !open || c.ctx.Err() != nil {
+// send sends a message of the call.
+func (c *call) send(m *sdk.Message) {
+	if c.tr == nil {
+		c.fail(fmt.Sprintf("the remote agent %s is not ready", c.agent.Name))
 		return
 	}
+	c.inflight++
+	c.tr.Send(m)
+}
+
+// agentReported: the agent reported something for the call. An answer on
+// its way counts as passed on (decision 11), before the report is taken, so
+// the owner hears it before the thread gets what followed (decision 12).
+func (c *call) agentReported() {
+	c.heard = true
+	if c.answer != nil {
+		c.answerPassed()
+	}
+}
+
+func (c *call) answerPassed() {
+	c.h.log.Info("answer passed to the remote agent", "agent", c.agent.Name, "call_id", c.id, "task_id", c.st.TaskID)
+	c.answer.reply <- nil
+	c.answer = nil
+}
+
+// sendFailed: the first send failed → a failed agent, unless the agent
+// already reported on it; an answer → its caller hears it (D.4), unless
+// decision 11 counted it passed.
+func (c *call) sendFailed(v transport.SendFailed) {
+	switch {
+	case c.answer != nil && c.answer.messageID == v.MessageID:
+		// The trace first: the caller goes on once told.
+		c.h.log.Warn("the answer did not reach the remote agent", "agent", c.agent.Name, "call_id", c.id,
+			"task_id", c.st.TaskID, "error", v.Err)
+		c.answer.reply <- v.Err
+		c.answer = nil
+	case v.MessageID == c.id && !c.ended && !c.heard:
+		c.fail(fmt.Sprintf("the send failed: %v", v.Err))
+	default:
+		c.h.log.Info("a send to the remote agent failed after the agent reported on it; nothing changes",
+			"agent", c.agent.Name, "call_id", c.id, "message_id", v.MessageID, "error", v.Err)
+	}
+}
+
+// streamEnded: a stream is over. When the call ended, its task waits for an
+// answer, or the service stops, nothing more; a first stream without any
+// answer fails the call; else Mira subscribes to the task again (decision
+// 35), up to three times, and giving up fails the call.
+func (c *call) streamEnded(v transport.StreamEnded) {
+	if v.Events > 0 {
+		c.follows = 0
+	}
+	if c.ended || c.h.base.Err() != nil {
+		return
+	}
+	var broken *transport.BrokenStream
+	if v.Err != nil && v.MessageID == "" && !errors.As(v.Err, &broken) {
+		c.fail(fmt.Sprintf("its task could not be followed: %v", v.Err))
+		return
+	}
+	if v.MessageID != "" && v.Events == 0 && c.st.TaskID == "" {
+		c.fail("the send failed: the stream ended without an answer")
+		return
+	}
+	if c.st.State == string(sdk.TaskStateInputRequired) || c.st.TaskID == "" {
+		return
+	}
+	why := v.Err
 	if why == nil {
 		why = errors.New("the stream ended before the task")
 	}
-	h.log.Warn("the remote agent's stream ended early; subscribing to the task again", "agent", c.agent.Name,
-		"call_id", c.id, "task_id", task, "error", why)
-	h.subscribe(c)
-}
-
-// subscribe follows the task with SubscribeToTask until it ends or waits
-// for an answer, tried again as a read (Retries); giving up fails the call.
-func (h *Host) subscribe(c *call) {
-	client := c.agent.Client()
-	if client == nil {
-		h.fail(c, "the remote agent is not ready to follow its task")
+	if c.follows >= 3 {
+		c.fail(fmt.Sprintf("its task could not be followed: %v", why))
 		return
 	}
-	p := h.policy3()
-	err := retry.Do(c.ctx, p, func(ctx context.Context) error {
-		c.mu.Lock()
-		task := c.st.TaskID
-		c.mu.Unlock()
-		_, err := h.consume(c, client.SubscribeToTask(ctx, &sdk.SubscribeToTaskRequest{ID: sdk.TaskID(task)}), nil)
-		if err != nil {
-			return classify(err)
-		}
-		c.mu.Lock()
-		open := !c.ended && c.st.State != string(sdk.TaskStateInputRequired)
-		c.mu.Unlock()
-		if open && ctx.Err() == nil {
-			return retry.Transient(errors.New("the stream ended before the task"))
-		}
-		return nil
-	}, retry.Warn(h.log, "following the remote agent's task", p, "agent", c.agent.Name, "call_id", c.id))
-	if err != nil && c.ctx.Err() == nil {
-		h.fail(c, fmt.Sprintf("its task could not be followed: %v", err))
+	if v.MessageID != "" {
+		c.h.log.Warn("the remote agent's stream ended early; subscribing to the task again", "agent", c.agent.Name,
+			"call_id", c.id, "task_id", c.st.TaskID, "error", why)
 	}
+	c.follow()
 }
 
-// consume takes a stream's events in order; it stops when the call ended or
-// waits for an answer. first, when set, is told at the first event.
-func (h *Host) consume(c *call, events iter.Seq2[sdk.Event, error], first func()) (int, error) {
-	n := 0
-	for ev, err := range events {
-		if err != nil {
-			return n, err
-		}
-		if n == 0 && first != nil {
-			first()
-		}
-		n++
-		h.take(c, ev)
-		c.mu.Lock()
-		stop := c.ended || c.st.State == string(sdk.TaskStateInputRequired)
-		c.mu.Unlock()
-		if stop {
-			return n, nil
-		}
+// follow subscribes to the task again (stream only).
+func (c *call) follow() {
+	if c.tr == nil {
+		c.fail("the remote agent is not ready to follow its task")
+		return
 	}
-	return n, nil
+	c.inflight++
+	c.tr.Follow(c.st.TaskID, c.follows)
+	c.follows++
+}
+
+// gotTask takes the answer of the one GetTask after a restart (G).
+func (c *call) gotTask(v transport.Got) {
+	switch {
+	case c.ended || c.h.base.Err() != nil:
+		return
+	case errors.Is(v.Err, sdk.ErrTaskNotFound):
+		c.fail("it no longer knows the task after Mira's restart")
+		return
+	case v.Err != nil:
+		c.fail(fmt.Sprintf("its task could not be asked after the restart: %v", v.Err))
+		return
+	}
+	c.take(v.Task)
+	if !c.ended && c.st.State != string(sdk.TaskStateInputRequired) && !c.st.Push {
+		c.follow()
+	}
 }
 
 func (h *Host) pushURL(callID string) string {
@@ -506,30 +504,29 @@ func (h *Host) pushURL(callID string) string {
 
 // take takes one event of a call, once (decision 15): a state already
 // taken, an artifact already there change nothing.
-func (h *Host) take(c *call, ev sdk.Event) {
-	c.mu.Lock()
+func (c *call) take(ev sdk.Event) {
+	if ev == nil {
+		return
+	}
 	if c.ended {
-		task, cancel := "", false
-		if t, ok := ev.(*sdk.Task); ok && c.cancelled && c.st.TaskID == "" {
+		if t, ok := ev.(*sdk.Task); ok && c.cancelled && c.st.TaskID == "" && c.tr != nil {
 			// Cancelled while the send was on its way: its task is
 			// cancelled now (decision 19).
-			c.st.TaskID, task, cancel = string(t.ID), string(t.ID), true
-		}
-		c.mu.Unlock()
-		if cancel {
-			h.cancelTask(c, task)
+			c.st.TaskID = string(t.ID)
+			c.inflight++
+			c.tr.Cancel(c.st.TaskID)
 		}
 		return
 	}
+	defer c.publish()
 	var status *sdk.TaskStatus
 	save := false
 	switch e := ev.(type) {
 	case *sdk.Message:
-		c.mu.Unlock()
 		if text := partsText(e.Parts); text != "" {
-			h.end(c, statusDone, text, "")
+			c.end(statusDone, text, "")
 		} else {
-			h.fail(c, "it answered with an empty message")
+			c.fail("it answered with an empty message")
 		}
 		return
 	case *sdk.Task:
@@ -537,7 +534,7 @@ func (h *Host) take(c *call, ev sdk.Event) {
 			if c.st.TaskID != "" {
 				// The answer to a question made a new task in the same
 				// context (Hermes): the call follows it (decision 21).
-				h.log.Info("remote agent goes on in a new task", "agent", c.agent.Name, "call_id", c.id,
+				c.h.log.Info("remote agent goes on in a new task", "agent", c.agent.Name, "call_id", c.id,
 					"task_id", c.st.TaskID, "new_task_id", e.ID)
 			}
 			c.st.TaskID, c.st.ContextID, c.artifacts = string(e.ID), e.ContextID, nil
@@ -549,8 +546,7 @@ func (h *Host) take(c *call, ev sdk.Event) {
 		status = &e.Status
 	case *sdk.TaskStatusUpdateEvent:
 		if !c.ours(string(e.TaskID)) {
-			c.mu.Unlock()
-			h.log.Warn("remote agent reported another task; left", "agent", c.agent.Name, "call_id", c.id,
+			c.h.log.Warn("remote agent reported another task; left", "agent", c.agent.Name, "call_id", c.id,
 				"task_id", e.TaskID)
 			return
 		}
@@ -560,17 +556,15 @@ func (h *Host) take(c *call, ev sdk.Event) {
 		status = &e.Status
 	case *sdk.TaskArtifactUpdateEvent:
 		if !c.ours(string(e.TaskID)) || e.Artifact == nil {
-			c.mu.Unlock()
-			h.log.Warn("remote agent sent an artifact of another task; left", "agent", c.agent.Name, "call_id", c.id,
+			c.h.log.Warn("remote agent sent an artifact of another task; left", "agent", c.agent.Name, "call_id", c.id,
 				"task_id", e.TaskID)
 			return
 		}
 		c.addArtifact(e.Artifact, e.Append)
 	}
 	if status == nil {
-		c.mu.Unlock()
 		if save {
-			h.save(c)
+			c.save()
 		}
 		return
 	}
@@ -580,9 +574,11 @@ func (h *Host) take(c *call, ev sdk.Event) {
 		if r < c.rank {
 			// The send's answer and the pushes come side by side: a state
 			// behind the one taken since Mira's last message is stale.
-			c.mu.Unlock()
-			h.log.Debug("remote agent's stale state left", "agent", c.agent.Name, "call_id", c.id,
+			c.h.log.Debug("remote agent's stale state left", "agent", c.agent.Name, "call_id", c.id,
 				"state", stateNow, "task_id", c.st.TaskID)
+			if save {
+				c.save()
+			}
 			return
 		}
 		c.rank = r
@@ -590,44 +586,42 @@ func (h *Host) take(c *call, ev sdk.Event) {
 	switch stateNow {
 	case sdk.TaskStateCompleted:
 		out := artifactsText(c.artifacts)
-		c.mu.Unlock()
 		if out == "" {
 			out = text
 		}
 		if out == "" {
-			h.fail(c, "it completed the task without a result")
+			c.fail("it completed the task without a result")
 			return
 		}
-		h.end(c, statusDone, out, "")
+		c.end(statusDone, out, "")
 		return
 	case sdk.TaskStateInputRequired:
 		if c.st.State == string(stateNow) && c.st.Asked == text {
-			c.mu.Unlock()
+			if save {
+				c.save()
+			}
 			return
 		}
 		c.st.State, c.st.Asked = string(stateNow), text
-		c.mu.Unlock()
-		h.save(c)
-		h.asked(c, text)
+		c.save()
+		c.asked(text)
 		return
 	case sdk.TaskStateSubmitted, sdk.TaskStateWorking:
 		if c.st.State != string(stateNow) {
 			c.st.State, c.st.Asked, save = string(stateNow), "", true
 		}
-		c.mu.Unlock()
 		if save {
-			h.save(c)
+			c.save()
 		}
 		return
 	}
-	c.mu.Unlock()
 	// Failed, rejected, cancelled by the agent, a login asked (until step
 	// 7, decision 16), or a state Mira does not know: a failed agent (C.4).
 	reason := stateWord(stateNow)
 	if text != "" {
 		reason += ": " + text
 	}
-	h.failSaid(c, reason, text)
+	c.failSaid(reason, text)
 }
 
 // lifecycle ranks the states a task goes through while Mira sends nothing
@@ -725,54 +719,86 @@ func artifactsText(artifacts []*sdk.Artifact) string {
 	return strings.Join(out, "\n\n")
 }
 
-// save keeps what the call knows in its row.
-// save stores the call's state as it is now, not as a caller saw it: two
-// events of one call taken at the same time (the send's answer and a push)
-// must not leave the older state in the store.
-func (h *Host) save(c *call) {
-	c.saving.Lock()
-	defer c.saving.Unlock()
-	c.mu.Lock()
-	st := c.st
-	c.mu.Unlock()
-	raw, _ := json.Marshal(st)
-	if err := h.runs.SetAgentRunRemote(context.WithoutCancel(c.ctx), c.id, raw); err != nil {
-		h.log.Error("could not store a remote agent's task", "agent", c.agent.Name, "call_id", c.id,
-			"task_id", st.TaskID, "error", err)
+// save keeps what the call knows in its row; only the loop writes it.
+func (c *call) save() {
+	raw, _ := json.Marshal(c.st)
+	if err := c.h.runs.SetAgentRunRemote(context.WithoutCancel(c.h.base), c.id, raw); err != nil {
+		c.h.log.Error("could not store a remote agent's task", "agent", c.agent.Name, "call_id", c.id,
+			"task_id", c.st.TaskID, "error", err)
 	}
 }
 
 // asked hands an agent request on (D); without a way for it the call
 // fails.
-func (h *Host) asked(c *call, text string) {
-	if h.ask == nil {
-		h.fail(c, "it asked back, and Mira has no way for its question: "+text)
+func (c *call) asked(text string) {
+	if c.h.ask == nil {
+		c.fail("it asked back, and Mira has no way for its question: " + text)
 		return
 	}
-	h.log.Info("remote agent asks", "agent", c.agent.Name, "call_id", c.id, "task_id", c.taskID(), "question", text)
-	if err := h.ask(context.WithoutCancel(c.ctx), Question{CallID: c.id, Call: c.rec.Call, Label: c.label, Text: text}); err != nil {
-		h.fail(c, fmt.Sprintf("its question could not be passed on (%v): %s", err, text))
+	c.publish()
+	c.h.log.Info("remote agent asks", "agent", c.agent.Name, "call_id", c.id, "task_id", c.st.TaskID, "question", text)
+	q := Question{CallID: c.id, Call: c.rec.Call, Label: c.label, Text: text}
+	if err := c.h.ask(context.WithoutCancel(c.h.base), q); err != nil {
+		c.fail(fmt.Sprintf("its question could not be passed on (%v): %s", err, text))
 	}
-}
-
-func (c *call) taskID() string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.st.TaskID
 }
 
 // fail ends a call as a failed agent (C.5): a log line with the agent, the
 // task and the reason; the thread asks the user.
-func (h *Host) fail(c *call, reason string) { h.failSaid(c, reason, "") }
+func (c *call) fail(reason string) { c.failSaid(reason, "") }
 
 // failSaid is fail with the remote agent's own words (its status text),
 // which the thread says to the user (decision 22).
-func (h *Host) failSaid(c *call, reason, said string) {
-	c.mu.Lock()
+func (c *call) failSaid(reason, said string) {
+	if c.ended {
+		return
+	}
 	c.st.Said = said
-	c.mu.Unlock()
-	h.save(c)
-	h.end(c, statusFailed, "", fmt.Sprintf("%s: %s", c.label, reason))
+	c.save()
+	c.end(statusFailed, "", fmt.Sprintf("%s: %s", c.label, reason))
+}
+
+// end ends a call once: its row, the transport, the log, its route.
+func (c *call) end(status, output, errText string) {
+	if c.ended {
+		return
+	}
+	c.ended = true
+	c.publish()
+	if c.tr != nil {
+		c.tr.Close()
+	}
+	h := c.h
+	h.router.Remove(c.id)
+	h.mu.Lock()
+	delete(h.calls, c.id)
+	h.mu.Unlock()
+	if c.answer != nil {
+		c.answer.reply <- fmt.Errorf("%s asks nothing now", c.label)
+		c.answer = nil
+	}
+	ctx := context.WithoutCancel(h.base)
+	// A remote agent's result is third-party text: Mira cannot know what it
+	// read (decision 34).
+	if err := h.runs.EndAgentRun(ctx, c.id, status, output, errText, status == statusDone, store.AgentUsage{}); err != nil {
+		h.log.Error("could not end a remote agent's call", "agent", c.agent.Name, "call_id", c.id, "error", err)
+	}
+	switch status {
+	case statusDone:
+		h.log.Info("remote agent done", "agent", c.agent.Name, "call_id", c.id, "task_id", c.st.TaskID, "chars", len(output))
+	case statusFailed:
+		h.log.Warn("remote agent failed", "agent", c.agent.Name, "call_id", c.id, "task_id", c.st.TaskID, "error", errText)
+	}
+	if h.deliver == nil || status == statusCancelled {
+		return
+	}
+	rec, err := h.runs.GetAgentRun(ctx, c.id)
+	if err != nil {
+		h.log.Error("could not read a remote agent's call to deliver it", "call_id", c.id, "error", err)
+		rec = c.rec
+		rec.Status, rec.Output, rec.Error = status, output, errText
+	}
+	h.deliver(ctx, rec)
 }
 
 // Failure is, for a remote agent's call that failed, how Mira names the
@@ -815,166 +841,65 @@ func (h *Host) Failure(rec store.AgentRun) (label, said string, ok bool) {
 	return label, "", true
 }
 
-// end ends a call once: its row, the log, its route.
-func (h *Host) end(c *call, status, output, errText string) {
-	c.mu.Lock()
-	if c.ended {
-		c.mu.Unlock()
-		return
+// lookup is the open call of that id.
+func (h *Host) lookup(callID string) *call {
+	if h == nil {
+		return nil
 	}
-	c.ended = true
-	task := c.st.TaskID
-	c.mu.Unlock()
-	c.stop()
 	h.mu.Lock()
-	delete(h.calls, c.id)
-	h.mu.Unlock()
-	ctx := context.Background()
-	// A remote agent's result is third-party text: Mira cannot know what it
-	// read (decision 34).
-	if err := h.runs.EndAgentRun(ctx, c.id, status, output, errText, status == statusDone, store.AgentUsage{}); err != nil {
-		h.log.Error("could not end a remote agent's call", "agent", c.agent.Name, "call_id", c.id, "error", err)
-	}
-	switch status {
-	case statusDone:
-		h.log.Info("remote agent done", "agent", c.agent.Name, "call_id", c.id, "task_id", task, "chars", len(output))
-	case statusFailed:
-		h.log.Warn("remote agent failed", "agent", c.agent.Name, "call_id", c.id, "task_id", task, "error", errText)
-	}
-	if h.deliver == nil || status == statusCancelled {
-		return
-	}
-	rec, err := h.runs.GetAgentRun(ctx, c.id)
-	if err != nil {
-		h.log.Error("could not read a remote agent's call to deliver it", "call_id", c.id, "error", err)
-		rec = c.rec
-		rec.Status, rec.Output, rec.Error = status, output, errText
-	}
-	h.deliver(ctx, rec)
+	defer h.mu.Unlock()
+	return h.calls[callID]
 }
 
-// Cancel ends a call whose thread ended (decision 19): Mira sends
-// CancelTask once; a cancel that fails is logged. False when no call runs
-// under that id.
+// Cancel ends a call whose thread ended (decision 19): its loop ends it and
+// sends CancelTask once; a cancel that fails is logged. False when no call
+// runs under that id. It does not wait for the loop.
 func (h *Host) Cancel(callID string) bool {
-	if h == nil {
+	c := h.lookup(callID)
+	if c == nil || c.read().ended {
 		return false
 	}
-	h.mu.Lock()
-	c := h.calls[callID]
-	h.mu.Unlock()
-	if c == nil {
-		return false
-	}
-	c.mu.Lock()
-	if c.ended {
-		c.mu.Unlock()
-		return false
-	}
-	c.cancelled = true
-	task := c.st.TaskID
-	c.mu.Unlock()
-	h.end(c, statusCancelled, "", "the thread ended")
-	h.log.Info("remote agent's call cancelled", "agent", c.agent.Name, "call_id", c.id, "task_id", task)
-	if task != "" {
-		h.wg.Go(func() { h.cancelTask(c, task) })
-	}
+	c.in.put(cancelIn{})
 	return true
 }
 
-// cancelTask sends CancelTask once.
-func (h *Host) cancelTask(c *call, task string) {
-	client := c.agent.Client()
-	if client == nil {
-		h.log.Warn("could not cancel the remote agent's task: the agent is not ready", "agent", c.agent.Name,
+// doCancel is Cancel in the loop.
+func (c *call) doCancel() {
+	if c.ended {
+		return
+	}
+	c.cancelled = true
+	task := c.st.TaskID
+	c.end(statusCancelled, "", "the thread ended")
+	c.h.log.Info("remote agent's call cancelled", "agent", c.agent.Name, "call_id", c.id, "task_id", task)
+	if task == "" {
+		return
+	}
+	if c.tr == nil {
+		c.h.log.Warn("could not cancel the remote agent's task: the agent is not ready", "agent", c.agent.Name,
 			"call_id", c.id, "task_id", task)
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(h.base), 30*time.Second)
-	defer cancel()
-	if _, err := client.CancelTask(ctx, &sdk.CancelTaskRequest{ID: sdk.TaskID(task)}); err != nil {
-		h.log.Warn("could not cancel the remote agent's task", "agent", c.agent.Name, "call_id", c.id,
-			"task_id", task, "error", err)
-		return
-	}
-	h.log.Info("remote agent's task cancelled", "agent", c.agent.Name, "call_id", c.id, "task_id", task)
+	c.inflight++
+	c.tr.Cancel(task)
 }
 
-// Push is a remote agent's push as the A2A protocol defines it (a
-// StreamResponse: a task, a message, a status or an artifact update); here
-// only to describe the route, as an open object: the remote agent's
-// protocol, not Mira's.
-type Push map[string]any
-
-// ServePush takes a push of a remote agent (E): the call by its id, the
-// token from A2A-Notification-Token or Authorization: Bearer (decision 14).
-// It answers at once and hands the event on; it never blocks.
+// ServePush takes a push of a remote agent (E): the push route of the
+// transports.
 func (h *Host) ServePush(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("call")
-	token := r.Header.Get("A2A-Notification-Token")
-	if token == "" {
-		token, _ = strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	}
-	var c *call
-	if h != nil {
-		h.mu.Lock()
-		c = h.calls[id]
-		h.mu.Unlock()
-	}
-	if c == nil {
-		if h != nil && h.endedCall(r.Context(), id, token) {
-			h.log.Info("push for a remote agent's call that has ended; nothing to do", "call_id", id, "from", r.RemoteAddr)
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		h.logger().Warn("push refused: no such call", "call_id", id, "from", r.RemoteAddr)
-		http.Error(w, "unknown call or wrong token", http.StatusUnauthorized)
-		return
-	}
-	c.mu.Lock()
-	want := c.st.Token
-	c.mu.Unlock()
-	if want == "" || subtle.ConstantTimeCompare([]byte(token), []byte(want)) != 1 {
-		h.log.Warn("push refused: wrong token", "call_id", id, "agent", c.agent.Name, "from", r.RemoteAddr)
-		http.Error(w, "unknown call or wrong token", http.StatusUnauthorized)
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
-	if err != nil {
-		h.log.Warn("push broke off", "call_id", id, "agent", c.agent.Name, "from", r.RemoteAddr, "error", err)
-		http.Error(w, "the body could not be read", http.StatusBadRequest)
-		return
-	}
-	var sr sdk.StreamResponse
-	if err := json.Unmarshal(body, &sr); err != nil || sr.Event == nil {
-		h.log.Warn("push not readable", "call_id", id, "agent", c.agent.Name, "from", r.RemoteAddr, "error", err,
-			"body", bodyStart(body))
-		http.Error(w, "the body is no A2A event", http.StatusBadRequest)
-		return
-	}
-	h.enqueue(c, sr.Event)
-	w.WriteHeader(http.StatusOK)
-}
-
-func (h *Host) logger() interface {
-	Warn(msg string, args ...any)
-} {
 	if h == nil {
-		return nopLog{}
+		http.Error(w, "unknown call or wrong token", http.StatusUnauthorized)
+		return
 	}
-	return h.log
+	h.router.ServeHTTP(w, r)
 }
-
-type nopLog struct{}
-
-func (nopLog) Warn(string, ...any) {}
 
 // endedCall: a call of that id ended, and the token is its own.
-func (h *Host) endedCall(ctx context.Context, id, token string) bool {
+func (h *Host) endedCall(r *http.Request, id, token string) bool {
 	if h.runs == nil || token == "" {
 		return false
 	}
-	rec, err := h.runs.GetAgentRun(ctx, id)
+	rec, err := h.runs.GetAgentRun(r.Context(), id)
 	if err != nil || rec.Status == statusRunning || len(rec.Remote) == 0 {
 		return false
 	}
@@ -982,113 +907,70 @@ func (h *Host) endedCall(ctx context.Context, id, token string) bool {
 	if json.Unmarshal(rec.Remote, &st) != nil || st.Token == "" {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(token), []byte(st.Token)) == 1
+	return st.Token == token
 }
-
-// enqueue hands a push to the call's queue, taken in order by one goroutine.
-func (h *Host) enqueue(c *call, ev sdk.Event) {
-	c.mu.Lock()
-	c.queue = append(c.queue, ev)
-	start := !c.draining
-	c.draining = true
-	c.mu.Unlock()
-	if start {
-		h.wg.Go(func() { h.drain(c) })
-	}
-}
-
-func (h *Host) drain(c *call) {
-	for {
-		c.mu.Lock()
-		if len(c.queue) == 0 {
-			c.draining = false
-			c.mu.Unlock()
-			return
-		}
-		ev := c.queue[0]
-		c.queue = c.queue[1:]
-		c.mu.Unlock()
-		h.take(c, ev)
-	}
-}
-
-func (h *Host) now() time.Time { return h.clock.Now() }
 
 // Asking is the question an agent request of a call still waits on, and
 // how Mira names the agent; ok false when the call asks nothing.
 func (h *Host) Asking(callID string) (label, question string, ok bool) {
-	if h == nil {
-		return "", "", false
-	}
-	h.mu.Lock()
-	c := h.calls[callID]
-	h.mu.Unlock()
+	c := h.lookup(callID)
 	if c == nil {
 		return "", "", false
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.ended || c.st.State != string(sdk.TaskStateInputRequired) {
+	v := c.read()
+	if v.ended || v.state != string(sdk.TaskStateInputRequired) {
 		return "", "", false
 	}
-	return c.label, c.st.Asked, true
+	return v.label, v.asked, true
 }
 
 // Answer sends the owner's answer to a call's agent request (D.3, decision
 // 21): a new message with the task and context id, the push configuration
 // again for an agent without a stream (its answer may make a new task); the
-// call follows whatever task comes back. It returns once the agent took the
-// answer; an error when it did not (after the retries of a send), and the
+// call follows whatever task comes back. It returns once the answer counts
+// as passed on (decision 11); an error when the send failed before, and the
 // question stays open.
 func (h *Host) Answer(ctx context.Context, callID, text string) error {
 	if h == nil {
 		return errors.New("no remote agents")
 	}
-	h.mu.Lock()
-	c := h.calls[callID]
-	h.mu.Unlock()
+	c := h.lookup(callID)
 	if c == nil {
 		return fmt.Errorf("no open call %s", callID)
 	}
-	c.mu.Lock()
-	if c.ended || c.st.State != string(sdk.TaskStateInputRequired) {
-		c.mu.Unlock()
-		return fmt.Errorf("%s asks nothing now", c.label)
-	}
-	c.st.Sent++
-	c.rank = 0 // Mira's new message: the task may start over
-	m := sdk.NewMessage(sdk.MessageRoleUser, sdk.NewTextPart(text))
-	m.ID = fmt.Sprintf("%s-%d", c.id, c.st.Sent)
-	m.TaskID, m.ContextID = sdk.TaskID(c.st.TaskID), c.st.ContextID
-	snap := c.st
-	c.mu.Unlock()
-	if skill := c.agent.def.Remote.A2ASkill; skill != "" {
-		m.Metadata = map[string]any{skillMeta: skill}
-	}
-	h.save(c)
-	result := make(chan error, 1)
-	var once sync.Once
-	tell := func(err error) { once.Do(func() { result <- err }) }
-	h.wg.Go(func() {
-		err := h.sendMessage(c, m, func() { tell(nil) })
-		if err != nil {
-			// The trace first: the caller goes on once told.
-			h.log.Warn("the answer did not reach the remote agent", "agent", c.agent.Name, "call_id", c.id,
-				"task_id", snap.TaskID, "error", err)
-			tell(err)
-			return
-		}
-		tell(nil)
-	})
+	reply := make(chan error, 1)
+	c.in.put(answerIn{text: text, reply: reply})
 	select {
-	case err := <-result:
-		if err == nil {
-			h.log.Info("answer passed to the remote agent", "agent", c.agent.Name, "call_id", c.id, "task_id", snap.TaskID)
-		}
+	case err := <-reply:
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-h.base.Done():
+		return errors.New("the Mira service stops")
 	}
+}
+
+// doAnswer is Answer in the loop.
+func (c *call) doAnswer(v answerIn) {
+	if c.ended || c.st.State != string(sdk.TaskStateInputRequired) {
+		v.reply <- fmt.Errorf("%s asks nothing now", c.label)
+		return
+	}
+	if c.answer != nil {
+		v.reply <- fmt.Errorf("an answer to %s is already on its way", c.label)
+		return
+	}
+	c.st.Sent++
+	c.rank = 0 // Mira's new message: the task may start over
+	m := sdk.NewMessage(sdk.MessageRoleUser, sdk.NewTextPart(v.text))
+	m.ID = fmt.Sprintf("%s-%d", c.id, c.st.Sent)
+	m.TaskID, m.ContextID = sdk.TaskID(c.st.TaskID), c.st.ContextID
+	if skill := c.agent.def.Remote.A2ASkill; skill != "" {
+		m.Metadata = map[string]any{skillMeta: skill}
+	}
+	c.save()
+	c.answer = &pendingAnswer{messageID: m.ID, reply: v.reply}
+	c.send(m)
 }
 
 // Resume takes up the calls that were open when Mira stopped (G, decision
@@ -1128,61 +1010,41 @@ func (h *Host) takeUp(rec store.AgentRun) {
 	var st state
 	if err := json.Unmarshal(rec.Remote, &st); err != nil {
 		st = state{Agent: rec.Agent}
-		c := h.track(rec, &Agent{Name: rec.Agent}, rec.Agent, st)
-		h.fail(c, fmt.Sprintf("its call cannot be read after the restart (%v): %q", err, bodyStart(rec.Remote)))
+		c := h.track(rec, &Agent{Name: rec.Agent}, rec.Agent, st, nil)
+		c.in.put(runIn{func() {
+			c.fail(fmt.Sprintf("its call cannot be read after the restart (%v): %q", err, bodyStart(rec.Remote)))
+		}})
 		return
 	}
 	a, ok := h.agentOf(st.Skill, st.Agent)
 	if !ok {
-		c := h.track(rec, &Agent{Skill: st.Skill, Name: st.Agent}, st.Label, st)
-		h.fail(c, "the remote agent is no longer in its skill")
+		c := h.track(rec, &Agent{Skill: st.Skill, Name: st.Agent}, st.Label, st, nil)
+		c.in.put(runIn{func() { c.fail("the remote agent is no longer in its skill") }})
 		return
 	}
 	label := st.Label
 	if info, ok := a.Info(); ok && info.Label != "" {
 		label = info.Label
 	}
-	c := h.track(rec, a, label, st)
-	if st.TaskID == "" {
-		h.fail(c, "Mira stopped before the remote agent answered the send")
-		return
-	}
 	client := a.Client()
-	if client == nil {
-		h.fail(c, "its task cannot be asked after the restart: "+h.why(a))
-		return
+	var tc transport.Client
+	if client != nil {
+		tc = client
 	}
-	h.log.Info("remote agent's call taken up after the restart", "agent", a.Name, "call_id", c.id, "task_id", st.TaskID,
-		"state", st.State)
-	h.wg.Go(func() {
-		p := h.policy3()
-		var task *sdk.Task
-		err := retry.Do(c.ctx, p, func(ctx context.Context) error {
-			var err error
-			task, err = client.GetTask(ctx, &sdk.GetTaskRequest{ID: sdk.TaskID(st.TaskID)})
-			if err != nil {
-				return classify(err)
-			}
-			return nil
-		}, retry.Warn(h.log, "asking the remote agent's task", p, "agent", a.Name, "call_id", c.id))
+	c := h.track(rec, a, label, st, tc)
+	c.in.put(runIn{func() {
 		switch {
-		case c.ctx.Err() != nil:
-			return
-		case errors.Is(err, sdk.ErrTaskNotFound):
-			h.fail(c, "it no longer knows the task after Mira's restart")
-			return
-		case err != nil:
-			h.fail(c, fmt.Sprintf("its task could not be asked after the restart: %v", err))
-			return
+		case st.TaskID == "":
+			c.fail("Mira stopped before the remote agent answered the send")
+		case c.tr == nil:
+			c.fail("its task cannot be asked after the restart: " + h.why(a))
+		default:
+			h.log.Info("remote agent's call taken up after the restart", "agent", a.Name, "call_id", c.id,
+				"task_id", st.TaskID, "state", st.State)
+			c.inflight++
+			c.tr.Get(st.TaskID)
 		}
-		h.take(c, task)
-		c.mu.Lock()
-		follow := !c.ended && c.st.State != string(sdk.TaskStateInputRequired) && !c.st.Push
-		c.mu.Unlock()
-		if follow {
-			h.subscribe(c)
-		}
-	})
+	}})
 }
 
 // agentOf is the remote agent of a skill by its name.
@@ -1194,3 +1056,45 @@ func (h *Host) agentOf(skill, name string) (*Agent, bool) {
 	}
 	return nil, false
 }
+
+// firstMessage is the work as one A2A message (decision 10): the input's
+// "input" as a text part, the input's other fields as a data part beside
+// it; the card's skill in the metadata (decision 27). Its id is the call
+// id, so a send tried again keeps it. text is what the row shows.
+func firstMessage(callID, skill string, input json.RawMessage) (*sdk.Message, string, error) {
+	var in map[string]any
+	if len(input) > 0 {
+		if err := json.Unmarshal(input, &in); err != nil {
+			return nil, "", fmt.Errorf("the input of the remote agent is no JSON object (%v): %q", err, bodyStart(input))
+		}
+	}
+	var parts []*sdk.Part
+	text, _ := in["input"].(string)
+	if strings.TrimSpace(text) != "" {
+		parts = append(parts, sdk.NewTextPart(text))
+	}
+	rest := map[string]any{}
+	for k, v := range in {
+		if k != "input" {
+			rest[k] = v
+		}
+	}
+	if len(rest) > 0 {
+		parts = append(parts, sdk.NewDataPart(rest))
+		raw, _ := json.Marshal(rest)
+		text = strings.TrimSpace(text + "\n" + string(raw))
+	}
+	if len(parts) == 0 {
+		return nil, "", errors.New("the input of the remote agent is empty")
+	}
+	m := sdk.NewMessage(sdk.MessageRoleUser, parts...)
+	m.ID = callID
+	if skill != "" {
+		m.Metadata = map[string]any{skillMeta: skill}
+	}
+	return m, text, nil
+}
+
+// skillMeta is the key of a message's metadata naming the card's skill
+// (decision 27).
+const skillMeta = "skill"

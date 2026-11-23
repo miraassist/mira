@@ -28,6 +28,7 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 	"github.com/a2aproject/a2a-go/v2/a2aclient/agentcard"
 
+	"github.com/miraassist/mira/internal/a2a/transport"
 	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
@@ -115,6 +116,8 @@ type Host struct {
 	wg       sync.WaitGroup
 	mu       sync.Mutex
 	calls    map[string]*call
+	// router is the push route of the calls' transports.
+	router *transport.Router
 	// read is closed once every card was read the first time (Start).
 	read     chan struct{}
 	readOnce sync.Once
@@ -187,6 +190,7 @@ func New(o Options) *Host {
 		h.log = slog.Default()
 	}
 	h.log = h.log.With("component", "a2a")
+	h.router = transport.NewRouter(h.log, h.endedCall)
 	if h.http == nil {
 		h.http = &http.Client{Timeout: 30 * time.Second}
 	}
@@ -519,7 +523,7 @@ func (h *Host) inspect(ctx context.Context, a *Agent, card *sdk.AgentCard) (Info
 	// The SDK gets only the interface Mira chose, so it talks to that one.
 	only := *card
 	only.SupportedInterfaces = []*sdk.AgentInterface{iface}
-	hc := &http.Client{Transport: statusTransport{next: cred}}
+	hc := &http.Client{Transport: transport.StatusTransport{Next: cred}}
 	client, err := a2aclient.NewFromCard(ctx, &only, a2aclient.WithJSONRPCTransport(hc), a2aclient.WithRESTTransport(hc))
 	if err != nil {
 		return fail(skills.KindRemoteTransport, fmt.Sprintf("%s %s: %v", iface.ProtocolBinding, iface.URL, err))
