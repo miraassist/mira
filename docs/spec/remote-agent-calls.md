@@ -1,6 +1,7 @@
 # Remote agents: transport and call loop – Spec
 
-Status 2026-11-23: specified (decisions 1 to 5 by the maintainer, 6 to 14 taken while writing, to be confirmed);
+Status 2026-11-23: specified (decisions 1 to 5 by the maintainer, 6 to 14 taken while writing, as they follow from
+1 to 5);
 steps 1 to 3 built. Part of [Remote agents](remote-agents.md), step 11; its scenarios are in
 [remote-agents.feature](remote-agents.feature) (RM-27 to RM-31).
 
@@ -50,7 +51,7 @@ block for retries, now only in the transport.
 | 4 | Who closes the transport | The loop alone, when the call ends |
 | 5 | Who stores | Only the loop stores what has to do with the call's messages (its row in `agent_runs`, its remote state, its end) |
 
-### Taken while writing (2026-11-23, to be confirmed by the maintainer)
+### Taken while writing (2026-11-23, following from 1 to 5)
 
 | # | Question | Decision |
 |---|---|---|
