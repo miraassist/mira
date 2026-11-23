@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/startools"
 )
 
@@ -20,12 +21,19 @@ type fakeRequester struct {
 	urls   []string
 	status int
 	body   string
-	block  bool
+	// block holds a request until the call gives it up; entered, when set,
+	// is closed as one comes in.
+	block   bool
+	entered chan struct{}
 }
 
 func (f *fakeRequester) Request(ctx context.Context, skill, method, raw string, body []byte) (int, []byte, error) {
 	f.mu.Lock()
 	f.urls = append(f.urls, method+" "+raw)
+	if f.entered != nil {
+		close(f.entered)
+		f.entered = nil
+	}
 	f.mu.Unlock()
 	if f.block {
 		<-ctx.Done()
@@ -289,9 +297,17 @@ def warten():
 `)
 	// When they run
 	loop := f.Call(context.Background(), "ewig", nil, startools.Env{})
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	ctx, cancel := clock.WithTimeout(context.Background(), clk, 50*time.Millisecond)
 	defer cancel()
-	wait := f.Call(ctx, "warten", nil, startools.Env{Requester: &fakeRequester{block: true}})
+	entered := make(chan struct{})
+	waited := make(chan startools.Result, 1)
+	go func() {
+		waited <- f.Call(ctx, "warten", nil, startools.Env{Requester: &fakeRequester{block: true, entered: entered}, Clock: clk})
+	}()
+	<-entered                          // the request waits for an answer
+	clk.Advance(50 * time.Millisecond) // the caller's time is up
+	wait := <-waited
 	// Then the first ends at the step limit and the second at the time limit, each as the tool's error and a log line
 	if loop.Err == nil || !strings.Contains(loop.Err.Error(), "took too long") {
 		t.Errorf("loop: %v", loop.Err)
@@ -364,17 +380,6 @@ def zeigen(thema):
 	}
 }
 
-// slowRequester answers after a while, so that a call stays in a request.
-type slowRequester struct{}
-
-func (slowRequester) Request(ctx context.Context, _, _, _ string, _ []byte) (int, []byte, error) {
-	select {
-	case <-time.After(300 * time.Millisecond):
-	case <-ctx.Done():
-	}
-	return 200, []byte("{}"), nil
-}
-
 // SL-19 A tool that takes too much memory or answers too much is stopped
 func TestSL19_AToolThatTakesTooMuchMemoryOrAnswersTooMuchIsStopped(t *testing.T) {
 	old := startools.SetMemLimit(16 << 20)
@@ -392,7 +397,16 @@ def viel():
     return "y" * 2000000
 `)
 	// When it runs
-	res := f.Call(context.Background(), "gross", nil, startools.Env{Requester: slowRequester{}})
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	entered := make(chan struct{})
+	called := make(chan startools.Result, 1)
+	go func() {
+		called <- f.Call(context.Background(), "gross", nil, startools.Env{Requester: &fakeRequester{block: true, entered: entered}, Clock: clk})
+	}()
+	<-entered                        // the 64 MB are made; the call waits in its request
+	<-clk.AwaitWaiters(2)            // the call's time limit and the look at the memory
+	clk.Advance(startools.MemSample) // the next look sees too much
+	res := <-called
 	// Then it is stopped as the tool's error and a log line
 	if res.Err == nil || !strings.Contains(res.Err.Error(), "used too much memory (more than 16 MB)") ||
 		!strings.Contains(logs.String(), "memory limit reached") {

@@ -5,3 +5,6 @@ func SetMemLimit(n uint64) (old uint64) {
 	old, memLimit = memLimit, n
 	return old
 }
+
+// MemSample is how often a call looks at the memory.
+const MemSample = memSample

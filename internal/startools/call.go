@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/miraassist/mira/internal/clock"
 	"math"
 	"net/http"
 	"net/url"
@@ -63,6 +64,9 @@ type Env struct {
 	Writes bool
 	// Now is the clock of time.now(); nil is the real one.
 	Now func() time.Time
+	// Clock is what the call's Timeout and its looks at the memory wait
+	// on; nil is the real one.
+	Clock clock.Clock
 }
 
 // Event is one thing a call did, in order: a request or a print
@@ -114,7 +118,7 @@ func (f *File) Call(ctx context.Context, name string, args json.RawMessage, env 
 		f.log.Warn("starlark tool: arguments refused", "skill", f.Skill, "tool", name, "error", err)
 		return Result{Err: err}
 	}
-	ctx, cancel := context.WithTimeout(ctx, Timeout)
+	ctx, cancel := clock.WithTimeout(ctx, env.Clock, Timeout)
 	defer cancel()
 	c := &call{ctx: ctx, skill: f.Skill, tool: name, env: env, f: f}
 	thread := &starlark.Thread{Name: f.Skill + "/" + name, Print: func(_ *starlark.Thread, msg string) {
@@ -134,17 +138,18 @@ func (f *File) Call(ctx context.Context, name string, args json.RawMessage, env 
 	watching.Add(1)
 	go func() {
 		defer watching.Done()
-		tick := time.NewTicker(memSample)
+		tick := clock.Or(env.Clock).NewTicker(memSample)
 		defer tick.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				thread.Cancel("the tool took longer than " + Timeout.String())
 				return
-			case <-tick.C:
+			case <-tick.C():
 				if heapBytes() > base+limit {
 					tooMuch.Store(true)
 					thread.Cancel("the tool used too much memory")
+					cancel() // a request it waits in ends now, too
 					return
 				}
 			case <-done:
