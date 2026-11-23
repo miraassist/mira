@@ -315,6 +315,7 @@ func sameConfig(a, b map[string]any) bool {
 	var x, y any
 	ra, _ := json.Marshal(a)
 	rb, _ := json.Marshal(b)
+	// Both were just marshalled from maps: they always parse.
 	_ = json.Unmarshal(ra, &x)
 	_ = json.Unmarshal(rb, &y)
 	return reflect.DeepEqual(x, y)

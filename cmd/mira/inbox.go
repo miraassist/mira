@@ -219,6 +219,8 @@ func toolError(tool, text string) error {
 		Error  string `json:"error"`
 		Status int    `json:"status"`
 	}
+	// A tool's error is often plain text, no JSON: then it is named as it is
+	// in err below, with nothing more to read.
 	_ = json.Unmarshal([]byte(text), &e)
 	err := fmt.Errorf("%s: %s", tool, excerpt.Of(text))
 	switch {

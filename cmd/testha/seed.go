@@ -368,7 +368,7 @@ func placeFakes(ctx context.Context, admin *haws.Client, areaIDs map[string]stri
 	for name, area := range fakeDevices {
 		found := false
 		for _, d := range devices {
-			if d.Name != name {
+			if string(d.Name) != name {
 				continue
 			}
 			found = true

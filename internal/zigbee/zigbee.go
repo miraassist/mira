@@ -418,7 +418,9 @@ func (p *Pairing) start(ctx context.Context, inv tools.Invocation) (string, erro
 	var args struct {
 		Network string `json:"network"`
 	}
-	_ = json.Unmarshal(inv.Args, &args)
+	if err := json.Unmarshal(inv.Args, &args); err != nil {
+		return "", fmt.Errorf("the arguments %s do not fit: %w", excerpt.Bytes(inv.Args), err)
+	}
 	base, err := p.bridge(ctx)
 	z2m := err == nil
 	zha, zerr := p.zhaLoaded(ctx)
@@ -583,7 +585,12 @@ func (p *Pairing) event(ctx context.Context, r *run, ev bridgeEvent) bool {
 			return !open
 		case "successful":
 			var def definition
-			_ = json.Unmarshal(ev.Data.Definition, &def)
+			if err := json.Unmarshal(ev.Data.Definition, &def); err != nil {
+				// The device is paired; only its model is not known
+				// (docs/spec/parsing.md, rule 3).
+				p.log.Warn("zigbee2mqtt's definition of a paired device does not read; its model stays unknown",
+					"ieee", ieee, "error", err, "definition", excerpt.Bytes(ev.Data.Definition))
+			}
 			r.mu.Lock()
 			r.defs[ieee] = def
 			id := r.devices[ieee]
@@ -615,7 +622,7 @@ func (p *Pairing) created(ctx context.Context, r *run, entityID string) bool {
 		r.mu.Lock()
 		var ieee string
 		for joined := range r.joined {
-			if strings.HasPrefix(e.UniqueID, joined+"_") {
+			if strings.HasPrefix(string(e.UniqueID), joined+"_") {
 				ieee = joined
 			}
 		}
@@ -733,7 +740,7 @@ func (p *Pairing) lang() i18n.Lang {
 // byName finds a device of Zigbee2MQTT by the name it has there.
 func (p *Pairing) byName(name string) (string, haws.Device, bool) {
 	for id, d := range p.o.Devices() {
-		if d.Name == name || d.NameByUser == name {
+		if string(d.Name) == name || d.NameByUser == name {
 			return id, d, true
 		}
 	}
@@ -741,10 +748,10 @@ func (p *Pairing) byName(name string) (string, haws.Device, bool) {
 }
 
 type entry struct {
-	EntityID string `json:"entity_id"`
-	DeviceID string `json:"device_id"`
-	UniqueID string `json:"unique_id"`
-	Category string `json:"entity_category"`
+	EntityID string    `json:"entity_id"`
+	DeviceID string    `json:"device_id"`
+	UniqueID haws.Text `json:"unique_id"`
+	Category string    `json:"entity_category"`
 }
 
 // entries reads entities of the entity registry, by id.

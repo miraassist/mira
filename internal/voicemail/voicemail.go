@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -242,7 +243,9 @@ func (m *Machine) list(ctx context.Context, inv tools.Invocation) (string, error
 	var args struct {
 		NewOnly bool `json:"new_only"`
 	}
-	_ = json.Unmarshal(inv.Args, &args)
+	if err := json.Unmarshal(inv.Args, &args); err != nil {
+		return "", fmt.Errorf("the arguments %s do not fit: %w", excerpt.Bytes(inv.Args), err)
+	}
 	all, err := m.messages(ctx, false)
 	if err != nil {
 		return m.failed(err), nil

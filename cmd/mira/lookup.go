@@ -30,7 +30,7 @@ func (a *app) deviceNode(deviceID string) string {
 	if !ok {
 		return ""
 	}
-	return slug(d.Name)
+	return slug(string(d.Name))
 }
 
 // satelliteOn is the area's satellite on device, else the area's primary

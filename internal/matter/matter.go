@@ -454,10 +454,9 @@ func (m *Onboarding) device(ctx context.Context, deviceID string) haws.Device {
 			"device", deviceID, "error", err)
 		return m.o.Devices()[deviceID]
 	}
-	var list []haws.Device
-	if err := json.Unmarshal(raw, &list); err != nil {
-		m.log.Warn("home assistant's device registry was not understood", "error", err,
-			"answer", excerpt.Bytes(raw))
+	list, _, err := haws.DecodeEntries[haws.Device](raw, "config/device_registry/list", m.log)
+	if err != nil {
+		m.log.Warn("home assistant's device registry was not understood", "error", err)
 		return m.o.Devices()[deviceID]
 	}
 	for _, d := range list {

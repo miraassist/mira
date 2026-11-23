@@ -91,12 +91,11 @@ func Load(ctx context.Context, o Options) (*skills.Root, []skills.Problem) {
 		log.Error("could not load the skills of the subscription; mira starts without them and tries again at the next start", "url", addr, "error", err)
 		return nil, []skills.Problem{skills.NewProblem(name, skills.KindSourceDown, addr, err)}
 	}
+	// Each skill on its own: one whose entry cannot be read is left out with
+	// its problem, the others load (docs/spec/parsing.md, PA-04). Its version
+	// is only logged, so it is taken as it comes.
 	var answer struct {
-		Skills []struct {
-			Name    string            `json:"name"`
-			Version string            `json:"version"`
-			Files   map[string]string `json:"files"`
-		} `json:"skills"`
+		Skills []json.RawMessage `json:"skills"`
 	}
 	if err := json.Unmarshal(raw, &answer); err != nil {
 		log.Error("the skill source's answer is not the expected JSON; mira starts without its skills", "url", addr, "error", err, "answer", excerpt.Bytes(raw))
@@ -105,7 +104,23 @@ func Load(ctx context.Context, o Options) (*skills.Root, []skills.Problem) {
 	mem := fstest.MapFS{}
 	var problems []skills.Problem
 	loaded := 0
-	for _, sk := range answer.Skills {
+	for _, row := range answer.Skills {
+		var sk struct {
+			Name    string            `json:"name"`
+			Version any               `json:"version"`
+			Files   map[string]string `json:"files"`
+		}
+		if err := json.Unmarshal(row, &sk); err != nil {
+			var named struct {
+				Name any `json:"name"`
+			}
+			_ = json.Unmarshal(row, &named) // only to name it; its own error is logged below
+			skill, _ := named.Name.(string)
+			reason := fmt.Sprintf("its entry cannot be read: %v", err)
+			log.Warn("a skill of the source is left out", "url", addr, "skill", skill, "reason", reason, "entry", excerpt.Bytes(row))
+			problems = append(problems, skills.NewProblem(orName(skill, name), skills.KindSourceSkill, addr, skill, reason))
+			continue
+		}
 		if reason := check(sk.Name, sk.Files); reason != "" {
 			log.Warn("a skill of the source is left out", "url", addr, "skill", sk.Name, "reason", reason)
 			problems = append(problems, skills.NewProblem(orName(sk.Name, name), skills.KindSourceSkill, addr, sk.Name, reason))

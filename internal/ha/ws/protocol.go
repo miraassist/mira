@@ -67,9 +67,11 @@ type Area struct {
 
 // Device is one row of the device registry.
 type Device struct {
-	ID           string `json:"id"`
-	AreaID       string `json:"area_id"`
-	Name         string `json:"name"`
+	ID     string `json:"id"`
+	AreaID string `json:"area_id"`
+	// Name is as the integration gave it: Home Assistant does not check
+	// that it is text (docs/spec/parsing.md).
+	Name         Text   `json:"name"`
 	NameByUser   string `json:"name_by_user"`
 	Manufacturer string `json:"manufacturer"`
 	Model        string `json:"model"`
@@ -134,7 +136,7 @@ func (d Device) DisplayName() string {
 	if d.NameByUser != "" {
 		return d.NameByUser
 	}
-	return d.Name
+	return string(d.Name)
 }
 
 // Entity is one row of the entity registry.

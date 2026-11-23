@@ -2050,6 +2050,13 @@ const haServer = "ha"
 
 // promptProblem is the repair's text when Home Assistant's prompt is
 // missing; %v is why.
+// registryProblem names the entries of Home Assistant's registries Mira
+// left out, for the repair (docs/spec/parsing.md, PA-01).
+var registryProblem = map[i18n.Lang]string{
+	i18n.DE: "Diese Einträge kann Mira nicht lesen: %s. Ihre Namen und Räume kennt sie deshalb nicht.",
+	i18n.EN: "Mira cannot read these entries: %s. So she does not know their names and rooms.",
+}
+
 var promptProblem = map[i18n.Lang]string{
 	i18n.DE: "Der Grund: %v",
 	i18n.EN: "The reason: %v",
@@ -2104,6 +2111,15 @@ func (a *app) allProblems() []haconv.Problem {
 	if a.engine != nil {
 		for _, p := range a.engine.ModelProblems(a.lang) {
 			out = append(out, haconv.Problem{Source: "model", Name: p.Model, Text: p.Text})
+		}
+	}
+	// Entries of Home Assistant's registries Mira cannot read, as long as
+	// they cannot (docs/spec/parsing.md, PA-01).
+	if a.ha != nil {
+		if left := a.ha.LeftOut(); len(left) > 0 {
+			slices.Sort(left)
+			out = append(out, haconv.Problem{Source: "registry", Name: "registry",
+				Text: fmt.Sprintf(i18n.Pick(registryProblem, a.lang), strings.Join(left, ", "))})
 		}
 	}
 	// Without Home Assistant's prompt Mira does not answer (docs/spec/context.md, 1.2).

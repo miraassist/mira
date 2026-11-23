@@ -43,6 +43,8 @@ type fakeHA struct {
 	exposed   []string
 	renamed   []string // old->new entity ids
 	refuse    map[string]error
+	// odd is an entry of the device registry Mira cannot read.
+	odd json.RawMessage
 	// onSubmit creates the entry's devices, as Home Assistant does before it
 	// answers.
 	onSubmit map[string]func() haws.FlowStep
@@ -105,9 +107,12 @@ func (f *fakeHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, e
 	}
 	switch typ {
 	case "config/device_registry/list":
-		var list []registry
+		var list []any
 		for _, d := range f.devices {
 			list = append(list, d.registry)
+		}
+		if f.odd != nil {
+			list = append(list, f.odd)
 		}
 		return json.Marshal(list)
 	case "config/entity_registry/list_for_display":
@@ -255,7 +260,7 @@ func (f *fakeHA) addDevice(id, name, entry string, measuring bool) {
 // addDeviceOf adds a device whose entities come from the integration platform.
 func (f *fakeHA) addDeviceOf(platform, id, name, entry string, measuring bool) {
 	f.mu.Lock()
-	f.devices[id] = &fakeDevice{registry: registry{ID: id, Name: name, Manufacturer: "Signify", Model: "LCA001",
+	f.devices[id] = &fakeDevice{registry: registry{ID: id, Name: haws.Text(name), Manufacturer: "Signify", Model: "LCA001",
 		ConfigEntries: []string{entry}}, measuring: measuring, platform: platform}
 	subs := slices.Clone(f.devSubs)
 	f.sent += len(subs)
@@ -383,7 +388,7 @@ func newFoundEnv(t *testing.T, kv *memKV, ha *fakeHA) *foundEnv {
 			ha.mu.Lock()
 			defer ha.mu.Unlock()
 			if d := ha.devices[id]; d != nil {
-				return d.Name
+				return string(d.Name)
 			}
 			return ""
 		}})
@@ -892,5 +897,29 @@ func TestKV05_AGoneDeviceIsForgottenTheOthersStaySaid(t *testing.T) {
 	e.noPost(t) // the open flows came and were handled
 	if got := e.kv.saidKeys(); got != "device:d1 flow:hue:u-f1" {
 		t.Errorf("said = %s", got)
+	}
+}
+
+// PA-02 The found devices' list leaves out a device it cannot read
+// (docs/spec/parsing.md): the others are there, the log names the one left
+// out, and none is forgotten, since one left out is not gone (rule 1).
+func TestPA02_TheFoundDevicesListLeavesOutADeviceItCannotRead(t *testing.T) {
+	ha := newFakeHA()
+	ha.addDevice("d1", "Hue Lampe", "e1", true)
+	ha.odd = json.RawMessage(`{"id":"d9","area_id":12}`)
+	kv := &memKV{m: map[string]string{keyStarted: "2026-11-10T00:00:00Z"}, said: map[string]string{
+		"device:d1": "Hue Lampe", "device:gone": "Alte Lampe",
+	}}
+	e := newFoundEnv(t, kv, ha)
+	e.noPost(t)
+	if got := e.kv.saidKeys(); got != "device:d1 device:gone" {
+		t.Errorf("said = %s", got)
+	}
+	e.logMu.Lock()
+	logs := e.logs.String()
+	e.logMu.Unlock()
+	if !strings.Contains(logs, "registry entry left out") || !strings.Contains(logs, "id=d9") ||
+		!strings.Contains(logs, "none is forgotten this time") {
+		t.Errorf("log:\n%s", logs)
 	}
 }

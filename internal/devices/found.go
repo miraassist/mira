@@ -355,16 +355,16 @@ func (f *Found) take(ctx context.Context, in foundInput) bool {
 
 // registry is one device of Home Assistant's device registry.
 type registry struct {
-	ID            string   `json:"id"`
-	AreaID        string   `json:"area_id"`
-	Name          string   `json:"name"`
-	NameByUser    string   `json:"name_by_user"`
-	Manufacturer  string   `json:"manufacturer"`
-	Model         string   `json:"model"`
-	DisabledBy    string   `json:"disabled_by"`
-	EntryType     string   `json:"entry_type"`
-	Labels        []string `json:"labels"`
-	ConfigEntries []string `json:"config_entries"`
+	ID            string    `json:"id"`
+	AreaID        string    `json:"area_id"`
+	Name          haws.Text `json:"name"` // Home Assistant does not check it (docs/spec/parsing.md)
+	NameByUser    string    `json:"name_by_user"`
+	Manufacturer  string    `json:"manufacturer"`
+	Model         string    `json:"model"`
+	DisabledBy    string    `json:"disabled_by"`
+	EntryType     string    `json:"entry_type"`
+	Labels        []string  `json:"labels"`
+	ConfigEntries []string  `json:"config_entries"`
 }
 
 func (d registry) name() string {
@@ -372,7 +372,7 @@ func (d registry) name() string {
 		return d.NameByUser
 	}
 	if d.Name != "" {
-		return d.Name
+		return string(d.Name)
 	}
 	return strings.TrimSpace(d.Manufacturer + " " + d.Model)
 }
@@ -393,9 +393,11 @@ func (f *Found) readHouse(ctx context.Context) (house, error) {
 	if err != nil {
 		return h, err
 	}
-	var list []registry
-	if err := json.Unmarshal(raw, &list); err != nil {
-		return h, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
+	// Each device on its own: one that cannot be read is left out with a
+	// log line, the others are known (docs/spec/parsing.md, PA-02).
+	list, _, err := haws.DecodeEntries[registry](raw, "config/device_registry/list", f.log)
+	if err != nil {
+		return h, err
 	}
 	for _, d := range list {
 		h.devices[d.ID] = d
@@ -594,10 +596,16 @@ func (f *Found) forgetGoneDevices(ctx context.Context) {
 		f.log.Warn("could not read the devices to forget the gone ones; they stay said", "error", err)
 		return
 	}
-	var all []registry
-	if err := json.Unmarshal(raw, &all); err != nil {
-		f.log.Warn("could not read the devices to forget the gone ones; they stay said",
-			"answer", excerpt.Bytes(raw), "error", err)
+	all, left, err := haws.DecodeEntries[registry](raw, "config/device_registry/list", f.log)
+	if err != nil {
+		f.log.Warn("could not read the devices to forget the gone ones; they stay said", "error", err)
+		return
+	}
+	if len(left) > 0 {
+		// A device left out is not gone: forgetting by this list would be
+		// wrong, so nothing is forgotten this time (docs/spec/parsing.md,
+		// rule 1).
+		f.log.Warn("some devices could not be read; none is forgotten this time", "left_out", left)
 		return
 	}
 	have := make(map[string]bool, len(all))
@@ -1037,9 +1045,9 @@ func (f *Found) entryDevices(ctx context.Context, entryID string) ([]registry, e
 		if err != nil {
 			return nil, err
 		}
-		var all []registry
-		if err := json.Unmarshal(raw, &all); err != nil {
-			return nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
+		all, _, err := haws.DecodeEntries[registry](raw, "config/device_registry/list", f.log)
+		if err != nil {
+			return nil, err
 		}
 		var list []registry
 		for _, d := range all {

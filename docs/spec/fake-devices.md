@@ -250,8 +250,9 @@ turn at the conversation agent.
 11. **Odd registry entries** (2026-11-23, issue 8; [Context](context.md), 1.3, decision 5): an integration may store
     a value of another type than Home Assistant declares, and Home Assistant keeps it; one such device made Mira lose
     the whole device registry. `watch_fake` has such entries on purpose, under "Fake Geräte", so that a reader that is
-    too strict fails on the test HA first: the device "Fake Wechselrichter" with the identifier `4711` as a number, and an entity of the registry only, without a state, whose `unique_id` is
-    the number `4712` (Home Assistant logs an error for it at its creation and keeps it). Nothing watches them; they
+    too strict fails on the test HA first: the device "Fake Wechselrichter" with the identifier `4711` as a number, an entity of the registry only, without a state, whose `unique_id` is
+    the number `4712`, and a device whose name is the number `4714` (Home Assistant does not check a device's name,
+    [Reading what comes in](parsing.md)) (Home Assistant logs an error for it at its creation and keeps it). Nothing watches them; they
     have no area. Not here: `model`, `sw_version` and `hw_version` as numbers, which Home Assistant 2026.11 turns into
     text itself (with a warning that it refuses them from 2026.12; checked 2026-11-23), so they never reach Mira as
     numbers. A further kind found in a user's Home Assistant joins this list. Tested in pytest (FG-33); Mira's

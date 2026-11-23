@@ -95,11 +95,11 @@ func (a *app) intercomDevice(ctx context.Context, target string) (string, string
 	devices := slices.Collect(maps.Values(a.structure.Snapshot().Devices))
 	sort.Slice(devices, func(i, j int) bool { return devices[i].Name < devices[j].Name })
 	for _, d := range devices {
-		if !a.hasAction(ctx, "esphome", slug(d.Name)+"_intercom_call") {
+		if !a.hasAction(ctx, "esphome", slug(string(d.Name))+"_intercom_call") {
 			continue
 		}
-		if (area != "" && d.AreaID == area) || strings.ToLower(d.Name) == t || strings.ToLower(d.NameByUser) == t {
-			return d.Name, d.ID, true
+		if (area != "" && d.AreaID == area) || strings.ToLower(string(d.Name)) == t || strings.ToLower(d.NameByUser) == t {
+			return string(d.Name), d.ID, true
 		}
 	}
 	return "", "", false

@@ -966,7 +966,12 @@ func (m *Manager) Try(ctx context.Context, id string) (TryResult, error) {
 	for _, call := range miraCalls(automation["actions"]) {
 		raw, _ := json.Marshal(call.data)
 		var r Request
-		_ = json.Unmarshal(raw, &r)
+		if err := json.Unmarshal(raw, &r); err != nil {
+			// A call of the automation that is not Mira's form: tried with what
+			// could be read, and named (docs/spec/parsing.md, rule 3).
+			m.log.Warn("a call of a task's automation does not read as Mira's; tried with what could be read",
+				"task", key, "error", err, "call", excerpt.Bytes(raw))
+		}
 		r.Task = key
 		r.Observation = withoutTemplates(r.Observation, t.tryObservation)
 		off := false

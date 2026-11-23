@@ -13,7 +13,7 @@ from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.mira.const import DOMAIN
-from custom_components.mira.mail import _date, app_of, calendar_issue, show_missing_calendars
+from custom_components.mira.mail import _date, app_of, calendar_issue, device_name, show_missing_calendars
 
 from .conftest import AGENT_ID, AGENT_URL, AGENT_USER
 
@@ -208,3 +208,15 @@ async def test_HD13_the_repair_goes_when_it_is_no_longer_needed(hass, aioclient_
     devices.async_update_device(device.id, name_by_user="IMAP privat")
     show_missing_calendars(hass, ["pakete"])
     assert ir.async_get(hass).async_get_issue(DOMAIN, "mail_calendar_pakete") is None
+
+
+async def test_PA05_a_devices_name_that_is_a_number_is_read(hass, aioclient_mock, entry):
+    """PA-05 (docs/spec/parsing.md): Home Assistant keeps a device's name as an
+    integration gives it, also a number; the integration reads it as text and
+    does not fail."""
+    imap = await _polled(hass, aioclient_mock, entry)
+    devices = dr.async_get(hass)
+    (device,) = dr.async_entries_for_config_entry(devices, imap.entry_id)
+    devices.async_update_device(device.id, name=4711)
+    assert device_name(hass, imap.entry_id) == "4711"
+    show_missing_calendars(hass, ["pakete"])

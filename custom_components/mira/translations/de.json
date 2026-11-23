@@ -460,6 +460,10 @@
       "title": "Der Agent {name} läuft nicht",
       "description": "Mira ist ohne ihn gestartet. {text}\n\nÄndere seine Beschreibung unter agents in der mira.yaml oder in seinem Skill. Die Meldung verschwindet hier, sobald Mira neu gestartet wurde und der Agent läuft."
     },
+    "registry_problem": {
+      "title": "Mira kann einige Einträge von Home Assistant nicht lesen",
+      "description": "{text}\n\nEine Integration speichert dort etwas, womit Mira nicht rechnet. Mit allem anderen arbeitet Mira weiter. Sieh unter Einstellungen → Geräte & Dienste nach, zu welcher Integration die genannten Geräte oder Entitäten gehören, und aktualisiere sie. Die Meldung verschwindet hier, sobald Mira sie lesen kann."
+    },
     "ha_problem": {
       "title": "Mira bekommt die Beschreibung des Hauses nicht",
       "description": "Bis dahin antwortet Mira nicht. {text}\n\nMira holt sie über die Integration „Model Context Protocol“ von Home Assistant. Schau unter Einstellungen → Geräte & Dienste, ob sie eingerichtet ist und läuft. Die Meldung verschwindet hier, sobald Mira die Beschreibung wieder bekommt."

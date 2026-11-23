@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"github.com/miraassist/mira/internal/excerpt"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -273,10 +274,10 @@ func (c *Core) renameEntities(ctx context.Context, deviceID, oldName, name strin
 
 // entry is one entity of a device in the entity registry.
 type entry struct {
-	EntityID string `json:"entity_id"`
-	DeviceID string `json:"device_id"`
-	UniqueID string `json:"unique_id"`
-	Category string `json:"entity_category"`
+	EntityID string    `json:"entity_id"`
+	DeviceID string    `json:"device_id"`
+	UniqueID haws.Text `json:"unique_id"`
+	Category string    `json:"entity_category"`
 }
 
 // entries reads the entities of a device: search/related, then the entity

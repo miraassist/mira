@@ -44,6 +44,8 @@ NAMES = {"battery": "Batterie", "moisture": "Wasser", "humidity": "Luftfeuchtigk
 # not here. (device name, identifier, the unique_id of its one entity)
 ODD_DEVICES = [
     ("Fake Wechselrichter", 4711, 4712),
+    # A name Home Assistant does not check either (docs/spec/parsing.md).
+    (4714, "name-as-number", "name-as-number-1"),
 ]
 
 

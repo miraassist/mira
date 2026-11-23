@@ -883,6 +883,8 @@ func Parse(raw []byte, lookup Lookup) (Config, error) {
 // (docs/spec/models.md, Decided 4), saying what to write instead.
 func oldModelKeys(raw []byte) error {
 	var top map[string]any
+	// A file that does not parse is reported by the decode after this check,
+	// with its line; here only its old keys are looked for.
 	_ = yaml.Unmarshal(raw, &top)
 	var errs []string
 	if _, ok := top["llm"]; ok {

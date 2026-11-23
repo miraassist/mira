@@ -92,10 +92,10 @@ func TestHU05_AnEntryOfARegistryThatMiraCannotReadIsLeftOutTheRestIsBuilt(t *tes
 	srv := fakeha.New()
 	defer srv.Close()
 	// Given an entry of the device registry has a field of another type than
-	// Mira reads (a name as a number)
+	// Mira reads (an area id as a number)
 	srv.SetRawList(haws.CmdDeviceRegistryList, `[
 		{"id": "dev-good", "name": "Satellit", "identifiers": [["techo5", "show"]]},
-		{"id": "dev-bad", "name": 12, "identifiers": [["some_integration", 4711]]},
+		{"id": "dev-bad", "area_id": 12, "identifiers": [["some_integration", 4711]]},
 		{"id": "dev-also-good", "name": "Lampe", "identifiers": [["zha", 4711]]}
 	]`)
 	// An identifier and a unique_id as numbers are kept (Home Assistant
@@ -118,7 +118,7 @@ func TestHU05_AnEntryOfARegistryThatMiraCannotReadIsLeftOutTheRestIsBuilt(t *tes
 	}
 	// And the log names the list, the entry and why it was left out
 	line := lines.Line("registry entry left out")
-	for _, want := range []string{haws.CmdDeviceRegistryList, "id=dev-bad", "cannot unmarshal number", `\"name\":12`} {
+	for _, want := range []string{haws.CmdDeviceRegistryList, "id=dev-bad", "cannot unmarshal number", `\"area_id\":12`} {
 		if !strings.Contains(line, want) {
 			t.Errorf("the log line lacks %q: %s", want, line)
 		}
@@ -555,4 +555,27 @@ func TestEN05_ASubscriptionMadeAfterMiraGaveUpIsUnsubscribed(t *testing.T) {
 	}
 	release()
 	<-subscriptions(srv, 0)
+}
+
+// PA-01 Entries of Home Assistant Mira cannot read are a repair
+// (docs/spec/parsing.md): the client names what its last reads left out,
+// and nothing once they read again.
+func TestPA01_EntriesOfHomeAssistantMiraCannotReadAreARepair(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	srv.SetRawList(haws.CmdDeviceRegistryList, `[{"id": "dev-good", "name": "Satellit"}, {"id": "dev-bad", "area_id": 12}]`)
+	c, ctx := startClient(t, srv, "test-token")
+	if _, err := c.Devices(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.LeftOut(); len(got) != 1 || got[0] != "dev-bad" {
+		t.Fatalf("left out %v", got)
+	}
+	srv.SetRawList(haws.CmdDeviceRegistryList, `[{"id": "dev-good", "name": "Satellit"}, {"id": "dev-bad", "name": "Lampe"}]`)
+	if _, err := c.Devices(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.LeftOut(); len(got) != 0 {
+		t.Errorf("still left out %v", got)
+	}
 }

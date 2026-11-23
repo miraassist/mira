@@ -545,3 +545,5 @@ async def test_fg33_the_test_ha_has_registry_entries_of_another_type_on_purpose(
     assert ("watch_fake", 4711) in device.identifiers
     entity = next(e for e in er.async_entries_for_device(er.async_get(hass), device.id))
     assert entity.unique_id == 4712
+    named = next(d for d in dr.async_get(hass).devices if d.name == 4714)
+    assert ("watch_fake", "name-as-number") in named.identifiers

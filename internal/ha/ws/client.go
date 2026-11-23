@@ -71,9 +71,12 @@ type Client struct {
 	minBackoff  time.Duration
 	maxBackoff  time.Duration
 	log         *slog.Logger
-	httpClient  *http.Client
-	onConnect   func(context.Context)
-	clock       clock.Clock
+	// leftOut are the entries the last read of each registry list left out.
+	leftMu     sync.Mutex
+	leftOut    map[string][]string
+	httpClient *http.Client
+	onConnect  func(context.Context)
+	clock      clock.Clock
 
 	// sendMu keeps taking an id and sending it together: Home Assistant
 	// refuses an id lower than one it has seen (id_reuse), so two calls
@@ -680,21 +683,54 @@ func callList[T any](ctx context.Context, c *Client, cmdType string) ([]T, error
 	if err != nil {
 		return nil, err
 	}
+	out, left, err := DecodeEntries[T](raw, cmdType, c.log)
+	c.leftMu.Lock()
+	if c.leftOut == nil {
+		c.leftOut = map[string][]string{}
+	}
+	c.leftOut[cmdType] = left
+	c.leftMu.Unlock()
+	return out, err
+}
+
+// LeftOut are the entries the last read of each registry list left out,
+// by their id, for the repair (docs/spec/parsing.md, PA-01).
+func (c *Client) LeftOut() []string {
+	c.leftMu.Lock()
+	defer c.leftMu.Unlock()
+	var out []string
+	for _, ids := range c.leftOut {
+		out = append(out, ids...)
+	}
+	return out
+}
+
+// DecodeEntries reads a list of Home Assistant's registry entry by entry:
+// an entry that cannot be read is left out with a log line naming the list,
+// the entry and why, and its id (or index) is returned in left; the rest is
+// kept (docs/spec/context.md, 1.3, decision 5; docs/spec/parsing.md). A list
+// that is no list is an error naming its answer.
+func DecodeEntries[T any](raw json.RawMessage, list string, log *slog.Logger) (out []T, left []string, err error) {
 	var rows []json.RawMessage
 	if err := json.Unmarshal(raw, &rows); err != nil {
-		return nil, fmt.Errorf("decode %s %q: %w", cmdType, excerpt.Bytes(raw), err)
+		return nil, nil, fmt.Errorf("decode %s %q: %w", list, excerpt.Bytes(raw), err)
 	}
-	out := make([]T, 0, len(rows))
+	out = make([]T, 0, len(rows))
 	for i, row := range rows {
 		var v T
 		if err := json.Unmarshal(row, &v); err != nil {
-			c.log.Error("registry entry left out; Mira does not know its names and area until it can be read",
-				"list", cmdType, "index", i, "id", entryID(row), "error", err, "entry", excerpt.Bytes(row))
+			id := entryID(row)
+			log.Error("registry entry left out; Mira does not know its names and area until it can be read",
+				"list", list, "index", i, "id", id, "error", err, "entry", excerpt.Bytes(row))
+			if id == "" {
+				id = fmt.Sprintf("%s #%d", list, i)
+			}
+			left = append(left, id)
 			continue
 		}
 		out = append(out, v)
 	}
-	return out, nil
+	return out, left, nil
 }
 
 // entryID is a registry entry's own id, for the log: a device's or an area's

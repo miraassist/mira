@@ -117,3 +117,21 @@ async def test_MO55_the_integration_shows_the_models_problem_as_a_repair(hass, a
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
     await entry.runtime_data.coordinator.async_refresh()
     assert registry.async_get_issue(DOMAIN, "model_smart") is None
+
+
+async def test_PA01_entries_mira_cannot_read_are_a_repair(hass, aioclient_mock, entry):
+    """PA-01 (docs/spec/parsing.md): the service's problem of the source
+    registry is the repair registry_problem, gone with it."""
+    problem = {"source": "registry", "name": "registry", "text": "Diese Einträge kann Mira nicht lesen: dev-bad."}
+    aioclient_mock.get(
+        f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": [problem]}
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    registry = ir.async_get(hass)
+    issue = registry.async_get_issue(DOMAIN, "registry_registry")
+    assert issue is not None and issue.translation_key == "registry_problem"
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
+    await entry.runtime_data.coordinator.async_refresh()
+    assert registry.async_get_issue(DOMAIN, "registry_registry") is None

@@ -226,3 +226,28 @@ func TestSourceAddressMustBeHTTPS(t *testing.T) {
 	}
 	kindOf(t, problems, "https://")
 }
+
+// PA-04 A skill of the subscription that cannot be read is left out
+// (docs/spec/parsing.md): the others load, and that skill has a problem
+// naming why; a version that is a number is taken as it comes.
+func TestPA04_ASkillOfTheSubscriptionThatCannotBeReadIsLeftOut(t *testing.T) {
+	f := newFake(t, func(w http.ResponseWriter) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"skills":[
+			{"name":"kaputt","version":"1.0","files":7},
+			{"name":"beispiel","version":2,"files":{"SKILL.md":"---\nname: beispiel\ndescription: Ein Beispiel\n---\nBeispiel."}}
+		]}`))
+	})
+	root, problems := f.load(t)
+	if root == nil {
+		t.Fatal("no skills at all")
+	}
+	p := kindOf(t, problems, "kaputt")
+	if p.Skill != "kaputt" {
+		t.Errorf("problem of %q", p.Skill)
+	}
+	if _, err := fs.ReadFile(root.FS, "beispiel/SKILL.md"); err != nil {
+		t.Errorf("the other skill did not load: %v", err)
+	}
+}

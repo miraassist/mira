@@ -78,7 +78,7 @@ func realTECHO5(ctx context.Context, admin *haws.Client, token string) ([]techo5
 	}
 	var out []techo5Device
 	for _, dev := range devices {
-		node := slugName(dev.Name)
+		node := slugName(string(dev.Name))
 		if node == "" || strings.HasPrefix(node, "fake_") {
 			continue
 		}
@@ -96,7 +96,7 @@ func realTECHO5(ctx context.Context, admin *haws.Client, token string) ([]techo5
 		// the node.
 		own := map[string]bool{}
 		for _, sub := range devices {
-			if sub.Model == dev.Model && (slugName(sub.Name) == node || strings.HasPrefix(slugName(sub.Name), node+"_")) {
+			if sub.Model == dev.Model && (slugName(string(sub.Name)) == node || strings.HasPrefix(slugName(string(sub.Name)), node+"_")) {
 				own[sub.ID] = true
 			}
 		}

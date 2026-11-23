@@ -49,7 +49,9 @@ def device_name(hass: HomeAssistant, entry_id: str) -> str:
     """The name of an IMAP entry's device as the user sees it ("" without a
     device)."""
     for device in dr.async_entries_for_config_entry(dr.async_get(hass), entry_id):
-        return calendar_name(device.name_by_user or device.name or "")
+        # Home Assistant does not check that a device's name is text: an
+        # integration may give a number (docs/spec/parsing.md, PA-05).
+        return calendar_name(str(device.name_by_user or device.name or ""))
     return ""
 
 

@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/agent"
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/store"
+	"log/slog"
 )
 
 // The run view (docs/spec/agents.md, Run view): what the agent runtime
@@ -81,7 +83,12 @@ func runOf(rec store.AgentRun, cc agent.CallContext, now time.Time) Run {
 
 func callOf(rec store.AgentRun) agent.CallContext {
 	var cc agent.CallContext
-	_ = json.Unmarshal(rec.Call, &cc)
+	if len(rec.Call) > 0 {
+		if err := json.Unmarshal(rec.Call, &cc); err != nil {
+			slog.Warn("a run's call context does not read; shown without it", "call_id", rec.CallID, "error", err,
+				"call", excerpt.Bytes(rec.Call))
+		}
+	}
 	return cc
 }
 
