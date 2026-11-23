@@ -1,6 +1,6 @@
 # Tests without time – spec
 
-Status 2026-11-23: decided; steps 1 and 2 built, step 3 for the packages its list names as built. Scenarios:
+Status 2026-11-23: decided; steps 1 to 3 built. Scenarios:
 [tests.feature](tests.feature). The inventory behind it (private): `docs/test-review.local.md`.
 
 ## Goal
@@ -144,7 +144,11 @@ func NewFake(now time.Time) *Fake // a test's clock
      push), the finished thread and the told messages. A scheduled run is cleared before it is said to be done; the
      speaker test's timeout runs on the client's clock (`speakerid.Client.WithClock`).
 
-   Open: and the other packages whose tests still sleep or poll.
+   - **the others** (2026-11-23): startools (`Env.Clock` carries a call's Timeout and its looks at the memory; a call
+     that takes too much memory now also ends the request it waits in), skills (`Runner.Clock` carries the wait for
+     Home Assistant's prompt; a run of Mira's own schedule says it is done in the log, as a skill's does), cmd/testha
+     (`waitLog` takes a clock), and fakes that report what reached them in ha/updates, inbox, music, backup, wifi,
+     store, watch and channels/haconv. No Go test waits in real time any more.
 
 4. **Absence after a positive signal** (rule 6): the "handled" traces the code lacks, each with its log line.
 5. **Python:** `settle()` and `later()` wait on an `asyncio.Event` of the mocked call; `later()` moves the frozen clock.

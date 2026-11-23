@@ -152,12 +152,7 @@ func newWaiter(ha *waitHA, rec *fakeRecorder, offers *memOffers, log *bytes.Buff
 // handles one end and stops.
 func handled(t *testing.T, w *Waiter) {
 	t.Helper()
-	select {
-	case entity := <-w.ends:
-		w.ran(context.Background(), entity)
-	case <-time.After(5 * time.Second):
-		t.Fatal("no run's end came")
-	}
+	w.ran(context.Background(), <-w.ends)
 }
 
 // CW-30 A candidate waits for its next run

@@ -55,9 +55,7 @@ func haClient(t *testing.T, url, token string) *haws.Client {
 
 func waitConnected(t *testing.T, c *haws.Client) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := c.WaitReady(ctx); err != nil {
+	if err := c.WaitReady(context.Background()); err != nil {
 		t.Fatalf("Home Assistant not connected: %v", err)
 	}
 }

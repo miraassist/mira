@@ -41,6 +41,33 @@ type fakePaperless struct {
 	calls    map[string]int
 	addedTag map[int][]int
 	unread   []int
+	// changed is closed and made anew with every call, for awaitCount.
+	changed chan struct{}
+}
+
+// awaitCount waits until name was called n times.
+func (p *fakePaperless) awaitCount(name string, n int) {
+	for {
+		p.mu.Lock()
+		if p.changed == nil {
+			p.changed = make(chan struct{})
+		}
+		got, changed := p.calls[name], p.changed
+		p.mu.Unlock()
+		if got >= n {
+			return
+		}
+		<-changed
+	}
+}
+
+// called notes a call for awaitCount. The caller holds p.mu.
+func (p *fakePaperless) called(name string) {
+	p.calls[name]++
+	if p.changed != nil {
+		close(p.changed)
+		p.changed = nil
+	}
 }
 
 func newPaperless() *fakePaperless {
@@ -57,7 +84,7 @@ func (p *fakePaperless) count(name string) int {
 func (p *fakePaperless) Doc(_ context.Context, id int) (Doc, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.calls["doc"]++
+	p.called("doc")
 	d, ok := p.docs[id]
 	if !ok {
 		return Doc{}, &Gone{Err: fmt.Errorf("get_document %d: 404", id)}
@@ -68,7 +95,7 @@ func (p *fakePaperless) Doc(_ context.Context, id int) (Doc, error) {
 func (p *fakePaperless) Text(_ context.Context, id int) (string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.calls["text"]++
+	p.called("text")
 	if p.textErr != nil {
 		return "", p.textErr
 	}
@@ -78,7 +105,7 @@ func (p *fakePaperless) Text(_ context.Context, id int) (string, error) {
 func (p *fakePaperless) Tag(_ context.Context, name string) (int, bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.calls["tag"]++
+	p.called("tag")
 	id, ok := p.tags[name]
 	return id, ok, nil
 }
@@ -86,7 +113,7 @@ func (p *fakePaperless) Tag(_ context.Context, name string) (int, bool, error) {
 func (p *fakePaperless) AddTag(_ context.Context, doc, tag int) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.calls["add"]++
+	p.called("add")
 	if p.addErr != nil {
 		return p.addErr
 	}
@@ -97,7 +124,7 @@ func (p *fakePaperless) AddTag(_ context.Context, doc, tag int) error {
 func (p *fakePaperless) Unread(_ context.Context, inbox, read int) ([]int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.calls["unread"]++
+	p.called("unread")
 	if inbox != 620 || read != 621 {
 		return nil, fmt.Errorf("tags %d, %d", inbox, read)
 	}
@@ -422,14 +449,7 @@ func TestRunReadsQueuedDocumentsInOrder(t *testing.T) {
 	go func() { _ = b.s.Run(ctx); close(done) }()
 	b.s.Enqueue(ctx, 5444, "anna")
 	b.s.Enqueue(ctx, 5445, "anna")
-	deadline := time.After(5 * time.Second)
-	for b.pl.count("add") < 2 {
-		select {
-		case <-deadline:
-			t.Fatal("the queue was not read")
-		case <-time.After(time.Millisecond):
-		}
-	}
+	b.pl.awaitCount("add", 2) // both were read
 	cancel()
 	<-done
 	if b.s.Enqueue(context.Background(), 5444, "anna") != true {

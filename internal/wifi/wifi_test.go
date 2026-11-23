@@ -150,13 +150,7 @@ func (e *wenv) run(t *testing.T, name, args string) string {
 
 func (e *wenv) said(t *testing.T) string {
 	t.Helper()
-	select {
-	case s := <-e.asked:
-		return s
-	case <-time.After(3 * time.Second):
-		t.Fatal("Mira said nothing")
-	}
-	return ""
+	return <-e.asked
 }
 
 func homeAPs(extra ...AP) []AP {

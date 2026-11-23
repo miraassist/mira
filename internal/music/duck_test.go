@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/miraassist/mira/internal/music"
 )
@@ -360,13 +359,8 @@ func TestMU39_TheSubscriptionsHandlerOnlySignals(t *testing.T) {
 	<-ready
 	wait := func(want string) {
 		t.Helper()
-		select {
-		case got := <-calls:
-			if got != want {
-				t.Fatalf("call %q, want %q", got, want)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatalf("no call %q", want)
+		if got := <-calls; got != want {
+			t.Fatalf("call %q, want %q", got, want)
 		}
 	}
 	changed() // the first states: only recorded

@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/store"
@@ -117,13 +116,17 @@ func TestBK02_the_snapshot_is_consistent_while_mira_writes(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Add(1)
+	writing := make(chan struct{})
 	go func() {
 		defer wg.Done()
 		for i := 0; ctx.Err() == nil; i++ {
 			m.Store.SaveFact(context.Background(), store.Fact{ID: fmt.Sprint("w", i), Text: strings.Repeat("x", 200), Owner: store.OwnerHouse})
+			if i == 10 {
+				close(writing)
+			}
 		}
 	}()
-	time.Sleep(20 * time.Millisecond)
+	<-writing // Mira writes while the snapshot is made
 	archive := snapshot(t, m)
 	cancel()
 	wg.Wait()

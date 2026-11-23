@@ -24,12 +24,18 @@ type answerModel struct {
 	text  string
 	hang  bool
 	calls int
+	// entered, when set, is closed as the first call comes in.
+	entered chan struct{}
 }
 
 func (m *answerModel) Chat(ctx context.Context, _ llm.ChatRequest) (*llm.ChatResponse, error) {
 	m.mu.Lock()
 	m.calls++
 	text, hang := m.text, m.hang
+	if m.entered != nil {
+		close(m.entered)
+		m.entered = nil
+	}
 	m.mu.Unlock()
 	if hang {
 		<-ctx.Done()
@@ -59,11 +65,7 @@ func agentServer(t *testing.T, m *answerModel) (*httptest.Server, chan store.Age
 		},
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		rt.Close(ctx)
-	})
+	t.Cleanup(func() { rt.Close(context.Background()) })
 	rt.Register(agent.Spec{Name: "zusammenfassen", Profile: agent.Isolated, Instructions: "Fasse zusammen.",
 		Output: []byte(`{"type":"object","properties":{"kurz":{"type":"string"}},"required":["kurz"]}`)})
 	srv := httptest.NewServer(New(Options{Token: "secret", Store: st, Version: "test", Agents: rt}))
@@ -73,13 +75,7 @@ func agentServer(t *testing.T, m *answerModel) (*httptest.Server, chan store.Age
 
 func waitRun(t *testing.T, delivered chan store.AgentRun) store.AgentRun {
 	t.Helper()
-	select {
-	case rec := <-delivered:
-		return rec
-	case <-time.After(5 * time.Second):
-		t.Fatal("no run delivered")
-	}
-	return store.AgentRun{}
+	return <-delivered
 }
 
 // AG-62 From Home Assistant synchronously with an answer
@@ -137,11 +133,12 @@ func TestAG66_AnUnknownAgent(t *testing.T) {
 
 // AG-68 Cancelling a run from Home Assistant
 func TestAG68_CancellingARunFromHomeAssistant(t *testing.T) {
-	m := &answerModel{hang: true}
+	entered := make(chan struct{})
+	m := &answerModel{hang: true, entered: entered}
 	srv, delivered := agentServer(t, m)
 	// Given an asynchronous run with its call ID
 	_, started := do(t, srv, "POST", "/v1/agent", "secret", `{"agent":"zusammenfassen","input":{"input":"x"},"mode":"async"}`)
-	time.Sleep(50 * time.Millisecond)
+	<-entered // the run is in the model
 	// When an automation calls mira.agent_cancel with this call ID
 	code, out := do(t, srv, "POST", "/v1/agent/cancel", "secret", `{"call_id":"`+started["call_id"].(string)+`"}`)
 	// Then the run is cancelled

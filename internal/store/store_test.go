@@ -427,11 +427,7 @@ func TestOnMessage(t *testing.T) {
 	if _, _, err := s.PutMessage(context.Background(), Message{Kind: KindSimple, ID: "m1", Spoken: "x"}); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case <-got:
-	case <-time.After(time.Second):
-		t.Fatal("not told about the new message")
-	}
+	<-got // told about the new message
 }
 
 // Between eval scenarios everything goes but the settings, and memory
