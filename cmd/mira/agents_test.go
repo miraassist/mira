@@ -49,6 +49,14 @@ func (quietHA) WaitState(context.Context, string, time.Duration, func(string) bo
 // the agents with notify.compose on a scripted model, and the notifier.
 func deliveryApp(t *testing.T, script ...fakellm.Step) (*app, *fakeha.Server, *fakellm.Server) {
 	t.Helper()
+	return deliveryAppOn(t, nil, script...)
+}
+
+// deliveryAppOn is deliveryApp whose store reads now from clk (nil: the
+// real clock): a test that runs its threads on a fake clock gives the store
+// the same, or an expiry set on one is compared with the other.
+func deliveryAppOn(t *testing.T, clk store.Clock, script ...fakellm.Step) (*app, *fakeha.Server, *fakellm.Server) {
+	t.Helper()
 	model := fakellm.New(script...)
 	t.Cleanup(model.Close)
 	ha := fakeha.New()
@@ -64,7 +72,7 @@ func deliveryApp(t *testing.T, script ...fakellm.Step) (*app, *fakeha.Server, *f
 	if err := client.WaitReady(ctx); err != nil {
 		t.Fatal(err)
 	}
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clk})
 	if err != nil {
 		t.Fatal(err)
 	}

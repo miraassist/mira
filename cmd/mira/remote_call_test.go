@@ -145,10 +145,10 @@ func newRemoteEnvBefore(t *testing.T, card, skill string, withURL bool, before f
 // for the thread's agents.
 func newRemoteEnvWait(t *testing.T, card, skill string, withURL bool, before func(http.Handler) http.Handler, wait time.Duration) *remoteEnv {
 	t.Helper()
-	a, _, _ := deliveryApp(t)
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	a, _, _ := deliveryAppOn(t, clk.Now)
 	logger, lines := logcap.Logger()
-	env := &remoteEnv{a: a, log: lines, runs: &signalRuns{Runs: a.store}, finished: &signals{},
-		clk: clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))}
+	env := &remoteEnv{a: a, log: lines, runs: &signalRuns{Runs: a.store}, finished: &signals{}, clk: clk}
 	env.fake = a2afake.New(a2afake.Options{})
 	var agent http.Handler = env.fake
 	if before != nil {
@@ -537,7 +537,7 @@ func TestRM12_AnAgentRequest(t *testing.T) {
 					first = r
 				}
 			}
-			runs, _ := env.a.store.RecentAgentRuns(ctx, time.Now().Add(-time.Hour))
+			runs, _ := env.a.store.RecentAgentRuns(ctx, env.clk.Now().Add(-time.Hour))
 			if answer.TaskID == "" || answer.ContextID == "" || len(runs) != 1 || !strings.Contains(string(runs[0].Remote), answer.TaskID) ||
 				answer.MessageID == first.MessageID {
 				t.Errorf("answer %+v, first %+v, runs %+v", answer, first, runs)
