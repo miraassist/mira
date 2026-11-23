@@ -332,6 +332,36 @@ everywhere, also in `messages_read` (no "Benachrichtigungen").
    fails (the sentence of a failed model, the messages wait), the skill's problem without the section; several kinds
    at once and the afterword worded by the model (decision 32); the skill `geraet-einbinden` no longer quotes the old sentence.
    MS-37 to MS-44.
+7. **A change of the configuration interrupts no delivery** (decided 2026-11-23, above): deliveries on the service's
+   life, the handover between the old and the new notifier, the shared list of reminders being delivered. MS-45,
+   MS-46 in Go. Built 2026-11-23. Run on the test HA: a reminder set by voice at the fake Show waited for its
+   playing speaker while the integration was reloaded (the notifier restarted), and was said once when the speaker
+   stopped.
+
+## A change of the configuration while a delivery runs (decided 2026-11-23)
+
+The notifier is restarted when its configuration or the persons change (Mira's page, Home Assistant's rooms and
+satellites, the integration's persons). Until now that cancelled everything it was doing: a reminder that waited for
+its satellite to be quiet or was being spoken failed ("scheduled message delivery failed"), its failure could not be
+stored either, and the new notifier could start the same reminder again.
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | What a change of the configuration may interrupt (by the maintainer) | Nothing that runs: a delivery that has begun ends as it would have without the change |
+| 2 | How (taken while building, following from 1) | A delivery runs on the Mira service's life, not on the notifier's. The old notifier starts nothing new; what it delivers ends; the new notifier starts at once and begins its first delivery when the old one's current step (a minute's round, a presence) is over. The scheduled messages being delivered are known to both, so neither starts one twice. Whoever changed the configuration (the page, the integration) waits for none of it |
+
+Step by step:
+1. The change cancels the old notifier's loop; it ends after its current step, which runs to its end on the
+   service's context.
+2. The new notifier starts at once: its subscriptions (presence sensors) are made, and its loop begins with the
+   end of the old loop.
+3. A reminder still being delivered by the old notifier stays in the shared list until it ended; the new notifier
+   leaves it out.
+
+**Fails:** a delivery fails as before, with its log line and its retry ([Retries](retry.md), rows 1 and 2), now only
+for its own reasons. At the stop of the service everything ends with it, as before.
+
+**Cost:** nothing new: no call, no wait for the caller; the old notifier's loop lives at most one step longer.
 
 ## Open
 

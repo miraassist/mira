@@ -277,3 +277,16 @@ Feature: Messages
     When the wording fails
     Then the sentence of a failed model is the afterword and the message still waits
 
+  @step7
+  Scenario: MS-45 A change of the configuration does not interrupt a reminder being delivered
+    Given a reminder is being delivered and waits for its satellite to be quiet
+    When the configuration changes and the notifier is restarted
+    Then the reminder is delivered as it would have been without the change
+    And the new notifier does not deliver it a second time
+
+  @step7
+  Scenario: MS-46 The new notifier begins when the old one's step is over
+    Given the old notifier is in a step (a minute's round) that speaks
+    When the configuration changes
+    Then that step ends as it would have
+    And the new notifier's first step begins after it

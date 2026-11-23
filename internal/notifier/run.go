@@ -14,6 +14,18 @@ type Subscriber interface {
 
 // Run watches the presence sensors and runs Tick every minute until ctx ends.
 func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
+	// It begins when the loop of the notifier before it ended, and its own
+	// steps run on the service's life: a restart interrupts no delivery
+	// (docs/spec/messages.md, A change of the configuration while a
+	// delivery runs). ctx only ends the loop.
+	previous, own := n.shared.handover()
+	defer close(own)
+	select {
+	case <-previous:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	work := n.shared.Work
 	// A motion sensor speaks at its satellite: the one SpeakAt names, else
 	// the room's primary (docs/spec/satellites-rooms.md).
 	type motionAt struct{ area, sat string }
@@ -49,14 +61,14 @@ func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
 	// a minute late.
 	remind := n.clock.NewTicker(15 * time.Second)
 	defer remind.Stop()
-	n.DueMessages(ctx)
+	n.DueMessages(work)
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case at := <-motion:
 			area := at.area
-			out, err := n.OnPresenceAt(ctx, area, at.sat)
+			out, err := n.OnPresenceAt(work, area, at.sat)
 			switch {
 			case err != nil:
 				n.log.Error("announcement failed", "area", area, "error", err)
@@ -66,9 +78,9 @@ func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
 				n.log.Debug("presence ignored", "area", area, "reason", out.Skipped)
 			}
 		case <-remind.C():
-			n.dueInBackground(ctx)
+			n.dueInBackground(work)
 		case <-tick.C():
-			if _, err := n.Tick(ctx); err != nil && ctx.Err() == nil {
+			if _, err := n.Tick(work); err != nil && work.Err() == nil {
 				n.log.Error("notifier tick failed", "error", err)
 			}
 		}

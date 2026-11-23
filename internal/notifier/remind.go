@@ -81,7 +81,11 @@ var reminderPolicy = retry.Policy{Attempts: 5, First: 15 * time.Second, Growth: 
 // says; a fatal one is given up at once.
 func (n *Notifier) DueMessages(ctx context.Context) {
 	for _, m := range n.due(ctx) {
+		if !n.shared.claim(m.ID) {
+			continue // the notifier before a restart still delivers it
+		}
 		n.remindOne(ctx, m)
+		n.shared.release(m.ID)
 	}
 }
 
@@ -91,21 +95,15 @@ func (n *Notifier) DueMessages(ctx context.Context) {
 // is still being delivered is not started again.
 func (n *Notifier) dueInBackground(ctx context.Context) {
 	for _, m := range n.due(ctx) {
-		n.mu.Lock()
-		busy := n.delivering[m.ID]
-		n.delivering[m.ID] = true
-		n.mu.Unlock()
-		if busy {
+		// Known to every notifier of the service: one being delivered by
+		// the notifier before a restart is not started again.
+		if !n.shared.claim(m.ID) {
 			continue
 		}
-		go func(m store.Message) {
-			defer func() {
-				n.mu.Lock()
-				delete(n.delivering, m.ID)
-				n.mu.Unlock()
-			}()
+		n.shared.wg.Go(func() {
+			defer n.shared.release(m.ID)
 			n.remindOne(ctx, m)
-		}(m)
+		})
 	}
 }
 

@@ -216,6 +216,9 @@ type app struct {
 	proactiveMu     sync.Mutex
 	proactiveCancel context.CancelFunc
 	proactiveWG     sync.WaitGroup
+	// notifyShared is what the notifiers share across a restart: their
+	// deliveries run on the service's life (docs/spec/messages.md).
+	notifyShared *notifier.Shared
 	// restartMu holds a whole start or restart of the notifier (stop, wait,
 	// start), so two never interleave; proactiveOn says the first start ran
 	// (never in an eval), guarded by it.
@@ -1051,6 +1054,9 @@ func (a *app) close() {
 	}
 	a.background.Wait()
 	a.proactiveWG.Wait()
+	if a.notifyShared != nil {
+		a.notifyShared.Wait()
+	}
 	if a.store != nil {
 		a.store.Close()
 	}
@@ -1329,9 +1335,12 @@ func (a *app) startProactive(parent context.Context) {
 	cfg.Persons = a.persons()
 	ctx, cancel := context.WithCancel(parent)
 	a.proactiveCancel = cancel
+	if a.notifyShared == nil {
+		a.notifyShared = notifier.NewShared(parent)
+	}
 
 	n := notifier.New(notifier.Options{
-		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel, Structure: a.structure.Snapshot,
+		Shared: a.notifyShared, Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel, Structure: a.structure.Snapshot,
 		Composer: a.notifyCompose, Instruction: a.kindInstruction, Screens: a.screens(ctx, cfg), Languages: a.langs,
 		Phone: a.phoneNews(), Record: a.record,
 	})
@@ -1465,13 +1474,15 @@ func (a *app) goProactive(ctx context.Context, name string, fn func(context.Cont
 	}()
 }
 
-// restartProactive stops the notifier, waits for it and
-// starts them again with the live config. The whole of it runs under
-// restartMu: two restarts at once (the page's settings and a change of the
-// persons) would otherwise both cancel the old notifier, one would start a
-// new one, and the other would wait for that one for ever or start a second.
-// Before the first start (or in an eval) it does nothing: the first start
-// reads the live config itself.
+// restartProactive ends the notifier's loop and starts a new one with the
+// live config at once. Nothing that runs is interrupted: the old loop ends
+// after its current step, its deliveries run to their end on the service's
+// life, and the new loop begins after the old one (docs/spec/messages.md, A
+// change of the configuration while a delivery runs); the caller waits for
+// none of it. The whole of it runs under restartMu: two restarts at once
+// (the page's settings and a change of the persons) would otherwise both
+// cancel the old notifier and start two. Before the first start (or in an
+// eval) it does nothing: the first start reads the live config itself.
 func (a *app) restartProactive(parent context.Context) {
 	a.restartMu.Lock()
 	defer a.restartMu.Unlock()
@@ -1484,7 +1495,6 @@ func (a *app) restartProactive(parent context.Context) {
 	if cancel != nil {
 		cancel()
 	}
-	a.proactiveWG.Wait()
 	a.startProactive(parent)
 	a.log.Info("notifier restarted with the changed config")
 }

@@ -48,6 +48,9 @@ type HA interface {
 }
 
 type Options struct {
+	// Shared is what the service's notifiers share across a restart; nil
+	// makes one of their own, on a context that never ends.
+	Shared *Shared
 	Config config.Config
 	Store  *store.Store
 	HA     HA
@@ -109,10 +112,12 @@ type Notifier struct {
 	// awaitingIdle are the satellites with a screen in a conversation, with
 	// a hint waiting until it is idle again (screen.go).
 	awaitingIdle map[string]bool
-	// delivering are the scheduled messages being delivered now (remind.go).
-	delivering map[string]bool
-	langs      Languages
-	cfg        config.Notifier
+	// shared is what the notifiers of the service share across a restart:
+	// the deliveries' context, the scheduled messages being delivered, the
+	// handover between loops (shared.go).
+	shared *Shared
+	langs  Languages
+	cfg    config.Notifier
 	// sats are each area's satellites, the primary first.
 	sats        map[string]config.Entities
 	persons     map[string]config.Person
@@ -144,6 +149,9 @@ type Notifier struct {
 
 func New(opts Options) *Notifier {
 	opts.Clock = clock.Or(opts.Clock)
+	if opts.Shared == nil {
+		opts.Shared = NewShared(context.Background())
+	}
 	if opts.Location == nil {
 		opts.Location = time.Local
 	}
@@ -179,7 +187,7 @@ func New(opts Options) *Notifier {
 		phoneShown:    map[string]PhoneNews{},
 		phoneHeld:     map[string]bool{},
 		awaitingIdle:  map[string]bool{},
-		delivering:    map[string]bool{},
+		shared:        opts.Shared,
 	}
 	for _, a := range opts.Config.Notifier.MorningTrigger.Areas {
 		n.areas[a] = true

@@ -164,9 +164,9 @@ func TestDueRemindersDoNotBlockTheLoop(t *testing.T) {
 	returned := make(chan struct{})
 	go func() { e.n.dueInBackground(ctx); e.n.dueInBackground(ctx); close(returned) }()
 	<-returned // the loop does not wait for the busy satellite (else go test's timeout names it)
-	e.n.mu.Lock()
-	started := len(e.n.delivering)
-	e.n.mu.Unlock()
+	e.n.shared.mu.Lock()
+	started := len(e.n.shared.delivering)
+	e.n.shared.mu.Unlock()
 	if started != 1 {
 		t.Errorf("%d deliveries started", started)
 	}
