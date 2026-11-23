@@ -3,6 +3,11 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.30.1
+
+- **Fix:** a single device whose Home Assistant entry has a number where text is expected no longer stops Mira
+  from answering ([issue 8](https://github.com/miraassist/mira/issues/8)).
+
 ## 0.30.0
 
 - **An alarm at every satellite.** "Weck mich morgen um 6": Mira's wake sound grows louder until you say the wake
