@@ -191,12 +191,23 @@ func (k *Keeper) isIntegration(bearer string) bool {
 }
 
 // partnerAllowed is all a partner token may call: who it is (answered by
-// the check itself) and the state the Partner service asks at an interval
-// (decision 23). Since Mira works with the owner's Home Assistant token, the
+// the check itself), the state the Partner service asks at an interval
+// (decision 23), and since docs/spec/companions.md its registration as a
+// companion service and a reload of the skills. Since Mira works with the owner's Home Assistant token, the
 // rest of the interface would be an administrator's access without a sign-in;
 // the partner works in Home Assistant itself instead.
 func partnerAllowed(r *http.Request) bool {
-	return r.Method == http.MethodGet && (r.URL.Path == "/v1/whoami" || r.URL.Path == "/v1/status")
+	switch {
+	case r.Method == http.MethodGet && (r.URL.Path == "/v1/whoami" || r.URL.Path == "/v1/status"):
+		return true
+	case (r.Method == http.MethodPut || r.Method == http.MethodDelete) && strings.HasPrefix(r.URL.Path, "/v1/companions/"):
+		// Its own registration as a companion service (docs/spec/companions.md, decision 5).
+		return true
+	case r.Method == http.MethodPost && r.URL.Path == "/v1/skills/reload":
+		// Reading the skills again, when the skills it brings changed (companions.md, decision 10).
+		return true
+	}
+	return false
 }
 
 // refusedText is the 403's error for a partner token's call elsewhere.

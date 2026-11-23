@@ -18,6 +18,7 @@ import (
 	"github.com/miraassist/mira/internal/access"
 	"github.com/miraassist/mira/internal/api"
 	"github.com/miraassist/mira/internal/channels/haconv"
+	"github.com/miraassist/mira/internal/companions"
 	"github.com/miraassist/mira/internal/setup"
 	"github.com/miraassist/mira/internal/ui"
 )
@@ -30,6 +31,9 @@ type Parts struct {
 	Page *ui.Handler
 	// Setup is pairing and setup.
 	Setup *setup.Handler
+	// Companions are the companion services' registrations and the skills' reload (docs/spec/companions.md);
+	// nil: none.
+	Companions *companions.Handler
 	// Push takes the remote agents' pushes, with their call's token
 	// (docs/spec/remote-agents.md, E); nil answers 404.
 	Push http.HandlerFunc
@@ -43,6 +47,9 @@ func Mux(p Parts) *api.Mux {
 	m := api.NewMux()
 	m.Mount(p.Page, p.Page.Mux(), "/ui", "/ui/", "/v1/ui/")
 	p.Setup.Register(m)
+	if p.Companions != nil {
+		p.Companions.Register(m)
+	}
 	push := p.Push
 	if push == nil {
 		push = http.NotFound

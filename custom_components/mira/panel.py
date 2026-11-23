@@ -50,8 +50,11 @@ PANEL_URL_PATH = "mira"
 PANEL_ICON = "mdi:face-woman-shimmer"
 PAGE = "/api/mira/panel/ui"
 # The service's page and its files; nothing else goes through the open view.
+# A companion service's page files too (docs/spec/companions.md, decision 9):
+# segments of letters, digits, - and _, with dots only inside a segment (no ..).
 PAGE_FILES = re.compile(
     r"ui/?|ui/icon\.png|ui/js/[\w.-]+\.js|ui/sounds/[\w-]+\.mp3|ui/videos/[\w-]+\.mp4|ui/guide/(de|en)|ui/guide/img/(?:[\w-]+/)*[\w.-]+"
+    r"|ui/companion/[a-z][a-z0-9-]{0,31}/(?:[\w-]+(?:\.[\w-]+)*(?:/[\w-]+(?:\.[\w-]+)*)*)?"
 )
 API = "v1/ui/"
 # What a user who is no admin may call: their memory, changing a fact, the

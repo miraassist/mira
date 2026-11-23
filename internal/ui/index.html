@@ -1794,7 +1794,7 @@ function render() {
   nav();
   const views = { home, me: mine, person: personTab, messages, tasks, plans, notifier, connections, rooms, persons, memory, skills, schedules, agents, models, hooks, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><p id="chapter-line" class="chapter-line" hidden></p><div id="view"></div>`;
-  views[tab]();
+  if (tab.startsWith("companion-")) companionView(tab.slice("companion-".length)); else views[tab]();
   chapterLine(tab);
   const owner = { rooms: "satellites", persons: "persons", person: "persons" }[tab];
   if (owner && managed(owner) && !embedded) {
@@ -1802,6 +1802,27 @@ function render() {
     $("#view").querySelectorAll(".actions").forEach(el => { el.hidden = true; });
     $("#view").insertAdjacentHTML("afterbegin", `<p class="msg ok">${T.managed_hint}</p>`);
   }
+}
+
+// ---- Companion services (docs/spec/companions.md) -----------------------------
+// A registered companion is a tab of the group "setup" for admins; it holds the
+// companion's own page, passed on by Mira, on the page's own origin.
+async function loadCompanions() {
+  let list = [];
+  try { list = (await api("GET", "/v1/ui/companions")).companions || []; } catch (e) { return; }
+  const setup = GROUPS.find(g => g.id === "setup");
+  for (const c of list) {
+    const id = "companion-" + c.name;
+    if (!TABS.includes(id)) TABS = [...TABS, id];
+    if (!setup.tabs.includes(id)) setup.tabs.push(id);
+    for (const l of Object.keys(I18N)) I18N[l]["tab_" + id] = c.title;
+  }
+  if (list.length) { tab = tabOf(location.hash.slice(1)); render(); }
+}
+function companionView(name) {
+  $("#view").innerHTML = `<iframe class="companion" title="${esc(T["tab_companion-" + name] || name)}"
+    src="${esc(url("/ui/companion/" + encodeURIComponent(name) + "/"))}"
+    style="width:100%;height:calc(100vh - 160px);min-height:480px;border:0;background:transparent"></iframe>`;
 }
 
 // ---- Start, Skills (built on Lit, js/app.js) --------------------------------
@@ -3114,6 +3135,7 @@ async function load() {
   try {
     config = await api("GET", "/v1/ui/config");
     render();
+    loadCompanions();
     const ents = await api("GET", "/v1/ui/entities");
     entityNames = Object.fromEntries((ents || []).map(e => [e.id, [e.name, e.area].filter(Boolean).join(" · ")]));
     $("#entities").innerHTML = (ents || []).map(e => `<option value="${esc(e.id)}">${esc([e.name, e.area].filter(Boolean).join(" · "))}</option>`).join("");

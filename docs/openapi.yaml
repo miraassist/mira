@@ -2815,6 +2815,241 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /v1/ui/companion/{name}/{path}:
+    delete:
+      tags:
+        - page
+      summary: A companion's data, passed on to it for admins (docs/spec/companions.md)
+      description: The body and the answer are the companion's own.
+      operationId: deleteV1UiCompanionNamePath
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - description: May hold slashes.
+          in: path
+          name: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags:
+        - page
+      summary: A companion's data, passed on to it for admins (docs/spec/companions.md)
+      description: The body and the answer are the companion's own.
+      operationId: getV1UiCompanionNamePath
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - description: May hold slashes.
+          in: path
+          name: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - page
+      summary: A companion's data, passed on to it for admins (docs/spec/companions.md)
+      description: The body and the answer are the companion's own.
+      operationId: postV1UiCompanionNamePath
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - description: May hold slashes.
+          in: path
+          name: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - page
+      summary: A companion's data, passed on to it for admins (docs/spec/companions.md)
+      description: The body and the answer are the companion's own.
+      operationId: putV1UiCompanionNamePath
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - description: May hold slashes.
+          in: path
+          name: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/companions:
+    get:
+      tags:
+        - page
+      summary: The companion services registered (their tabs)
+      operationId: getV1UiCompanions
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  companions:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        title:
+                          type: string
+                      required:
+                        - name
+                        - title
+                required:
+                  - companions
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /v1/ui/config:
     get:
       tags:

@@ -570,6 +570,21 @@ CREATE TABLE thread_conversations (
 );
 CREATE INDEX idx_thread_conversations_thread ON thread_conversations(thread_id);`,
 	},
+	{
+		// Companion services (docs/spec/companions.md): who registered
+		// itself, where it is, and the token Mira passes its page's calls on
+		// with.
+		name: "0036_companions",
+		stmt: `
+CREATE TABLE companions (
+    name       TEXT PRIMARY KEY,
+    title      TEXT NOT NULL,
+    url        TEXT NOT NULL,
+    token      TEXT NOT NULL,
+    token_id   TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

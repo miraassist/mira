@@ -138,6 +138,7 @@ is used in a spec; a term that is not here is not a term yet.
 | Partner service | Partner-Service | The partner's program next to the Mira service in the house, using its interface with a partner token | separate repository `mira-partner` | partner agent |
 | Partner portal | Partner-Portal | The partner's website where its people see and look after many installations | separate repository `mira-partner` | dashboard (alone) |
 | partner user | Partner-User | One of the partner's people, known to the Partner service; named in `X-Partner-User` | header `X-Partner-User` | technician (as a term) |
+| companion service | Begleit-Service | A program the owner installs beside Mira and connects with a partner token; it registers itself, brings skills of its own, and its own page shows as a tab on Mira's page ([Companion services](spec/companions.md)) | table `companions` | plugin, add-on (as terms for it) |
 | partner activity | Partner-Protokoll | What a partner token did, with time and partner user, shown on Mira's page | new table `access_log` | audit trail |
 
 ## Watching (new, [Device watch](spec/device-watch.md), [Group watch](spec/group-watch.md))

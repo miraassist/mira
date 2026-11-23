@@ -28,6 +28,7 @@ import (
 	"github.com/miraassist/mira/internal/channels/haconv"
 	"github.com/miraassist/mira/internal/clip"
 	"github.com/miraassist/mira/internal/clock"
+	"github.com/miraassist/mira/internal/companions"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/devices"
@@ -1681,8 +1682,11 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	if cfg.Memory.ProfileSchedule != "" {
 		compact = a.profileCompactor().Compact
 	}
+	// Companion services (docs/spec/companions.md).
+	comp := &companions.Handler{Store: a.store, Log: a.log.With("component", "companions"), Restart: restart}
 	uiOpts := ui.Options{
-		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
+		Companions: comp,
+		Token:      cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
 		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log, Version: version,
 		SetExposed: a.setExposed, SetLogins: a.setLogins, Phone: a.phonePage, Connections: connections{a: a}, Setup: setupCalls{a: a}, Try: starlarkTry{a: a}, Jobs: jobs{a: a},
 		Tokens: a.tokens,
@@ -1728,8 +1732,9 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	mux := routes.Mux(routes.Parts{Integration: api, Page: page,
 		Setup: &setup.Handler{Store: a.store, Token: cfg.Server.Token, ID: a.instanceID(), Version: version,
 			Pairing: a.pairing, Model: cfg.Main().Model, Restart: restart, Log: a.log},
-		Push:    func(w http.ResponseWriter, r *http.Request) { a.remote.ServePush(w, r) },
-		Version: version, Log: a.log})
+		Companions: comp,
+		Push:       func(w http.ResponseWriter, r *http.Request) { a.remote.ServePush(w, r) },
+		Version:    version, Log: a.log})
 	// An integration older than this service: ask Home Assistant to look
 	// for its update at once (docs/spec/versions.md, Both updates offered
 	// together).

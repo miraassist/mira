@@ -69,6 +69,8 @@ type Config interface {
 }
 
 type Options struct {
+	// Companions are the companion services registered with Mira (docs/spec/companions.md); nil: none.
+	Companions Companions
 	// SetExposed keeps what Home Assistant exposes to Assist, as the
 	// integration sends it.
 	SetExposed func(ctx context.Context, ids []string) error
@@ -169,6 +171,7 @@ func New(opts Options) *Handler {
 	h.mux.Hidden("GET /ui/sounds/{name}", "the page's files, not part of the interface", http.HandlerFunc(h.sound))
 	h.mux.Hidden("GET /ui/videos/{name}", "the page's files, not part of the interface", http.HandlerFunc(h.video))
 	h.mux.Hidden("GET /ui/", "the page's files, not part of the interface", http.HandlerFunc(h.page))
+	h.companionRoutes()
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/config", Summary: "The settings' sections as the page edits them", Description: "Each section's value is free-form: it is the section as mira.yaml holds it.", Response: ConfigSections{}, Errors: []int{403, 500}}), h.auth(h.getConfig))
 	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/config", Summary: "Save settings' sections", Description: "The body maps a section's name to its new value; a value is free-form, the section as mira.yaml holds it.", Request: ConfigSectionsEdit{}, Response: ConfigSections{}, Errors: []int{400, 403, 409, 422, 500}}), h.auth(h.putSections))
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/entities", Summary: "Home Assistant's entities, for completion", Response: []Entity{}, Errors: []int{403}}), h.auth(h.entities))
