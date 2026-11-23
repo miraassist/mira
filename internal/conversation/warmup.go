@@ -90,7 +90,7 @@ func (e *Engine) warmup(ctx context.Context, ch config.Channel) error {
 	}
 	built := prompt.WarmupRequest(prefix)
 	req := e.chatRequest(ch, built.Messages, built)
-	started := time.Now()
+	started := e.clock()
 	client, model, name := e.modelFor(e.cfg.ModelFor(config.ChannelAgent(ch)))
 	release, err := e.agents.Acquire(ctx, name, model)
 	if err != nil {
@@ -101,6 +101,6 @@ func (e *Engine) warmup(ctx context.Context, ch config.Channel) error {
 	if err := client.Warmup(ctx, req); err != nil {
 		return err
 	}
-	e.log.Info("slot warmed", "channel", ch, "prefix_hash", built.PrefixHash, "took", time.Since(started).Round(time.Millisecond))
+	e.log.Info("slot warmed", "channel", ch, "prefix_hash", built.PrefixHash, "took", e.clock().Sub(started).Round(time.Millisecond))
 	return nil
 }

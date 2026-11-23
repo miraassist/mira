@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/logcap"
@@ -153,7 +154,7 @@ func TestZP06_a_change_holds_at_once(t *testing.T) {
 
 func openStore(t *testing.T) *store.Store {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

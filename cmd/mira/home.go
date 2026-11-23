@@ -24,7 +24,7 @@ type homeCache struct {
 func (a *app) home(ctx context.Context) map[string]string {
 	a.homeCache.mu.Lock()
 	defer a.homeCache.mu.Unlock()
-	if a.homeCache.vals != nil && time.Since(a.homeCache.at) < time.Hour {
+	if a.homeCache.vals != nil && a.store.Now().Sub(a.homeCache.at) < time.Hour {
 		return a.homeCache.vals
 	}
 	if a.ha == nil {
@@ -50,7 +50,7 @@ func (a *app) home(ctx context.Context) map[string]string {
 		"home.name":      cfg.Name,
 	}
 	a.homeCache.internalURL = cfg.Internal
-	a.homeCache.at = time.Now()
+	a.homeCache.at = a.store.Now()
 	return a.homeCache.vals
 }
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	fakeclock "github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
@@ -22,7 +23,7 @@ func TestCO19_WritingAfterThirdPartyTextAsksFirst(t *testing.T) {
 	// Given a connected skill whose api allows POST and whose instructions say to post without asking
 	svc := fakeoauth.New("id-1", "geheim")
 	t.Cleanup(svc.Close)
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: fakeclock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

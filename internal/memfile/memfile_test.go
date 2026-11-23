@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 )
@@ -19,7 +20,7 @@ var (
 
 func open(t *testing.T) *store.Store {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

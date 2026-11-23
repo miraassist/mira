@@ -110,6 +110,11 @@ func (s *Store) DB() *sql.DB { return s.db }
 
 func (s *Store) now() time.Time { return s.clock().UTC().Truncate(time.Millisecond) }
 
+// Now is the store's time: what a time kept in it or compared with it is
+// taken from, so a caller and the store read one clock
+// (docs/spec/tests.md, rule 7).
+func (s *Store) Now() time.Time { return s.now() }
+
 // withTx runs fn in a transaction and rolls back on error.
 func (s *Store) withTx(ctx context.Context, fn func(*sql.Tx) error) error {
 	tx, err := s.db.BeginTx(ctx, nil)

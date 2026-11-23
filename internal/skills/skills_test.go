@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
@@ -194,7 +195,7 @@ func (f *fakeTasker) RunTask(_ context.Context, _, instruction string) (string, 
 func TestRunJob(t *testing.T) {
 	sk := loadAbfall(t, abfallCalendar)
 	set := berlinSet(t, sk)
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +385,7 @@ func TestPerPersonScheduleRunsForEachPerson(t *testing.T) {
 		t.Fatalf("load: %+v %+v", list, problems)
 	}
 	sk := list[0]
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,7 +515,7 @@ func TestHomePlaceholders(t *testing.T) {
 // A schedule with urgent may report importance 3 (sent at once, at night too);
 // without it a job's message stays at 2.
 func TestUrgentSchedule(t *testing.T) {
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

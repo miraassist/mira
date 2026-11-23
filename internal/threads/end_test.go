@@ -41,7 +41,8 @@ type endEnv struct {
 
 func newEndEnv(t *testing.T, fin Finisher) *endEnv {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	clk := clock.NewFake(time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC))
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clk.Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +54,7 @@ func newEndEnv(t *testing.T, fin Finisher) *endEnv {
 		Finishers:  map[string]Finisher{"fin": fin},
 		InlineWait: 10 * time.Millisecond,
 		// The turn's wait never runs out: the finisher answers in time.
-		Clock: clock.NewFake(time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC)),
+		Clock: clk,
 		Deliver: func(_ context.Context, n store.Message, _ string) error {
 			e.told <- n
 			return nil

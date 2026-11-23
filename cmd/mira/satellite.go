@@ -80,7 +80,7 @@ func (a *app) watchOne(ctx context.Context, entity string, changed func(state st
 		last = st.State + st.LastChanged
 		since, err := time.Parse(time.RFC3339Nano, st.LastChanged)
 		if err != nil {
-			since = time.Now()
+			since = a.store.Now()
 		}
 		changed(st.State, since)
 	}

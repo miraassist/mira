@@ -10,6 +10,7 @@ import (
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
 
 	"github.com/miraassist/mira/internal/a2a/transport"
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/logcap"
@@ -45,7 +46,7 @@ func (w *fakeWire) Close() {
 // delivered; its log is captured.
 func loopHost(t *testing.T) (*Host, *[]string, chan store.AgentRun, *logcap.Lines) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

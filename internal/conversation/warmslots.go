@@ -72,7 +72,7 @@ func (e *Engine) readWarm(model string) {
 	if err != nil {
 		return
 	}
-	started := time.Now()
+	started := e.clock()
 	e.log.Info("reading the prompt into a slot", "model", model, "slot", spare, "prefix_hash", prefix.Hash())
 	err = client.Warmup(ctx, req)
 	release()
@@ -91,5 +91,5 @@ func (e *Engine) readWarm(model string) {
 	e.served[model] = map[string]prompt.Prefix{string(config.ChannelVoice) + "/" + string(prefix.Lang): prefix}
 	e.servedMu.Unlock()
 	read = true
-	e.log.Info("slot warmed", "model", model, "slot", spare, "prefix_hash", prefix.Hash(), "took", time.Since(started).Round(time.Millisecond))
+	e.log.Info("slot warmed", "model", model, "slot", spare, "prefix_hash", prefix.Hash(), "took", e.clock().Sub(started).Round(time.Millisecond))
 }

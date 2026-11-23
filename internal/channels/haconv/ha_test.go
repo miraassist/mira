@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/access"
+	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
@@ -215,7 +216,7 @@ func TestHE08_APartnersCallIsRefusedAndShown(t *testing.T) {
 	client := haClient(t, ha.URL, ha.Token)
 	waitConnected(t, client)
 	ctx := context.Background()
-	st, err := store.Open(ctx, store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(ctx, store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +262,7 @@ func TestHE09_ARefusedTokenRaisesTheRepair(t *testing.T) {
 	ha.SetStates([]haws.State{{EntityID: "input_boolean.x", State: "on"}})
 	client := haClient(t, ha.URL, ha.Token)
 	waitConnected(t, client)
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +322,7 @@ func TestHE10_ATokenFromTheFileRaisesNoRepair(t *testing.T) {
 	ha.SetStates([]haws.State{{EntityID: "input_boolean.x", State: "on"}})
 	client := haClient(t, ha.URL, ha.Token)
 	waitConnected(t, client)
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

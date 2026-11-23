@@ -234,7 +234,7 @@ func (a *app) foundPost(ctx context.Context, thread, spoken, details string) err
 	_, _, err := a.store.PutMessage(ctx, store.Message{
 		ID: ulid.Make().String(), Kind: store.KindDevice, Source: store.SourceDevices,
 		DedupeKey: "devices:" + thread, Importance: 2, Receiver: store.ReceiverHouse,
-		Spoken: spoken, Details: details, ThreadID: thread, ExpiresAt: time.Now().Add(foundKeep),
+		Spoken: spoken, Details: details, ThreadID: thread, ExpiresAt: a.store.Now().Add(foundKeep),
 	})
 	return err
 }
@@ -246,7 +246,7 @@ func (a *app) foundStartHouse(ctx context.Context, request, plan, item string) (
 		return "", errors.New("no threads")
 	}
 	th, err := a.threads.StartAt(ctx, threads.Begin{Target: devices.Skill, Request: request, Plan: plan,
-		Deadline: time.Now().Add(foundKeep), Fields: map[string]string{foundItem: item}})
+		Deadline: a.store.Now().Add(foundKeep), Fields: map[string]string{foundItem: item}})
 	return th.ID, err
 }
 

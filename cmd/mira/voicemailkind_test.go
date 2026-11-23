@@ -49,7 +49,10 @@ type vmBed struct {
 
 func voicemailKindApp(t *testing.T) *vmBed {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	b := &vmBed{box: &fakeBox{}, log: &bytes.Buffer{}, now: time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC)}
+	// One clock for the store, the threads and the answering machine.
+	threadsClock := clock.NewFake(b.now)
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: threadsClock.Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,11 +61,10 @@ func voicemailKindApp(t *testing.T) *vmBed {
 	if len(problems) > 0 {
 		t.Fatalf("skills: %+v", problems)
 	}
-	b := &vmBed{box: &fakeBox{}, log: &bytes.Buffer{}, now: time.Now()}
 	logger := slog.New(slog.NewTextHandler(b.log, nil))
 	now := func() time.Time { return b.now }
 	b.a = &app{store: st, log: logger, lang: i18n.DE,
-		threads: threads.New(threads.Options{Lang: i18n.DE, Store: st, Targets: loaded, Logger: logger, Clock: clock.NewFake(b.now)})}
+		threads: threads.New(threads.Options{Lang: i18n.DE, Store: st, Targets: loaded, Logger: logger, Clock: threadsClock})}
 	b.a.voicemail = voicemail.New(voicemail.Options{Lang: i18n.DE, Logger: logger, Clock: now, Ask: b.box.ask,
 		Do: func(context.Context, string, map[string]any) error { return nil }})
 	return b
@@ -103,7 +105,7 @@ func TestMS16_ARecordingStartsTheHousesThreadAndMessage(t *testing.T) {
 	if !ok || th.Place != store.PlaceHouse || !strings.Contains(planText(th), "Oma") || !strings.Contains(planText(th), "(id 0:13)") {
 		t.Fatalf("thread = %+v", th)
 	}
-	if !near(th.ExpiresAt, time.Now().Add(5*24*time.Hour)) {
+	if !near(th.ExpiresAt, b.now.Add(5*24*time.Hour)) {
 		t.Fatalf("expires %s", th.ExpiresAt)
 	}
 	ms := b.voicemailMessages(t)
@@ -126,7 +128,7 @@ func TestMS17_AFurtherRecordingExtendsThem(t *testing.T) {
 	if th.ID != first.ID || strings.Count(planText(th), "- [ ]") != 2 {
 		t.Fatalf("thread %s (first %s), plan:\n%s", th.ID, first.ID, planText(th))
 	}
-	if !near(th.ExpiresAt, time.Now().Add(5*24*time.Hour)) {
+	if !near(th.ExpiresAt, b.now.Add(5*24*time.Hour)) {
 		t.Fatalf("expires %s", th.ExpiresAt)
 	}
 	ms := b.voicemailMessages(t)

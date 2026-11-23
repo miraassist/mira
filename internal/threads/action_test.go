@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/skills"
@@ -51,7 +52,7 @@ func wecker() skills.Skill {
 
 func actionSetup(t *testing.T) (*Manager, *store.Store, *fakeActions) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

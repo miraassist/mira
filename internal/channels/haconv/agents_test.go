@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/agent"
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
@@ -48,7 +49,7 @@ func (m *answerModel) Chat(ctx context.Context, _ llm.ChatRequest) (*llm.ChatRes
 // (text in, JSON out).
 func agentServer(t *testing.T, m *answerModel) (*httptest.Server, chan store.AgentRun) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

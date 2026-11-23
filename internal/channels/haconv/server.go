@@ -692,7 +692,7 @@ func (s *Server) addMessage(w http.ResponseWriter, r *http.Request) {
 	msg := store.Message{
 		ID: ulid.Make().String(), Kind: store.KindFor(req.Importance, req.Confidentiality), Source: source,
 		DedupeKey: req.DedupeKey, Importance: req.Importance, Receiver: req.Receiver, Spoken: strings.TrimSpace(req.Text),
-		Details: req.Details, ExpiresAt: time.Now().Add(ttl),
+		Details: req.Details, ExpiresAt: s.opts.Store.Now().Add(ttl),
 	}
 	if persons {
 		// A private message of the house goes out over every person's

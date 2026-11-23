@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/store"
@@ -101,7 +102,7 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 			t.Fatalf("assess: %d", resp.StatusCode)
 		}
 	}
-	st, err := store.Open(ctx, store.Options{Path: cfg.Store.Path})
+	st, err := store.Open(ctx, store.Options{Path: cfg.Store.Path, Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

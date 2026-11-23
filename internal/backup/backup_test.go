@@ -15,6 +15,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -25,7 +26,7 @@ func mira(t *testing.T, key, fact string) Mira {
 	t.Helper()
 	dir := t.TempDir()
 	db := filepath.Join(dir, "mira.db")
-	st, err := store.Open(context.Background(), store.Options{Path: db})
+	st, err := store.Open(context.Background(), store.Options{Path: db, Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +155,7 @@ func restoreInto(t *testing.T, m Mira, archive []byte) (Result, *store.Store) {
 		t.Fatal(err)
 	}
 	m.Store.Close()
-	st, err := store.Open(context.Background(), store.Options{Path: m.DBPath})
+	st, err := store.Open(context.Background(), store.Options{Path: m.DBPath, Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

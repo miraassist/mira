@@ -15,6 +15,7 @@ import (
 
 	"go.starlark.net/starlark"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/prompt"
@@ -82,9 +83,9 @@ func (e *Engine) Try(name, code string) error {
 	// the calls every rule sees most.
 	for _, c := range []tools.Call{
 		{Spec: tools.Spec{ToolDef: prompt.ToolDef{Server: "ha", Name: "GetLiveContext"}, ReadOnly: true},
-			Channel: config.ChannelVoice, Time: time.Now()},
+			Channel: config.ChannelVoice, Time: clock.Real().Now()}, // a sample call: any time fits
 		{Spec: tools.Spec{ToolDef: prompt.ToolDef{Server: "ha", Name: "HassTurnOn"}}, Args: map[string]any{"name": "Licht"},
-			Person: "someone", PersonName: "Someone", Channel: config.ChannelTelegram, Time: time.Now()},
+			Person: "someone", PersonName: "Someone", Channel: config.ChannelTelegram, Time: clock.Real().Now()},
 	} {
 		res, err := starlark.Call(e.thread(h), h.pre, starlark.Tuple{callValue(c), &verdictValue{kind: kindAllow}}, nil)
 		if err == nil {

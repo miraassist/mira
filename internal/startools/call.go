@@ -384,9 +384,9 @@ func request(method string) func(*starlark.Thread, *starlark.Builtin, starlark.T
 			}
 			payload = []byte(enc.(starlark.String))
 		}
-		start := time.Now()
+		start := clock.Or(c.env.Clock).Now()
 		status, data, err := c.env.Requester.Request(c.ctx, c.skill, method, u, payload)
-		ev := Event{Kind: "request", Method: method, URL: u, Status: status, MS: time.Since(start).Milliseconds(), Size: len(data)}
+		ev := Event{Kind: "request", Method: method, URL: u, Status: status, MS: clock.Or(c.env.Clock).Since(start).Milliseconds(), Size: len(data)}
 		if err != nil {
 			ev.Error = err.Error()
 			c.events = append(c.events, ev)

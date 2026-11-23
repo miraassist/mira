@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -78,7 +79,7 @@ func (s *Set) clock() time.Time {
 	if s.Clock != nil {
 		return s.Clock()
 	}
-	return time.Now()
+	return clock.Real().Now()
 }
 
 func (s *Set) loc() *time.Location {

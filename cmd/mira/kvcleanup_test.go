@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/setup"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -25,7 +26,7 @@ func coveredLog(t *testing.T, yaml, haURL, haToken string) string {
 	if err := os.WriteFile(path, []byte(yaml+"store:\n  path: "+db+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	st, err := store.Open(ctx, store.Options{Path: db})
+	st, err := store.Open(ctx, store.Options{Path: db, Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

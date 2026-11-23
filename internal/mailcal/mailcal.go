@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/llm"
 )
 
@@ -113,7 +114,7 @@ type Service struct {
 
 func New(o Options) *Service {
 	if o.Clock == nil {
-		o.Clock = time.Now
+		o.Clock = clock.Real().Now
 	}
 	if o.Location == nil {
 		o.Location = time.Local
@@ -165,10 +166,10 @@ var ErrNoApp = errors.New("no mail application for this entry")
 // handled one after the other.
 func (s *Service) Handle(ctx context.Context, m Mail) (Outcome, error) {
 	ctx, tally := llm.WithTally(ctx)
-	started := time.Now()
+	started := s.o.Clock()
 	out, err := s.handle(ctx, m)
 	attrs := append([]any{"calendar", oneLine(m.Entry), "action", out.Action, "reason", out.Reason, "title", out.Title,
-		"ms", time.Since(started).Milliseconds()}, tally.Attrs()...)
+		"ms", s.o.Clock().Sub(started).Milliseconds()}, tally.Attrs()...)
 	if err != nil {
 		s.log.Warn("mail failed", append(attrs, "error", err)...)
 	} else {

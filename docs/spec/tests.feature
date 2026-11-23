@@ -85,3 +85,12 @@ Feature: CK A clock for tests
     When the clock is moved by 59 seconds, and then by one more
     Then the context is still open after the first move and ends after the second, with DeadlineExceeded, its children too
     And one cancelled before its time is cancelled, not expired, and leaves no timer
+
+  @step7
+  Scenario: TS-01 The code reads the time only through a clock
+    Then no Go file of the service reads time.Now, time.Since or time.Until outside internal/clock
+    Unless the line or the line above marks it "real time:" as a measure of a duration
+
+  @step7
+  Scenario: TS-02 Every store in a test names its clock
+    Then every store.Options in a Go test sets Clock

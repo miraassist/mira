@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
@@ -57,7 +58,7 @@ func TestIN06_OwnerBecomesPersonByConvention(t *testing.T) {
 func TestIN38_TheLast100MailsPerEntryAreKept(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "mira.db")
-	st, err := store.Open(ctx, store.Options{Path: path})
+	st, err := store.Open(ctx, store.Options{Path: path, Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func TestIN38_TheLast100MailsPerEntryAreKept(t *testing.T) {
 		t.Fatal(err)
 	}
 	st.Close()
-	st, err = store.Open(ctx, store.Options{Path: path})
+	st, err = store.Open(ctx, store.Options{Path: path, Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

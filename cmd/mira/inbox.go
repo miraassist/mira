@@ -182,7 +182,7 @@ func (a *app) inboxDrop(ctx context.Context, key string) {
 func (a *app) inboxTell(ctx context.Context, receiver, text string) error {
 	_, _, err := a.store.PutMessage(ctx, store.Message{ID: ulid.Make().String(), Kind: store.KindSimple, Source: store.SourceTask,
 		DedupeKey: "inbox:" + ulid.Make().String(), Importance: 1, Receiver: receiver, Spoken: text,
-		ExpiresAt: time.Now().Add(72 * time.Hour)})
+		ExpiresAt: a.store.Now().Add(72 * time.Hour)})
 	return err
 }
 

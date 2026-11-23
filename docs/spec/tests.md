@@ -20,6 +20,7 @@ can pass while the code is wrong (an absence shown by waiting 150 ms, a polling 
 | 4 | **Fakes never wait.** A fake does not hold an answer by a delay or a sleep. It holds it until the test releases it (a gate) and reports what reached it (a signal the test awaits). |
 | 5 | **A test waits for a signal**: one the code gives (a channel, a callback, a hook, a log line through a notifying log) or one of a fake the test controls. A polling helper is allowed only when what it reads is fully in the test's hands and needs no goroutine of the code to change. |
 | 6 | **Absence is shown after a positive signal.** "Nothing more happens" is checked without waiting, once the code has said it handled the event (done, skipped, said); where the code says nothing, that is a gap of the code (a missing trace, also in production), not a reason to wait. |
+| 7 | **The time is read from the clock too** (2026-11-23, the maintainer). Rules 1 and 2 covered waiting; reading the time was left out, and a test whose parts read two clocks failed from a time of day on (`TestRM12`: its threads on a fake clock at 10:00, its store on the real one; an expiry at 10:15 by the one was compared with the real time by the other). So: the code reads the time only through a clock it is given (`Now`, `Since`, `Until` of `internal/clock`); a mere measure of a duration for a log line may read the real time, marked `// real time:` on its line or the line above. In a test, every store is opened with its clock named (`store.Options.Clock`), the same as the other parts of the test that share its data. A Go test (`docs`, TS-01, TS-02) checks both, so a new place fails at once |
 
 ## The clock (`internal/clock`)
 
@@ -168,3 +169,13 @@ func NewFake(now time.Time) *Fake // a test's clock
    `time.After`, `time.NewTimer`, `time.NewTicker`, `time.Tick`, `context.WithTimeout`, `time.Since` and comparisons
    with `time.Now()` in Go tests outside `internal/clock`, and `time.sleep` and an `asyncio.sleep` other than of 0 in
    the integration's tests.
+7. **Reading the time** (rule 7): every place of the code that reads the time for something it keeps or compares takes
+   its clock (the Mira service has one, its store too); the measures of durations are marked; `cmd/testha`, a tool
+   against a real Home Assistant, and the fakes of `internal/testsupport` are left out. Every store in a test names its
+   clock. TS-01, TS-02 in Go (`docs`). Built 2026-11-23: the store has `Now()`, which the service's own code, the pages
+   and the integration's server take for what they keep in it or compare with it; the engine, the model client, the
+   Wi-Fi onboarding and its join, Starlark's requests, mail and inbox take their clocks; the defaults read
+   `clock.Real()`. In the tests, the stores of four places share the test's fake clock now (the threads' history, a
+   thread's end, the answering machine, the remote agents' calls), which showed two tests that relied on the real
+   time passing between two steps (the history house now moves its clock; the answering machine compares with its
+   own time); every other test store names the real clock.

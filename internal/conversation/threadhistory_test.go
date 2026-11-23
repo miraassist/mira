@@ -119,7 +119,8 @@ func (h *historyHouse) noteRecorded(r string) {
 func newHistoryHouse(t *testing.T) *historyHouse {
 	t.Helper()
 	h := &historyHouse{model: &scriptModel{}, clk: fakeclock.NewFake(time.Now())}
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	// The store reads the house's clock: what the threads keep, it compares.
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: h.clk.Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +160,7 @@ func newHistoryHouse(t *testing.T) *historyHouse {
 		Structure: func() structure.Snapshot { return snap },
 		Identify:  func(context.Context, conversation.Request) (string, string) { return h.person, "" },
 		Thread:    h.threads.Context, JoinThread: h.threads.Join, SummarizeThread: h.threads.Summarize,
-		HoldThread: h.threads.Hold, Logger: quietLogger(), Location: time.UTC,
+		HoldThread: h.threads.Hold, Clock: h.clk.Now, Logger: quietLogger(), Location: time.UTC,
 	})
 	return h
 }
@@ -414,6 +415,8 @@ func TestTV10_AnExpiredOrCancelledThreadGetsItsSummaryAtOnce(t *testing.T) {
 		t.Errorf("cancelled from the page: %q", got)
 	}
 
+	// A minute later: the next announcement is the newest by its time.
+	h.clk.Advance(time.Minute)
 	other := h.startAt(t, "kochen", "area:wohnzimmer")
 	h.announce(t, other, "Welche Pfanne?")
 	h.say(t, "martin", "c8", "Die große")
@@ -436,7 +439,7 @@ func TestTV10_AnExpiredOrCancelledThreadGetsItsSummaryAtOnce(t *testing.T) {
 
 // TV-11 A summary that cannot be written leaves a trace and spares the others
 func TestTV11_ASummaryThatCannotBeWrittenLeavesATraceAndSparesTheOthers(t *testing.T) {
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: fakeclock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

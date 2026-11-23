@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/mailcal"
@@ -183,7 +184,7 @@ type Service struct {
 
 func New(o Options) *Service {
 	if o.Clock == nil {
-		o.Clock = time.Now
+		o.Clock = clock.Real().Now
 	}
 	if o.Location == nil {
 		o.Location = time.Local
@@ -421,7 +422,7 @@ func (s *Service) Read(ctx context.Context, docID int, owner string) {
 // or tells, and marks it read (mark); a reading that fails leaves it unread.
 func (s *Service) process(ctx context.Context, person string, known bool, doc Doc, text string,
 	mark func(ctx context.Context, person string, known bool, doc Doc)) {
-	started := time.Now()
+	started := s.o.Clock()
 	text = strings.TrimSpace(text)
 	if text == "" {
 		s.log.Info("no text", "key", doc.Key)
@@ -454,7 +455,7 @@ func (s *Service) process(ctx context.Context, person string, known bool, doc Do
 		}
 	}
 	mark(ctx, person, known, doc)
-	s.log.Info("done", "key", doc.Key, "items", len(items), "ms", time.Since(started).Milliseconds())
+	s.log.Info("done", "key", doc.Key, "items", len(items), "ms", s.o.Clock().Sub(started).Milliseconds())
 }
 
 // paperless runs a call to Paperless under the retry policy.

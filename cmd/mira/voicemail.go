@@ -401,7 +401,7 @@ func (a *app) voicemailArrived(ctx context.Context, count int) {
 		a.log.Info("the answering machine's count rose, but the box lists no new recording", "count", count)
 		return
 	}
-	th, created, err := a.threads.HousePlan(ctx, voicemail.Skill, a.voicemail.Request(), plan, time.Now().Add(voicemailKeep))
+	th, created, err := a.threads.HousePlan(ctx, voicemail.Skill, a.voicemail.Request(), plan, a.store.Now().Add(voicemailKeep))
 	if err != nil {
 		// No entry either: it would lead nowhere (docs/spec/messages.md, Errors).
 		a.log.Error("could not start or extend the answering machine's thread; no message", "recordings", len(recs), "error", err)

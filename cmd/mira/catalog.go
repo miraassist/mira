@@ -98,7 +98,7 @@ func (a *app) modelInfos(ctx context.Context, agents []ui.AgentInfo) []ui.ModelI
 	}
 	type usage struct{ runs, tokens int }
 	used := map[string]usage{}
-	if runs, err := a.store.RecentAgentRuns(ctx, time.Now().Add(-time.Hour)); err == nil {
+	if runs, err := a.store.RecentAgentRuns(ctx, a.store.Now().Add(-time.Hour)); err == nil {
 		for _, r := range runs {
 			u := used[r.Usage.Model]
 			u.runs++
@@ -151,13 +151,13 @@ func (a *app) checkModel(ctx context.Context, name string) ui.CheckResult {
 	if c == nil || !ok {
 		return ui.CheckResult{Error: fmt.Sprintf("no model %q", name)}
 	}
-	began := time.Now()
+	began := a.store.Now()
 	resp, err := c.Chat(ctx, llm.ChatRequest{MaxTokens: 64, ReasoningEffort: m.ReasoningEffort,
 		Messages: []llm.Message{{Role: "user", Content: "Antworte nur mit OK."}}})
-	res := ui.CheckResult{MS: time.Since(began).Milliseconds()}
+	res := ui.CheckResult{MS: a.store.Now().Sub(began).Milliseconds()}
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
-		res.Error = fmt.Sprintf("no answer within %s", time.Since(began).Round(time.Second))
+		res.Error = fmt.Sprintf("no answer within %s", a.store.Now().Sub(began).Round(time.Second))
 	case err != nil:
 		res.Error = err.Error()
 	default:

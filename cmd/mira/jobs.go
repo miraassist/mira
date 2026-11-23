@@ -8,7 +8,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -272,7 +271,7 @@ func (a *app) jobsInfo(sk skills.Skill, scheds []skills.Schedule, info *ui.Skill
 		}
 		info.Templates = append(info.Templates, ti)
 	}
-	now := time.Now()
+	now := a.store.Now()
 	for _, s := range scheds {
 		if s.Name == "" {
 			continue

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
@@ -44,7 +45,7 @@ func loadReceiverSkill(t *testing.T, skill, to string) ([]Skill, []Problem) {
 
 func receiverRunner(t *testing.T, sk Skill, tasker Tasker) (*Runner, *store.Store) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

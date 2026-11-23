@@ -73,25 +73,25 @@ type enrollWindow struct {
 	sentences []string
 }
 
-func (e *enrolling) start(person string, since float64, sentences []string) {
+func (e *enrolling) start(person string, since float64, sentences []string, now time.Time) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.open == nil {
 		e.open = map[string]enrollWindow{}
 	}
-	e.open[person] = enrollWindow{since: since, until: time.Now().Add(enrollFor), sentences: sentences}
+	e.open[person] = enrollWindow{since: since, until: now.Add(enrollFor), sentences: sentences}
 }
 
 // window is the person's enrolling and how long it stays open.
-func (e *enrolling) window(person string) (enrollWindow, time.Duration, bool) {
+func (e *enrolling) window(person string, now time.Time) (enrollWindow, time.Duration, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	w, ok := e.open[person]
-	if !ok || time.Now().After(w.until) {
+	if !ok || now.After(w.until) {
 		delete(e.open, person)
 		return enrollWindow{}, 0, false
 	}
-	return w, time.Until(w.until), true
+	return w, w.until.Sub(now), true
 }
 
 // pickSentences are enrollSay sentences of the language, in random order.
@@ -237,7 +237,7 @@ func (h *Handler) voice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	win, left, open := h.enroll.window(person)
+	win, left, open := h.enroll.window(person, h.now())
 	writeJSON(w, http.StatusOK, VoiceOf{Samples: profiles[person], Enrolling: open, Left: int(left.Seconds()),
 		Sentences: nonNilStrings(win.sentences)})
 }
@@ -261,7 +261,7 @@ func (h *Handler) enrollStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sentences := pickSentences(r.URL.Query().Get("lang"))
-	h.enroll.start(person, now, sentences)
+	h.enroll.start(person, now, sentences, h.now())
 	writeJSON(w, http.StatusOK, EnrollStarted{Seconds: int(enrollFor.Seconds()), Sentences: sentences})
 }
 
@@ -288,7 +288,7 @@ func (h *Handler) heard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	win, left, open := h.enroll.window(person)
+	win, left, open := h.enroll.window(person, h.now())
 	if !open {
 		writeError(w, http.StatusConflict, "not enrolling")
 		return
@@ -318,7 +318,7 @@ func (h *Handler) assign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "id missing")
 		return
 	}
-	win, _, open := h.enroll.window(person)
+	win, _, open := h.enroll.window(person, h.now())
 	if !open {
 		writeError(w, http.StatusConflict, "not enrolling")
 		return

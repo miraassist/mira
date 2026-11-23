@@ -701,12 +701,12 @@ func (e *editor) CheckMCP(ctx context.Context, name string, c ui.MCPCheckRequest
 	if len(loaded) == 0 || loaded[0].MCP == nil {
 		return ui.MCPCheckResult{Error: "Der Skill hat keinen MCP-Server."}
 	}
-	began := time.Now()
+	began := e.a.store.Now()
 	host := mcp.New(mcp.Options{Servers: []config.MCPServer{*loaded[0].MCP}, Logger: e.a.log, Version: version,
 		CallTimeout: 15 * time.Second})
 	_ = host.Start(ctx)
 	defer host.Close()
-	res := ui.MCPCheckResult{MS: time.Since(began).Milliseconds()}
+	res := ui.MCPCheckResult{MS: e.a.store.Now().Sub(began).Milliseconds()}
 	for _, st := range host.Status() {
 		res.OK, res.Tools, res.Missing, res.Error = st.Connected, st.Tools, st.Missing, st.Error
 	}
@@ -716,9 +716,9 @@ func (e *editor) CheckMCP(ctx context.Context, name string, c ui.MCPCheckRequest
 // checkPhonebook reads the phone book from Mira FRITZ!Box: how many
 // contacts, never which.
 func (e *editor) checkPhonebook(ctx context.Context) ui.MCPCheckResult {
-	began := time.Now()
+	began := e.a.store.Now()
 	pb, err := e.a.readPhonebook(ctx)
-	res := ui.MCPCheckResult{MS: time.Since(began).Milliseconds()}
+	res := ui.MCPCheckResult{MS: e.a.store.Now().Sub(began).Milliseconds()}
 	switch {
 	case errors.Is(err, phone.ErrNoIntegration):
 		res.Error = phone.MissingText(e.a.lang)

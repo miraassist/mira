@@ -3,6 +3,7 @@ package phone
 import (
 	"context"
 	"errors"
+	"github.com/miraassist/mira/internal/clock"
 	"sync"
 	"time"
 )
@@ -39,7 +40,7 @@ func (b *Book) now() time.Time {
 	if b.Clock != nil {
 		return b.Clock()
 	}
-	return time.Now()
+	return clock.Real().Now()
 }
 
 // IsOn says whether the skill telefon is on.

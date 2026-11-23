@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	fakeclock "github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/hooks"
@@ -21,7 +22,7 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 	model := fakellm.New()
 	defer model.Close()
 	cfg := config.Default()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: fakeclock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

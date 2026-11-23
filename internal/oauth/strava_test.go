@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/skills"
@@ -60,7 +61,7 @@ func stravaSkill(t *testing.T) skills.Skill {
 // only records.
 func stravaManager(t *testing.T) (*oauth.Manager, *requests) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

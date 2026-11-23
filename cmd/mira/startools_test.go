@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/startools"
@@ -24,7 +25,7 @@ func tryApp(t *testing.T) (*app, *fakeoauth.Service, *bytes.Buffer) {
 	t.Helper()
 	svc := fakeoauth.New("id-1", "geheim")
 	t.Cleanup(svc.Close)
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

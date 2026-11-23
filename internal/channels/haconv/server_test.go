@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/store"
@@ -39,7 +40,7 @@ func (f *fakeConversation) Handle(_ context.Context, req conversation.Request) (
 
 func setup(t *testing.T) (*httptest.Server, *fakeConversation, *store.Store) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +337,7 @@ func TestMessageForEveryPerson(t *testing.T) {
 		!strings.Contains(fmt.Sprint(body["error"]), "no person has a channel") {
 		t.Errorf("without channels: %d %v", code, body)
 	}
-	st2, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st2, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -74,7 +74,7 @@ func twoModelsOn(t *testing.T, clk fakeclock.Clock, agentsYAML string, deliver a
 		t.Fatal(err)
 	}
 
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: fakeclock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +228,7 @@ func TestAnAgentAsAToolTakesTheModelOfDelegate(t *testing.T) {
 func TestTurnWaitsForTheExposureList(t *testing.T) {
 	model := fakellm.New(fakellm.Step{Content: "must not be asked"})
 	defer model.Close()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: fakeclock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestHU06_AFailedReadBeforeTheFirstStructureIsSaidAsSuch(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			model := fakellm.New(fakellm.Step{Content: "must not be asked"})
 			defer model.Close()
-			st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+			st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: fakeclock.Real().Now})
 			if err != nil {
 				t.Fatal(err)
 			}

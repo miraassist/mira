@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/inbox"
 	"github.com/miraassist/mira/internal/skills"
@@ -21,7 +22,7 @@ import (
 
 func inboxKindApp(t *testing.T) *app {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -122,14 +122,14 @@ func (c *Client) note(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if err == nil {
-		c.last.OK = time.Now()
+		c.last.OK = c.clock.Now()
 		return
 	}
 	// A call the caller cancelled says nothing about the model.
 	if errors.Is(err, context.Canceled) {
 		return
 	}
-	c.last.Failed, c.last.Problem = time.Now(), err.Error()
+	c.last.Failed, c.last.Problem = c.clock.Now(), err.Error()
 }
 
 func New(opts Options) *Client {
@@ -205,10 +205,10 @@ func (c *Client) chat(ctx context.Context, req ChatRequest, onText func(string))
 		}
 	}
 
-	started := time.Now()
+	started := c.clock.Now()
 	resp, err := c.do(ctx, req, onText)
 	c.note(err)
-	latency := time.Since(started)
+	latency := c.clock.Since(started)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.SetAttributes(telemetry.AttrErrorType.String(errorType(err)))
@@ -258,7 +258,7 @@ func (c *Client) do(ctx context.Context, req ChatRequest, onText func(string)) (
 		if onText != nil {
 			pass = func(text string) { passed = true; onText(text) }
 		}
-		began = time.Now()
+		began = c.clock.Now()
 		r, err := c.once(ctx, body, pass)
 		switch {
 		case err == nil:
@@ -271,7 +271,7 @@ func (c *Client) do(ctx context.Context, req ChatRequest, onText func(string)) (
 	}, func(failed int, wait time.Duration, err error) {
 		// A retry is never silent (docs/spec/fallbacks.md, FB-13).
 		c.log.Warn("model call failed, trying again", "model", c.model, "host", c.host(), "attempt", failed,
-			"status", errorType(err), "error", err, "attempt_ms", time.Since(began).Milliseconds(),
+			"status", errorType(err), "error", err, "attempt_ms", c.clock.Since(began).Milliseconds(),
 			"wait_ms", wait.Milliseconds())
 	})
 	var long *retry.WaitTooLong
@@ -323,7 +323,7 @@ func (c *Client) once(ctx context.Context, body []byte, onText func(string)) (*C
 	if httpResp.StatusCode < 200 || httpResp.StatusCode > 299 {
 		e := &Error{StatusCode: httpResp.StatusCode, Body: string(raw)}
 		if e.StatusCode == http.StatusTooManyRequests || e.StatusCode == http.StatusServiceUnavailable {
-			e.Wait = namedWait(httpResp.Header, e.Body, time.Now())
+			e.Wait = namedWait(httpResp.Header, e.Body, c.clock.Now())
 		}
 		return nil, e
 	}

@@ -79,7 +79,7 @@ func Make(ctx context.Context, m Mira, w io.Writer) error {
 		return fmt.Errorf("copy the database: %w", err)
 	}
 	migrations := store.Migrations()
-	man := Manifest{Version: m.Version, Created: time.Now().UTC(), Migration: migrations[len(migrations)-1],
+	man := Manifest{Version: m.Version, Created: m.Store.Now(), Migration: migrations[len(migrations)-1],
 		Skills: map[string]string{}}
 	secrets, err := m.Secrets.Load()
 	if err != nil {
@@ -310,7 +310,7 @@ func checkDB(ctx context.Context, path string, live *store.Store) error {
 	}
 	for k, v := range setup {
 		if _, err := db.ExecContext(ctx, `INSERT INTO kv(key, value, updated_at) VALUES (?, ?, ?)`,
-			k, v, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+			k, v, live.Now().Format(time.RFC3339Nano)); err != nil {
 			return err
 		}
 	}

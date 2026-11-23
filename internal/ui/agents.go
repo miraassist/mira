@@ -65,12 +65,12 @@ type RunStep struct {
 	Body json.RawMessage `json:"body"`
 }
 
-func runOf(rec store.AgentRun, cc agent.CallContext) Run {
+func runOf(rec store.AgentRun, cc agent.CallContext, now time.Time) Run {
 	r := Run{CallID: rec.CallID, ParentID: rec.ParentID, Agent: rec.Agent, Status: rec.Status,
 		Started: rec.StartedAt.In(time.Local).Format("15:04:05"), Model: rec.Usage.Model,
 		ModelCalls: rec.Usage.ModelCalls, PromptTokens: rec.Usage.PromptTokens,
 		CompletionTokens: rec.Usage.CompletionTokens, Route: string(cc.Mode.Delivery.Route)}
-	end := time.Now()
+	end := now
 	if !rec.EndedAt.IsZero() {
 		end = rec.EndedAt
 		r.Ended = rec.EndedAt.In(time.Local).Format("15:04:05")
@@ -92,14 +92,14 @@ type RunList struct {
 
 // runs lists the stored runs: running ones first, then newest first.
 func (h *Handler) runs(w http.ResponseWriter, r *http.Request) {
-	list, err := h.opts.Store.RecentAgentRuns(r.Context(), time.Now().Add(-keepRuns))
+	list, err := h.opts.Store.RecentAgentRuns(r.Context(), h.opts.Store.Now().Add(-keepRuns))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	out := []Run{}
 	for _, rec := range list {
-		out = append(out, runOf(rec, callOf(rec)))
+		out = append(out, runOf(rec, callOf(rec), h.opts.Store.Now()))
 	}
 	writeJSON(w, http.StatusOK, RunList{Runs: out})
 }
@@ -122,7 +122,7 @@ func (h *Handler) run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cc := callOf(rec)
-	d := RunDetail{Run: runOf(rec, cc), Input: rec.Input, Output: rec.Output, Error: rec.Error, Foreign: rec.Foreign,
+	d := RunDetail{Run: runOf(rec, cc, h.opts.Store.Now()), Input: rec.Input, Output: rec.Output, Error: rec.Error, Foreign: rec.Foreign,
 		Call: RunCall{Origin: string(cc.Origin), Person: cc.Person, Place: cc.Place, Rights: cc.Rights.String(),
 			Depth: cc.Depth, Mode: cc.Mode.String(), Delivery: string(cc.Mode.Delivery.Route),
 			Thread: cc.Mode.Delivery.Thread, Into: cc.Mode.Delivery.Into},

@@ -21,7 +21,8 @@ import (
 // callHost is a host with the store and a channel of what it delivers.
 func callHost(t *testing.T, url, a2aSkill string) (*Host, chan store.AgentRun, *syncBuffer) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	clk := clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clk.Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +31,7 @@ func callHost(t *testing.T, url, a2aSkill string) (*Host, chan store.AgentRun, *
 	got := make(chan store.AgentRun, 4)
 	h := New(Options{Skills: load(t, skillFile(t, "          a2a_skill: "+a2aSkill+"\n", ""), url), Runs: st,
 		Deliver: func(_ context.Context, rec store.AgentRun) { got <- rec }, CallRetry: 5 * time.Millisecond, Logger: log,
-		Clock: clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC))})
+		Clock: clk})
 	h.Start(context.Background())
 	t.Cleanup(h.Close)
 	return h, got, buf

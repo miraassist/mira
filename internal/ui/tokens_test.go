@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/access"
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 )
@@ -22,7 +23,7 @@ import (
 func tokenServer(t *testing.T) (*httptest.Server, *access.Keeper, *store.Store, *bytes.Buffer) {
 	t.Helper()
 	ctx := context.Background()
-	st, err := store.Open(ctx, store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(ctx, store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

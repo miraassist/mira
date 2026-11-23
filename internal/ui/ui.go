@@ -31,6 +31,7 @@ import (
 	"github.com/miraassist/mira/docs"
 	"github.com/miraassist/mira/internal/access"
 	"github.com/miraassist/mira/internal/api"
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/memfile"
 	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/store"
@@ -516,7 +517,7 @@ func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := make([]messageJSON, 0, len(list))
-	now := time.Now()
+	now := h.opts.Store.Now()
 	for _, n := range list {
 		state := n.State
 		if state == store.MessagePending && !n.ExpiresAt.IsZero() && n.ExpiresAt.Before(now) {
@@ -1019,4 +1020,13 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 // readJSON decodes a request body of at most 64 KB into v.
 func readJSON(r *http.Request, v any) error {
 	return json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(v)
+}
+
+// now is the store's time (docs/spec/tests.md, rule 7); a handler of a test
+// without a store reads the real clock, by name.
+func (h *Handler) now() time.Time {
+	if h.opts.Store != nil {
+		return h.opts.Store.Now()
+	}
+	return clock.Real().Now()
 }

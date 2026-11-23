@@ -246,7 +246,7 @@ func newRuleThreads(t *testing.T, f fixture) *ruleThreads {
 	if _, ok := list[0].Agents["regel.schreiben"]; !ok {
 		t.Fatalf("agents: %v", list[0].Agents)
 	}
-	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

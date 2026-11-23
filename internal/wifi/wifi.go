@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
@@ -32,6 +33,8 @@ var stepName = map[i18n.Lang]string{i18n.DE: "Ins WLAN", i18n.EN: "Into the Wi-F
 type Options struct {
 	Lang   i18n.Lang
 	Logger *slog.Logger
+	// Clock is what the onboarding reads the time from; nil is the real one.
+	Clock clock.Clock
 	// Radio is the machine's Wi-Fi; nil with Off saying why (the tools are
 	// then not offered).
 	Radio Radio
@@ -77,6 +80,7 @@ type Onboarding struct {
 }
 
 func New(o Options) *Onboarding {
+	o.Clock = clock.Or(o.Clock)
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
@@ -120,14 +124,14 @@ func (w *Onboarding) on() bool {
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if time.Since(w.freeAt) > time.Minute {
+	if w.o.Clock.Since(w.freeAt) > time.Minute {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		why := w.o.Radio.Free(ctx)
 		cancel()
 		if why != w.free && why != "" {
 			w.log.Info("wifi onboarding not offered", "reason", why)
 		}
-		w.free, w.freeAt = why, time.Now()
+		w.free, w.freeAt = why, w.o.Clock.Now()
 	}
 	return w.free == ""
 }
@@ -153,7 +157,7 @@ func (w *Onboarding) scan(ctx context.Context) ([]AP, error) {
 		return nil, err
 	}
 	w.mu.Lock()
-	w.lastScan, w.scanned = aps, time.Now()
+	w.lastScan, w.scanned = aps, w.o.Clock.Now()
 	w.mu.Unlock()
 	return aps, nil
 }
@@ -251,7 +255,7 @@ func (w *Onboarding) handover(ctx context.Context, inv tools.Invocation) (string
 		return fmt.Sprintf(t.sameSubnet, f.Address), nil
 	}
 	w.mu.Lock()
-	aps, fresh := w.lastScan, time.Since(w.scanned) < 2*time.Minute
+	aps, fresh := w.lastScan, w.o.Clock.Since(w.scanned) < 2*time.Minute
 	w.mu.Unlock()
 	if !fresh {
 		var err error

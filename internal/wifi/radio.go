@@ -17,6 +17,7 @@ import (
 
 	"github.com/godbus/dbus/v5"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/excerpt"
 )
 
@@ -386,6 +387,8 @@ type Supervisor struct {
 	Client      *http.Client
 	// Log gets the warnings; slog's default without one.
 	Log *slog.Logger
+	// Clock is what joining waits on; nil is the real one.
+	Clock clock.Clock
 }
 
 func (s *Supervisor) log() *slog.Logger {
@@ -507,9 +510,10 @@ func (s *Supervisor) Join(ctx context.Context, ssid, password string) (any, erro
 		return nil, fmt.Errorf("the Supervisor refused to join: %w", err)
 	}
 	j := svJoined{iface: i.Interface}
-	deadline := time.Now().Add(20 * time.Second)
+	clk := clock.Or(s.Clock)
+	deadline := clk.Now().Add(20 * time.Second)
 	warned := false
-	for time.Now().Before(deadline) {
+	for clk.Now().Before(deadline) {
 		now, err := s.wireless(ctx)
 		if err == nil && now.Connected {
 			return j, nil
@@ -523,7 +527,7 @@ func (s *Supervisor) Join(ctx context.Context, ssid, password string) (any, erro
 		case <-ctx.Done():
 			_ = s.Leave(context.WithoutCancel(ctx), j)
 			return nil, ctx.Err()
-		case <-time.After(time.Second):
+		case <-clk.After(time.Second):
 		}
 	}
 	_ = s.Leave(ctx, j)

@@ -201,7 +201,7 @@ func TestRM18_ARemoteAgentThatAsksForOAuth2(t *testing.T) {
 `
 	loaded := load(t, skillFile(t, "          a2a_skill: complete\n", oauthSection), srv.URL+"/"+a2afake.CardOAuth2)
 	ctx := context.Background()
-	st, err := store.Open(ctx, store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
+	st, err := store.Open(ctx, store.Options{Path: filepath.Join(t.TempDir(), "mira.db"), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

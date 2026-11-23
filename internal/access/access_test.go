@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 )
@@ -26,7 +27,7 @@ type seen struct {
 func newKeeper(t *testing.T) (*Keeper, *store.Store, *bytes.Buffer) {
 	t.Helper()
 	ctx := context.Background()
-	st, err := store.Open(ctx, store.Options{Path: storetest.Path(t)})
+	st, err := store.Open(ctx, store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/llm"
@@ -34,7 +35,7 @@ func freeAddr(t *testing.T) string {
 // exposed to Assist.
 func seedExposed(t *testing.T, dbPath string, ids ...string) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: dbPath})
+	st, err := store.Open(context.Background(), store.Options{Path: dbPath, Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

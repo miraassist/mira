@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/ha/structure"
 	"github.com/miraassist/mira/internal/i18n"
@@ -253,7 +254,7 @@ func New(opts Options) *Engine {
 		opts.Telemetry = telemetry.NewTestProvider()
 	}
 	if opts.Clock == nil {
-		opts.Clock = time.Now
+		opts.Clock = clock.Real().Now
 	}
 	if opts.Location == nil {
 		opts.Location = time.Local
@@ -452,7 +453,7 @@ func originOf(req Request) agent.Origin {
 }
 
 func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, snap structure.Snapshot, pre turnPre) (Response, error) {
-	turnBegan := time.Now()
+	turnBegan := e.clock()
 	now := e.clock()
 	key := ts.SessionKey
 	if snap.ReadFailed {
@@ -596,7 +597,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 			// Out of rounds: the model has to answer with what it has.
 			chatReq.ToolChoice = "none"
 		}
-		began := time.Now()
+		began := e.clock()
 		out, err := e.chat(ctx, client, modelName, model, chatReq, pass.onText())
 		if err != nil {
 			e.modelFailed(ctx, modelName, err)
@@ -648,13 +649,13 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		}
 		if err != nil {
 			e.log.Error("model round failed", "session", key, "round", round, "model", modelName,
-				"ms", time.Since(began).Milliseconds(), "error", err)
+				"ms", e.clock().Sub(began).Milliseconds(), "error", err)
 			return Response{}, e.turnFailed(ctx, err)
 		}
 		resp.ModelCalls++
-		resp.ModelTime += time.Since(began)
-		e.logRound(key, round, modelName, time.Since(began), out, len(chatReq.Messages), messagesSize(chatReq.Messages), toolCount, toolChars)
-		mtrace.AddRound(ctx, modelName, time.Since(began), out.Usage.PromptTokens+out.Usage.CompletionTokens)
+		resp.ModelTime += e.clock().Sub(began)
+		e.logRound(key, round, modelName, e.clock().Sub(began), out, len(chatReq.Messages), messagesSize(chatReq.Messages), toolCount, toolChars)
+		mtrace.AddRound(ctx, modelName, e.clock().Sub(began), out.Usage.PromptTokens+out.Usage.CompletionTokens)
 		resp.CompletionTokens += out.Usage.CompletionTokens
 		if round == 0 {
 			resp.PromptTokens, resp.CachedTokens = out.Usage.PromptTokens, out.CachedTokens()
@@ -790,7 +791,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		"session", key, "model", resp.Model, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
 		"prompt_tokens", resp.PromptTokens, "cached_tokens", resp.CachedTokens,
 		"more_prompt_tokens", resp.MorePromptTokens, "completion_tokens", resp.CompletionTokens,
-		"ms", time.Since(turnBegan).Milliseconds())
+		"ms", e.clock().Sub(turnBegan).Milliseconds())
 	return resp, nil
 }
 
@@ -883,7 +884,7 @@ func (e *Engine) endedByCaller(key string, round int, model string, began time.T
 		spoken = len([]rune(pass.spoken()))
 	}
 	e.log.Info("answer ended by the caller", "session", key, "round", round, "model", model,
-		"ms", time.Since(began).Milliseconds(), "spoken_chars", spoken)
+		"ms", e.clock().Sub(began).Milliseconds(), "spoken_chars", spoken)
 }
 
 // modelFor returns the client and settings of a model by name. A name the
@@ -951,7 +952,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 		return verdict.Message
 	}
 
-	began := time.Now()
+	began := e.clock()
 	text, isError, err := e.tools.Execute(tools.WithTurn(ctx, ts), tools.Invocation{
 		Name: name, Args: args, SessionKey: ts.SessionKey, Channel: ts.Channel, Person: ts.Person, Area: ts.Area,
 		Place: ts.Place, DeviceID: ts.DeviceID, Foreign: ts.Foreign() || e.sawWeb(ts.SessionKey),
@@ -965,10 +966,10 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 		if err != nil {
 			detail = err.Error()
 		}
-		e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", time.Since(began).Milliseconds(),
+		e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", e.clock().Sub(began).Milliseconds(),
 			"error", true, "args", excerpt.Bytes(args), "said", excerpt.Of(detail))
 	} else {
-		e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", time.Since(began).Milliseconds(),
+		e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", e.clock().Sub(began).Milliseconds(),
 			"error", false)
 	}
 	switch {
@@ -1154,7 +1155,7 @@ const webMemory = time.Hour
 func (e *Engine) noteWeb(key string) {
 	e.webMu.Lock()
 	defer e.webMu.Unlock()
-	now := time.Now()
+	now := e.clock()
 	for k, at := range e.webSeen {
 		if now.Sub(at) > webMemory {
 			delete(e.webSeen, k)
@@ -1168,7 +1169,7 @@ func (e *Engine) sawWeb(key string) bool {
 	e.webMu.Lock()
 	defer e.webMu.Unlock()
 	at, ok := e.webSeen[key]
-	return ok && time.Since(at) <= webMemory
+	return ok && e.clock().Sub(at) <= webMemory
 }
 
 // nameOf is how the model calls a person: Home Assistant's name, else the key.

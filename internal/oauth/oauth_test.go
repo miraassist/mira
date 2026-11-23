@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/channels/haconv"
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/mcp"
@@ -82,7 +83,7 @@ func newEnv(t *testing.T) *env {
 	e.mcpSrv.Authorize = e.svc.Valid
 	e.mcpSrv.AddTool("suche", "Sucht.", `{"type":"object","properties":{}}`, true, func(map[string]any) (string, bool) { return "gefunden", false })
 	var err error
-	e.st, err = store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	e.st, err = store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: clock.Real().Now})
 	if err != nil {
 		t.Fatal(err)
 	}

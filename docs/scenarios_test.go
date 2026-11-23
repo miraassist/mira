@@ -32,6 +32,7 @@ var builtSteps = map[string][]int{
 	"BK": {1},                          // docs/spec/backup.md; steps 2 and 3 are tested in pytest
 	"RA": {2, 3, 4},                    // docs/spec/radio.md, Steps
 	"CK": {1},                          // docs/spec/tests.md, Steps
+	"TS": {7},                          // docs/spec/tests.md, rule 7
 	"WK": {2, 3, 4},                    // docs/spec/alarm.md, Steps; step 1 was the trial on the test HA
 	"SR": {2, 4},                       // docs/spec/satellites-rooms.md; steps 1 and 3 are tested in pytest
 	"ST": {2, 3, 4, 6, 8, 9, 10, 11},   // docs/spec/streaming.md; step 5 is tested in Go (ST-09) and pytest (ST-08, ST-10); step 12 in pytest (ST-26) and on the test HA
