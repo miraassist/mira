@@ -5,8 +5,7 @@ transitions as docs/spec/satellite.md describes."""
 from __future__ import annotations
 
 import asyncio
-import time
-from datetime import UTC, datetime
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -17,6 +16,7 @@ from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 import custom_components
+from tests.ha.settle import settle
 
 REPO = Path(__file__).resolve().parents[2]
 FAKE = REPO / "testenv" / "techo5_fake"
@@ -55,10 +55,11 @@ def states(hass: HomeAssistant, *entities: str) -> list[tuple[str, str]]:
     return seen
 
 
-async def later(hass: HomeAssistant, seconds: float) -> None:
-    async_fire_time_changed(hass, datetime.fromtimestamp(time.time() + seconds, UTC))
-    for _ in range(10):
-        await asyncio.sleep(0)
+async def later(hass: HomeAssistant, freezer, seconds: float) -> None:
+    """Let seconds pass on the frozen clock and what they set off run."""
+    freezer.tick(timedelta(seconds=seconds))
+    async_fire_time_changed(hass)
+    await settle(hass)
 
 
 def call_in_background(hass: HomeAssistant, domain: str, action: str, data: dict) -> asyncio.Task:
@@ -80,86 +81,86 @@ async def test_FG01_music_plays_in_the_background(hass, fakes):
     assert hass.states.get(SAT).state == "idle"
 
 
-async def test_FG02_a_playback_ends_after_the_medias_length(hass, fakes):
+async def test_FG02_a_playback_ends_after_the_medias_length(hass, fakes, freezer):
     await play(hass, TWO_SECONDS)
     assert hass.states.get(SPK).state == "playing"
-    await later(hass, 1)
+    await later(hass, freezer, 1)
     assert hass.states.get(SPK).state == "playing"
-    await later(hass, 2.5)
+    await later(hass, freezer, 2.5)
     assert hass.states.get(SPK).state == "idle"
 
 
-async def test_FG07_a_stream_plays_until_it_is_stopped(hass, fakes):
+async def test_FG07_a_stream_plays_until_it_is_stopped(hass, fakes, freezer):
     await play(hass, (REPO / "testenv" / "no-such-stream").as_uri())
-    await later(hass, 3600)
+    await later(hass, freezer, 3600)
     assert hass.states.get(SPK).state == "playing"
     await hass.services.async_call("media_player", "media_stop", {"entity_id": SPK}, blocking=True)
     assert hass.states.get(SPK).state == "paused"
 
 
-async def test_FG03_stopping_pauses(hass, fakes):
+async def test_FG03_stopping_pauses(hass, fakes, freezer):
     await play(hass, TWO_SECONDS)
     await hass.services.async_call("media_player", "media_stop", {"entity_id": SPK}, blocking=True)
     assert hass.states.get(SPK).state == "paused"
-    await later(hass, 5)
+    await later(hass, freezer, 5)
     assert hass.states.get(SPK).state == "paused"
 
 
-async def test_FG04_a_replacing_playback_reports_no_change(hass, fakes):
+async def test_FG04_a_replacing_playback_reports_no_change(hass, fakes, freezer):
     await play(hass, TWO_SECONDS)
     seen = states(hass, SPK)
-    await later(hass, 1)
+    await later(hass, freezer, 1)
     await play(hass, TWO_SECONDS)
     assert seen == []
     # The replaced one ends nothing: the new one runs its own two seconds.
-    await later(hass, 1)
+    await later(hass, freezer, 1)
     assert hass.states.get(SPK).state == "playing"
-    await later(hass, 2.5)
+    await later(hass, freezer, 2.5)
     assert seen == [(SPK, "idle")]
 
 
-async def test_FG05_an_announced_playback_plays_in_the_foreground(hass, fakes):
+async def test_FG05_an_announced_playback_plays_in_the_foreground(hass, fakes, freezer):
     await play(hass, TWO_SECONDS, announce=True)
     assert hass.states.get(SPK).state == "playing"
     assert hass.states.get(SAT).state == "idle"
-    await later(hass, 2.5)
+    await later(hass, freezer, 2.5)
     assert hass.states.get(SPK).state == "idle"
     assert hass.states.get(SAT).state == "idle"
 
 
-async def test_FG06_the_title_names_the_next_playback_once(hass, fakes):
+async def test_FG06_the_title_names_the_next_playback_once(hass, fakes, freezer):
     await hass.services.async_call("esphome", "fake_show_media_title", {"title": "Nachricht von Oma"}, blocking=True)
     await play(hass, TWO_SECONDS)
     assert hass.states.get(SPK).attributes.get("media_title") == "Nachricht von Oma"
-    await later(hass, 2.5)
+    await later(hass, freezer, 2.5)
     assert hass.states.get(SPK).state == "idle" and "media_title" not in hass.states.get(SPK).attributes
     await play(hass, TWO_SECONDS)
     assert "media_title" not in hass.states.get(SPK).attributes
 
 
-async def test_FG08_the_station_names_the_next_playback_once(hass, fakes):
+async def test_FG08_the_station_names_the_next_playback_once(hass, fakes, freezer):
     await hass.services.async_call("esphome", "fake_show_media_station", {"name": "SWR3"}, blocking=True)
     await play(hass, TWO_SECONDS)
     assert hass.states.get(SPK).attributes.get("media_channel") == "SWR3"
-    await later(hass, 2.5)
+    await later(hass, freezer, 2.5)
     assert hass.states.get(SPK).state == "idle" and "media_channel" not in hass.states.get(SPK).attributes
     await play(hass, TWO_SECONDS)
     assert "media_channel" not in hass.states.get(SPK).attributes
 
 
-async def test_FG10_a_plain_announcement_ends_idle(hass, fakes):
+async def test_FG10_a_plain_announcement_ends_idle(hass, fakes, freezer):
     seen = states(hass, SAT)
     call = call_in_background(
         hass, "assist_satellite", "announce", {"entity_id": SAT, "message": "Hallo", "preannounce": False}
     )
-    await later(hass, 0)
+    await later(hass, freezer, 0)
     assert not call.done()
-    await later(hass, 2)
+    await later(hass, freezer, 2)
     await call
     assert seen == [(SAT, "responding"), (SAT, "idle")]
 
 
-async def test_FG11_starting_a_conversation_has_a_short_idle_before_listening(hass, fakes):
+async def test_FG11_starting_a_conversation_has_a_short_idle_before_listening(hass, fakes, freezer):
     seen = states(hass, SAT)
     call = call_in_background(
         hass,
@@ -167,21 +168,21 @@ async def test_FG11_starting_a_conversation_has_a_short_idle_before_listening(ha
         "start_conversation",
         {"entity_id": SAT, "start_message": "Noch etwas?", "preannounce": False},
     )
-    await later(hass, 0)
-    await later(hass, 2)
+    await later(hass, freezer, 0)
+    await later(hass, freezer, 2)
     await call
     assert seen == [(SAT, "responding"), (SAT, "idle"), (SAT, "listening")]
-    await later(hass, 10)
+    await later(hass, freezer, 10)
     assert seen[-1] == (SAT, "idle")
 
 
-async def test_FG12_the_wake_word_lowers_music(hass, fakes):
+async def test_FG12_the_wake_word_lowers_music(hass, fakes, freezer):
     await hass.services.async_call("media_player", "volume_set", {"entity_id": SPK, "volume_level": 0.6}, blocking=True)
     await play(hass, (REPO / "testenv" / "no-such-stream").as_uri())
     await hass.services.async_call("techo5_fake", "wake_word", {"device": "fake_show"}, blocking=True)
     assert hass.states.get(SAT).state == "listening"
     assert hass.states.get(SPK).attributes["volume_level"] < 0.6 / 4
-    await later(hass, 10)
+    await later(hass, freezer, 10)
     assert hass.states.get(SAT).state == "idle"
     assert hass.states.get(SPK).attributes["volume_level"] == 0.6
     assert hass.states.get(SPK).state == "playing"
@@ -221,12 +222,12 @@ async def say(hass: HomeAssistant, text: str) -> asyncio.Task:
     )
 
 
-async def test_FG15_a_voice_turn_reports_the_states_of_a_voice_turn(hass, fakes):
+async def test_FG15_a_voice_turn_reports_the_states_of_a_voice_turn(hass, fakes, freezer):
     seen = states(hass, SAT)
     turn = await say(hass, "Wie spät ist es?")
-    for _ in range(20):
-        await later(hass, 1)
-        if turn.done():
+    for _ in range(20):  # until the answer is spoken to its end
+        await later(hass, freezer, 1)
+        if turn.done() and hass.states.get(SAT).state == "idle":
             break
     answer = await turn
     assert seen == [(SAT, "listening"), (SAT, "processing"), (SAT, "responding"), (SAT, "idle")]
@@ -234,7 +235,7 @@ async def test_FG15_a_voice_turn_reports_the_states_of_a_voice_turn(hass, fakes)
     assert answer["continue_conversation"] is False
 
 
-async def test_FG16_background_music_is_lowered_for_the_whole_voice_turn(hass, fakes):
+async def test_FG16_background_music_is_lowered_for_the_whole_voice_turn(hass, fakes, freezer):
     await hass.services.async_call("media_player", "volume_set", {"entity_id": SPK, "volume_level": 0.6}, blocking=True)
     await play(hass, (REPO / "testenv" / "no-such-stream").as_uri())
     volumes: list[tuple[str, float]] = []
@@ -245,9 +246,9 @@ async def test_FG16_background_music_is_lowered_for_the_whole_voice_turn(hass, f
 
     async_track_state_change_event(hass, [SAT], changed)
     turn = await say(hass, "Wie spät ist es?")
-    for _ in range(20):
-        await later(hass, 1)
-        if turn.done():
+    for _ in range(20):  # until the answer is spoken to its end
+        await later(hass, freezer, 1)
+        if turn.done() and hass.states.get(SAT).state == "idle":
             break
     await turn
     assert [s for s, _ in volumes] == ["listening", "processing", "responding", "idle"]
@@ -255,14 +256,14 @@ async def test_FG16_background_music_is_lowered_for_the_whole_voice_turn(hass, f
     assert hass.states.get(SPK).attributes["volume_level"] == 0.6
 
 
-async def test_FG17_a_longer_text_takes_longer_to_speak(hass, fakes):
+async def test_FG17_a_longer_text_takes_longer_to_speak(hass, fakes, freezer):
     async def responding_for(text: str) -> int:
         call = call_in_background(
             hass, "assist_satellite", "announce", {"entity_id": SAT, "message": text, "preannounce": False}
         )
-        await later(hass, 0)
+        await later(hass, freezer, 0)
         for second in range(1, 20):
-            await later(hass, second)
+            await later(hass, freezer, 1)
             if call.done():
                 return second
         raise AssertionError("never done")
@@ -292,27 +293,27 @@ def ask(hass: HomeAssistant) -> asyncio.Task:
     )
 
 
-async def test_FG18_a_question_is_answered_by_a_voice_turn(hass, fakes):
+async def test_FG18_a_question_is_answered_by_a_voice_turn(hass, fakes, freezer):
     seen = states(hass, SAT)
     question = ask(hass)
     for _ in range(5):
-        await later(hass, 1)
+        await later(hass, freezer, 1)
         if hass.states.get(SAT).state == "listening":
             break
     assert seen == [(SAT, "responding"), (SAT, "idle"), (SAT, "listening")]
     turn = await say(hass, "Ja, alles gut")
-    await later(hass, 0)
+    await later(hass, freezer, 0)
     assert await turn == {"speech": "", "continue_conversation": False}
     answer = await question
     assert answer["id"] == "ja", answer
     assert seen[3:] == [(SAT, "idle")]
 
 
-async def test_FG19_a_question_nobody_answers(hass, fakes):
+async def test_FG19_a_question_nobody_answers(hass, fakes, freezer):
     seen = states(hass, SAT)
     question = ask(hass)
     for _ in range(15):
-        await later(hass, 1)
+        await later(hass, freezer, 1)
         if question.done():
             break
     # Home Assistant's text for it: "No answer received from the satellite."
@@ -341,12 +342,12 @@ def answering(monkeypatch, speech: str) -> None:
     monkeypatch.setattr(sat.FakeSatellite, "_resolve_pipeline", lambda self: None)
 
 
-async def test_FG20_the_speaker_plays_while_an_answer_is_spoken(hass, fakes, monkeypatch):
+async def test_FG20_the_speaker_plays_while_an_answer_is_spoken(hass, fakes, freezer, monkeypatch):
     answering(monkeypatch, "Es war einmal ein Igel, der fand einen Stein.")
     seen = states(hass, SAT, SPK)
     turn = call_in_background(hass, "techo5_fake", "say", {"device": "fake_show", "text": "Erzähl was"})
     for _ in range(6):
-        await later(hass, 1)
+        await later(hass, freezer, 1)
         if turn.done():
             break
     await turn
@@ -356,7 +357,7 @@ async def test_FG20_the_speaker_plays_while_an_answer_is_spoken(hass, fakes, mon
     assert seen[-2:] == [(SPK, "idle"), (SAT, "idle")]
 
 
-async def test_FG21_the_wake_word_cuts_an_answer_off(hass, fakes, monkeypatch):
+async def test_FG21_the_wake_word_cuts_an_answer_off(hass, fakes, freezer, monkeypatch):
     answering(monkeypatch, "Es war einmal " * 30)
     seen = states(hass, SAT, SPK)
     turn = asyncio.ensure_future(
@@ -364,7 +365,7 @@ async def test_FG21_the_wake_word_cuts_an_answer_off(hass, fakes, monkeypatch):
             "techo5_fake", "say", {"device": "fake_show", "text": "Erzähl was"}, blocking=True, return_response=True
         )
     )
-    await later(hass, 0)
+    await later(hass, freezer, 0)
     assert hass.states.get(SPK).state == "playing"
     await hass.services.async_call("techo5_fake", "wake_word", {"device": "fake_show"}, blocking=True)
     result = await turn

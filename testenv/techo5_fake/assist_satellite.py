@@ -158,15 +158,19 @@ class FakeSatellite(FakeEntity, AssistSatelliteEntity):
         if self.dev.speaker:
             self.dev.speaker.speaking(True)
 
+        said = False
+
         @callback
         def spoken(_now: datetime) -> None:
+            nonlocal said
+            said = True
             done.set()
 
         cancel = async_call_later(self.hass, speaking_time(text), spoken)
-        started = asyncio.get_running_loop().time()
         try:
             await done.wait()
-            cut = asyncio.get_running_loop().time() - started < speaking_time(text) - 0.05
+            # Ended by its time: said; ended before (the wake word): cut off.
+            cut = not said
         finally:
             cancel()
             self._speaking = None

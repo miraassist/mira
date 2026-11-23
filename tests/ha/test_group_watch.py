@@ -5,7 +5,6 @@ of testenv/watch_fake, with the time moved on."""
 
 from __future__ import annotations
 
-import asyncio
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -20,6 +19,7 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed, async_mock_service
 
 import custom_components
+from tests.ha.settle import settle
 
 REPO = Path(__file__).resolve().parents[2]
 BLUEPRINTS = REPO / "internal" / "watch" / "blueprints"
@@ -134,18 +134,12 @@ async def test_GW03_a_group_helpers_members(hass, house):
     assert got == ["binary_sensor.fake_fenster_buro", "binary_sensor.fake_fenster_schlafzimmer"]
 
 
-async def settle() -> None:
-    """Let what the last change started run (a run waiting in a delay stays pending)."""
-    for _ in range(20):
-        await asyncio.sleep(0)
-
-
 async def minutes(hass: HomeAssistant, freezer, n: int) -> None:
     """Move the time on minute by minute, as Home Assistant lives it."""
     for _ in range(n):
         freezer.tick(timedelta(minutes=1))
         async_fire_time_changed(hass)
-        await settle()
+        await settle(hass)
 
 
 GROUP_BLUEPRINTS = {
@@ -200,10 +194,10 @@ async def put(hass: HomeAssistant, entity_id: str, state: str) -> None:
 
 async def rendered(hass: HomeAssistant) -> None:
     """Home Assistant renders a template over a whole domain at most once a second: two seconds on."""
-    await settle()
+    await settle(hass)
     hass.data["test_freezer"].tick(timedelta(seconds=2))
     async_fire_time_changed(hass)
-    await settle()
+    await settle(hass)
 
 
 async def nobody_home(hass: HomeAssistant, away: bool = True) -> None:
@@ -407,13 +401,13 @@ async def until(hass: HomeAssistant, freezer, hour: int, minute: int = 0) -> Non
         target += timedelta(days=1)
     freezer.move_to(target)
     async_fire_time_changed(hass, target)
-    await settle()
+    await settle(hass)
     await hass.async_block_till_done()
 
 
 async def reachable(hass: HomeAssistant, device: str, on: bool) -> None:
     await hass.services.async_call("watch_fake", "reachable", {"device": device, "reachable": on}, blocking=True)
-    await settle()
+    await settle(hass)
 
 
 async def test_GW22_a_battery_runs_low(hass, house, freezer):
@@ -532,7 +526,7 @@ async def test_GW26_a_restart_floods_nothing(hass, house, freezer):
         old = hass.states.get(entity_id)
         hass.states.async_remove(entity_id)
         hass.states.async_set(entity_id, old.state, old.attributes)
-    await settle()
+    await settle(hass)
     # Then nothing is told at the restart
     assert len(house) == 2
     # And the check at 09:00 does not name the device

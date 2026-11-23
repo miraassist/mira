@@ -5,7 +5,6 @@ testenv/watch_fake, with the time moved on."""
 
 from __future__ import annotations
 
-import asyncio
 import re
 import shutil
 from datetime import datetime, timedelta
@@ -18,6 +17,7 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed, async_mock_service
 
 import custom_components
+from tests.ha.settle import settle
 
 REPO = Path(__file__).resolve().parents[2]
 BLUEPRINTS = REPO / "internal" / "watch" / "blueprints"
@@ -46,13 +46,6 @@ async def house(hass: HomeAssistant, tmp_path, monkeypatch, freezer):
     return async_mock_service(hass, "mira", "send_message")
 
 
-async def settle() -> None:
-    """Let what the last change started run. Not async_block_till_done: a
-    run waiting in a delay is a task that stays pending for hours."""
-    for _ in range(20):
-        await asyncio.sleep(0)
-
-
 async def watch(hass: HomeAssistant, blueprint: str, **inputs) -> None:
     """A watch as Mira saves it: an automation using the blueprint, loaded
     (Home Assistant says so with automation_reloaded). The fake devices were
@@ -73,7 +66,7 @@ async def watch(hass: HomeAssistant, blueprint: str, **inputs) -> None:
     await hass.async_block_till_done()
     assert hass.states.get("automation.wachter").state == "on"
     hass.bus.async_fire("automation_reloaded")
-    await settle()
+    await settle(hass)
 
 
 async def minutes(hass: HomeAssistant, freezer, n: int) -> None:
@@ -81,12 +74,12 @@ async def minutes(hass: HomeAssistant, freezer, n: int) -> None:
     for _ in range(n):
         freezer.tick(timedelta(minutes=1))
         async_fire_time_changed(hass)
-        await settle()
+        await settle(hass)
 
 
 async def act(hass: HomeAssistant, action: str, **data) -> None:
     await hass.services.async_call("watch_fake", action, data, blocking=True)
-    await settle()
+    await settle(hass)
 
 
 def entry(call) -> dict:
@@ -140,7 +133,7 @@ async def hours(hass: HomeAssistant, freezer, n: float) -> None:
     for _ in range(int(n * 6)):
         freezer.tick(timedelta(minutes=10))
         async_fire_time_changed(hass)
-        await settle()
+        await settle(hass)
 
 
 async def test_CW12_water_never_rests(hass, house, freezer):
