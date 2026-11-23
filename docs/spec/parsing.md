@@ -1,7 +1,7 @@
 # Reading what comes in – Spec
 
 Status 2026-11-23: decided (the rules and the start with a broken mira.yaml by the maintainer, the places following
-from them); steps 1 and 4 built, step 2 building, step 3 open. Scenarios: [parsing.feature](parsing.feature) (PA-01 to PA-08).
+from them); steps 1, 2 and 4 built, step 3 open. Scenarios: [parsing.feature](parsing.feature) (PA-01 to PA-08).
 
 ## Goal
 
@@ -72,7 +72,11 @@ the repair stays, the log has the error once per change of the file.
    forgetting of gone found devices forgets nothing in a round where a device was left out: left out is not gone
    (rule 1).
 2. **A broken `mira.yaml`** (row 7): the limited start, the problem in the status, the repair, the watch of the file.
-   PA-07, PA-08.
+   PA-07, PA-08 in Go. Built 2026-11-23: `config.Limited` takes the listen address, the token and the store's path
+   from a file whose YAML parses; `runLimited` serves the pairing, `/v1/status` with the problem (source `config`)
+   and `/v1/conversation` with the sentence; the integration's repair `config_problem` (de, en). Run on the test HA:
+   a copy of the test Mira's config with an unknown field started it limited, the repair appeared, a voice turn at
+   the fake Show got the sentence, and once the field was removed Mira started anew and the repair went.
 3. **The assumptions**, each proven first.
 4. **The integration's name** (row 5). PA-05 in pytest; the repair `registry_problem` (de, en) and its removal
    (PA-01 in pytest too). Built 2026-11-23.

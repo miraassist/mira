@@ -52,6 +52,7 @@ def _full(version: Any) -> tuple[int, int, int] | None:
 # When a model fails).
 # "registry": entries of Home Assistant's registries Mira cannot read
 # (docs/spec/parsing.md, PA-01).
+# "config": mira.yaml cannot be read, Mira runs limited (PA-07).
 _PROBLEM_KEYS = {
     "skill": "skill_problem",
     "agent": "agent_problem",
@@ -59,6 +60,7 @@ _PROBLEM_KEYS = {
     "ha": "ha_problem",
     "model": "model_problem",
     "registry": "registry_problem",
+    "config": "config_problem",
 }
 
 
@@ -190,7 +192,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for domain, issue_id in list(registry.issues):
             if (
                 domain == DOMAIN
-                and issue_id.startswith(("skill_", "agent_", "hook_", "ha_", "model_", "registry_"))
+                and issue_id.startswith(("skill_", "agent_", "hook_", "ha_", "model_", "registry_", "config_"))
                 and issue_id not in wanted
             ):
                 ir.async_delete_issue(self.hass, DOMAIN, issue_id)

@@ -54,6 +54,13 @@ func run() error {
 	// mira.yaml is optional: without it the integration sets the service up
 	// (docs/spec/setup.md).
 	p, err := prepare(ctx, *configPath)
+	var bad configError
+	if errors.As(err, &bad) && (len(flag.Args()) == 0 || flag.Arg(0) == "run") {
+		// A mira.yaml that cannot be read or does not fit: Mira starts
+		// limited and says so, instead of ending (docs/spec/parsing.md,
+		// PA-07).
+		return runLimited(ctx, *configPath, bad.err)
+	}
 	if err != nil {
 		return err
 	}

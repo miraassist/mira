@@ -52,8 +52,21 @@ type prepared struct {
 func prepare(ctx context.Context, path string) (prepared, error) {
 	cfg, hasLLM, err := config.LoadOptional(path)
 	if err != nil {
-		return prepared{}, err
+		return prepared{}, configError{err}
 	}
+	return prepareFrom(ctx, path, cfg, hasLLM, true)
+}
+
+// configError is a mira.yaml that cannot be read or does not fit: Mira
+// then starts limited (docs/spec/parsing.md, PA-07).
+type configError struct{ err error }
+
+func (e configError) Error() string { return e.err.Error() }
+func (e configError) Unwrap() error { return e.err }
+
+// prepareFrom is prepare with the config already read; validate is false
+// for the limited start, whose config is only its defaults and addresses.
+func prepareFrom(ctx context.Context, path string, cfg config.Config, hasLLM, validate bool) (prepared, error) {
 	p := prepared{pairing: cfg.Server.Token == "", path: config.ConfigPath(path)}
 	// The Home Assistant app keeps its options next to the data.
 	options := ""
@@ -81,8 +94,10 @@ func prepare(ctx context.Context, path string) (prepared, error) {
 	}
 	p.cfg = setup.Apply(cfg, s)
 	p.haFromSetup = s.HAURL != "" && s.HAToken != ""
-	if err := p.cfg.Validate(); err != nil {
-		return prepared{}, err
+	if validate {
+		if err := p.cfg.Validate(); err != nil {
+			return prepared{}, configError{err}
+		}
 	}
 	p.ready = setup.Ready(p.cfg, hasLLM, s)
 	if cfg.LacksMain() && s.LLM == nil {
