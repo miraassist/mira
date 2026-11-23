@@ -1,11 +1,9 @@
 package clip
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -13,6 +11,7 @@ import (
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 	"github.com/miraassist/mira/internal/tools"
 )
 
@@ -37,13 +36,26 @@ type show struct {
 	// its run ends.
 	started chan struct{}
 	stops   chan struct{}
-	log     bytes.Buffer
+	log     *logcap.Lines
+	// changed is closed and made anew whenever the show is told something,
+	// for settle.
+	changed chan struct{}
+}
+
+// told notes that the show was told something. The caller holds s.mu.
+func (s *show) told() {
+	if s.changed != nil {
+		close(s.changed)
+		s.changed = nil
+	}
 }
 
 func (s *show) player() *Player {
 	s.started, s.stops = make(chan struct{}, 8), make(chan struct{}, 8)
+	log, lines := logcap.Logger()
+	s.log = lines
 	return New(Options{
-		Lang: i18n.DE, Logger: slog.New(slog.NewTextHandler(&s.log, nil)),
+		Lang: i18n.DE, Logger: log,
 		Satellite: func(context.Context, string) Satellite {
 			sat := Satellite{Speaker: "media_player.show_speaker", Entity: "assist_satellite.show", TitleAction: "esphome.show_media_title"}
 			if s.untitle {
@@ -56,6 +68,7 @@ func (s *show) player() *Player {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			s.shown = append(s.shown, action+": "+title+" | "+subtitle+" | "+source)
+			s.told()
 			return nil
 		},
 		Play: func(_ context.Context, speaker, url string) error {
@@ -65,6 +78,7 @@ func (s *show) player() *Player {
 				return s.playErr
 			}
 			s.played = append(s.played, speaker+": "+url)
+			s.told()
 			return nil
 		},
 		Watch: func(ctx context.Context, _ string, _ time.Duration) (End, error) {
@@ -79,6 +93,7 @@ func (s *show) player() *Player {
 		Stop: func(_ context.Context, speaker string) error {
 			s.mu.Lock()
 			s.stopped = append(s.stopped, speaker)
+			s.told()
 			s.mu.Unlock()
 			s.stops <- struct{}{}
 			return nil
@@ -88,25 +103,28 @@ func (s *show) player() *Player {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			s.notes = append(s.notes, thread+": "+text)
+			s.told()
 			return nil
 		},
 	})
 }
 
+// settle waits until cond holds of what the show was told; cond runs
+// under s.mu.
 func (s *show) settle(t *testing.T, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
 	for {
 		s.mu.Lock()
 		ok := cond()
+		if s.changed == nil {
+			s.changed = make(chan struct{})
+		}
+		changed := s.changed
 		s.mu.Unlock()
 		if ok {
 			return
 		}
-		if time.Now().After(deadline) {
-			t.Fatal("not settled")
-		}
-		time.Sleep(5 * time.Millisecond)
+		<-changed
 	}
 }
 
@@ -194,7 +212,7 @@ func TestMQ05_OutsideASatelliteNothingPlays(t *testing.T) {
 	if err != nil || !strings.Contains(out, "nur an einem Satelliten") {
 		t.Errorf("out %q, %v", out, err)
 	}
-	time.Sleep(20 * time.Millisecond)
+	// Refused before anything was handed on after the answer: nothing can follow.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.played)+len(s.shown) != 0 {
@@ -232,7 +250,7 @@ func TestMQ07_AnAddressThatIsNotHTTPIsRefused(t *testing.T) {
 			t.Errorf("%q: no error", u)
 		}
 	}
-	time.Sleep(20 * time.Millisecond)
+	// Refused before anything was handed on after the answer: nothing can follow.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.played) != 0 {
@@ -253,11 +271,8 @@ func TestPlayingWhileTheClipSounds(t *testing.T) {
 		t.Error("not playing at its device, or playing elsewhere")
 	}
 	s.stops <- struct{}{} // "Stopp": the speaker goes paused
-	deadline := time.Now().Add(2 * time.Second)
-	for p.Playing("dev-show") {
-		if time.Now().After(deadline) {
-			t.Fatal("still playing after it stopped")
-		}
-		time.Sleep(5 * time.Millisecond)
+	<-s.log.Await("clip played", "end=stopped")
+	if p.Playing("dev-show") {
+		t.Fatal("still playing after it stopped")
 	}
 }
