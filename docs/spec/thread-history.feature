@@ -88,3 +88,10 @@ Feature: The thread's history (docs/spec/thread-history.md)
     Then the thread is ended at once
     And its history stays until the turn has stored its answer
     And then the summary is written, with the turn's last sentence, and the history is dropped
+
+  @step6
+  Scenario: TV-14 The purge leaves a history a turn runs in
+    Given a turn runs in a history whose time has run out
+    When the expired histories are purged
+    Then that history stays, and the turn stores its answer
+    And the history goes once the time the turn gave it ran out

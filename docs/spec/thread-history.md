@@ -1,6 +1,6 @@
 # The thread's history – Spec
 
-Status 2026-11-23: decided (decisions 1 to 9); steps 1 to 3 built (released), step 5 built; the run at the Show (step 4) is open. Builds on [Threads](threads.md) (Assignment) and
+Status 2026-11-23: decided (decisions 1 to 10); steps 1 to 3 built (released), steps 5 and 6 built; the run at the Show (step 4) is open. Builds on [Threads](threads.md) (Assignment) and
 [Context](context.md) (History and thread). Terms: [Glossary](../glossary.md), Conversation. Scenarios:
 [thread-history.feature](thread-history.feature).
 
@@ -35,6 +35,7 @@ be bound to the thread, not to whoever is recognised.
 | 7 | How long the thread's history lives | As long as the thread is open, not the voice conversation's five minutes |
 | 8 | A rule that makes Mira ask back when an answer refers to something not in her context | **Not built.** It would mend a broken history after the fact; with decision 1 there is no such break |
 | 9 | A thread that ends while a turn still runs in it (2026-11-23, by the maintainer) | Ending is not dropping. A thread that ends (done, cancelled, expired, by a tool, an agent's result, the page) is ended at once; its summary and the drop of its history wait until no turn holds it any more. Every turn that belongs to the thread holds it for its duration; the last one to let go writes the summary and drops the history. Seen on the test Mira (2026-11-23, also in 0.30.1): a remote agent's result ended the thread while the turn that had answered its question still ran in the thread's history; the history was dropped under it, the turn could not store its answer ("FOREIGN KEY constraint failed"), and the satellite said "Something went wrong" |
+| 10 | A history whose time ran out while a turn runs in it (2026-11-23, following from 9) | The purge of expired histories (every 10 minutes) leaves out every history a turn runs in; the turn renews its time as every turn does, and it goes once that ran out. Until now a turn longer than its channel's time (voice: five minutes, a long wait for an agent or a tool) lost its history under it and failed storing its answer, as in decision 9 |
 
 ## Building blocks
 
@@ -170,5 +171,7 @@ Nothing changes: the conversation id comes from Home Assistant as today.
 5. **Dropped only when all are done** (decision 9): `Manager.Hold`, the conversation's turn holding its thread,
    `Manager.end` leaving the summary to the last holder. TV-13 in Go. Built 2026-11-23; run on the test Mira with
    a remote agent answering within the turn.
+6. **A running turn keeps its history from the purge** (decision 10): the engine names the histories turns run in,
+   the purge leaves them out. TV-14 in Go. Built 2026-11-23.
 4. **The run end to end** at the Show: the Matter dialog above with two voices (or one recognised as two), an
    appointment entered and then asked about ("wann war der Termin nochmal?").

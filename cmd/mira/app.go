@@ -1164,7 +1164,8 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-t.C:
-				if n, err := a.store.PurgeExpiredSessions(ctx); err != nil {
+				// A history a turn runs in stays until after the turn.
+				if n, err := a.store.PurgeExpiredSessions(ctx, a.engine.SessionsInUse()...); err != nil {
 					a.log.Warn("session purge failed", "error", err)
 				} else if n > 0 {
 					a.log.Info("expired sessions purged", "count", n)

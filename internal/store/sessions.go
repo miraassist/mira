@@ -149,9 +149,18 @@ func (s *Store) TruncateChatMessagesBefore(ctx context.Context, key string, seq 
 }
 
 // PurgeExpiredSessions removes sessions past their TTL together with their
-// transcripts. Returns how many sessions went.
-func (s *Store) PurgeExpiredSessions(ctx context.Context) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at < ?`, formatTime(s.now()))
+// transcripts, except those keep names: a turn runs in them
+// (docs/spec/thread-history.md, decision 10). Returns how many sessions went.
+func (s *Store) PurgeExpiredSessions(ctx context.Context, keep ...string) (int64, error) {
+	query := `DELETE FROM sessions WHERE expires_at < ?`
+	args := []any{formatTime(s.now())}
+	if len(keep) > 0 {
+		query += ` AND key NOT IN (` + placeholders(len(keep)) + `)`
+		for _, k := range keep {
+			args = append(args, k)
+		}
+	}
+	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return 0, err
 	}

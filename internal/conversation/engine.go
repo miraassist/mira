@@ -1088,6 +1088,21 @@ type sessionLock struct {
 	users int
 }
 
+// inUse are the sessions a turn runs in or waits for.
+func (s *sessionLocks) inUse() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, 0, len(s.held))
+	for key := range s.held {
+		out = append(out, key)
+	}
+	return out
+}
+
+// SessionsInUse are the histories turns run in now: the purge of expired
+// sessions leaves them (docs/spec/thread-history.md, decision 10).
+func (e *Engine) SessionsInUse() []string { return e.sessions.inUse() }
+
 // lock waits until no other turn of the session runs; unlock frees it. A
 // turn that waits says so in the log.
 func (s *sessionLocks) lock(key string, log *slog.Logger) (unlock func()) {
