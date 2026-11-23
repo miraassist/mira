@@ -25,7 +25,7 @@ func (s starlarkTry) Try(ctx context.Context, who, skill, tool string, args json
 	if _, ok := sk.Starlark.Tool(tool); !ok {
 		return ui.TryResult{}, fmt.Errorf("%w: %s %s", ui.ErrNoTool, skill, tool)
 	}
-	if a.oauth == nil || !a.oauth.Connected(skill) {
+	if a.oauth == nil || !sk.StarlarkUsable(a.oauth) {
 		return ui.TryResult{Error: fmt.Sprintf("%s is not connected: connect it on the page Connections", skill)}, nil
 	}
 	res := sk.Starlark.Call(ctx, tool, args, startools.Env{Requester: a.oauth, Writes: sk.WritesTool(tool)})

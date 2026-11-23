@@ -26,7 +26,7 @@ func starlarkTools(s *Skill, files fs.FS, sec *toolsSection, vals map[string]str
 	src, err := fs.ReadFile(files, startools.FileName)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		if s.OAuth != nil && len(s.OAuth.API) > 0 {
+		if len(s.APIPrefixes()) > 0 {
 			return problem("starmissing")
 		}
 		if sec != nil {
@@ -36,7 +36,7 @@ func starlarkTools(s *Skill, files fs.FS, sec *toolsSection, vals map[string]str
 	case err != nil:
 		return problem("unreadable", err)
 	}
-	if s.OAuth == nil || len(s.OAuth.API) == 0 {
+	if len(s.APIPrefixes()) == 0 {
 		return problem("starnoapi")
 	}
 	plain := map[string]string{}
@@ -68,6 +68,24 @@ func starlarkTools(s *Skill, files fs.FS, sec *toolsSection, vals map[string]str
 	return nil
 }
 
+// APIPrefixes are where the skill's Starlark tools may send: under its
+// login's api section, or its own for a skill without a login.
+func (s Skill) APIPrefixes() []APIPrefix {
+	if s.OAuth != nil {
+		return s.OAuth.API
+	}
+	return s.API
+}
+
+// StarlarkUsable reports whether the skill's Starlark tools may run: always for a
+// skill without a login, else while it is connected.
+func (s Skill) StarlarkUsable(conn Connector) bool {
+	if s.OAuth == nil {
+		return conn != nil
+	}
+	return conn != nil && conn.Connected(s.Name)
+}
+
 // WritesTool reports whether the Starlark tool is under tools.writes.
 func (s Skill) WritesTool(name string) bool { return slices.Contains(s.Writes, name) }
 
@@ -75,8 +93,8 @@ func (s Skill) WritesTool(name string) bool { return slices.Contains(s.Writes, n
 func (s Skill) ConfirmsTool(name string) bool { return slices.Contains(s.Confirm, name) }
 
 // Connector is what the Starlark tools need of the connections
-// (oauth.Manager): the requests with the token, and whether a skill is
-// connected.
+// (oauth.Manager): the requests (with the token of a skill with a login),
+// and whether a skill is connected.
 type Connector interface {
 	startools.Requester
 	Connected(skill string) bool
@@ -84,7 +102,8 @@ type Connector interface {
 
 // StarlarkTools are the skills' tools in tools.star (docs/spec/api-tools.md):
 // tools of their skill, offered as its MCP tools are (after skill_open, to
-// its schedules and agents) and only while it is connected. Their answers
+// its schedules and agents); a skill's with a login only while it is
+// connected. Their answers
 // are third-party text; a tool under writes is no read-only tool and asks
 // first after third-party text, one under confirm always.
 func StarlarkTools(list []Skill, conn Connector, log *slog.Logger) []tools.InternalTool {
@@ -95,7 +114,7 @@ func StarlarkTools(list []Skill, conn Connector, log *slog.Logger) []tools.Inter
 			continue
 		}
 		f.SetLogger(log)
-		skill := sk.Name
+		skill, sk := sk.Name, sk
 		for _, t := range f.Tools {
 			name := t.Name
 			writes := sk.WritesTool(name)
@@ -103,7 +122,7 @@ func StarlarkTools(list []Skill, conn Connector, log *slog.Logger) []tools.Inter
 				Name: skill + "__" + name, Description: t.Description, Schema: t.Schema,
 				ReadOnly: !writes, WebContent: true, AskAfterWeb: writes, Confirm: sk.ConfirmsTool(name),
 				Skill: skill, Background: true,
-				Enabled: func() bool { return conn != nil && conn.Connected(skill) },
+				Enabled: func() bool { return sk.StarlarkUsable(conn) },
 				Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
 					res := f.Call(ctx, name, inv.Args, startools.Env{Requester: conn, Writes: writes})
 					if res.Err != nil {

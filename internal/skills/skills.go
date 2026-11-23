@@ -109,6 +109,10 @@ type Skill struct {
 	// OAuth is the skill's login at a service, with its settings filled in
 	// (docs/spec/oauth.md); nil for none.
 	OAuth *OAuth
+	// API are the web API's prefixes of a skill without a login
+	// (metadata.mira.api, docs/spec/api-tools.md, decision 8); its tools
+	// send no token. A skill with a login has them under OAuth.
+	API []APIPrefix
 	// Starlark are the skill's tools in tools.star (docs/spec/api-tools.md);
 	// nil for none. Writes and Confirm are its tools under tools.writes and
 	// tools.confirm in SKILL.md.
@@ -392,6 +396,7 @@ type frontmatter struct {
 			MCP       *config.MCPServer      `yaml:"mcp"`
 			Program   *programSection        `yaml:"program"`
 			OAuth     *OAuth                 `yaml:"oauth"`
+			API       []APIPrefix            `yaml:"api"`
 			Tools     *toolsSection          `yaml:"tools"`
 			Language  string                 `yaml:"language"`
 			Chapter   string                 `yaml:"chapter"`
@@ -716,6 +721,20 @@ func load(root Root, name string, values map[string]any, opts Options) (Skill, *
 			return Skill{}, p
 		}
 		s.OAuth = &o
+	}
+	if len(m.API) > 0 {
+		if s.OAuth != nil {
+			return Skill{}, problem("apitwice")
+		}
+		all := func(v string) string {
+			return strings.TrimSpace(placeholder.ReplaceAllStringFunc(v, func(x string) string {
+				return vals[placeholder.FindStringSubmatch(x)[1]]
+			}))
+		}
+		if p := apiSection(m.API, all); p != nil {
+			return Skill{}, p
+		}
+		s.API = m.API
 	}
 	if m.MCP != nil {
 		oauth := strings.TrimSpace(m.MCP.Token) == TokenOAuth

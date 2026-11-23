@@ -28,6 +28,7 @@ var builtSteps = map[string][]int{
 	"SM": {1, 2},                       // docs/spec/skill-mcp.md
 	"MX": {1, 2},                       // docs/spec/mcp-connections.md
 	"EN": {1},                          // docs/spec/endings.md
+	"BO": {1, 2},                       // docs/spec/boerse.md
 	"PA": {1},                          // docs/spec/parsing.md; step 4 is tested in pytest
 	"SP": {3},                          // docs/spec/speaker-id.md
 	"BK": {1},                          // docs/spec/backup.md; steps 2 and 3 are tested in pytest

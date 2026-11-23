@@ -84,10 +84,20 @@ func oauthSection(name string, o OAuth, vals map[string]string) (OAuth, *Problem
 		params[k] = all(v)
 	}
 	o.AuthorizeParams = params
-	for i, a := range o.API {
+	if p := apiSection(o.API, all); p != nil {
+		return o, p
+	}
+	o.ClientID, o.ClientSecret = vals[SettingClientID], vals[SettingClientSecret]
+	return o, nil
+}
+
+// apiSection fills the settings into api prefixes and checks them: https
+// only, GET when no method is named (docs/spec/api-tools.md).
+func apiSection(list []APIPrefix, all func(string) string) *Problem {
+	for i, a := range list {
 		a.URL = all(a.URL)
 		if !isHTTPS(a.URL) {
-			return o, problem("oauthapi", a.URL)
+			return problem("oauthapi", a.URL)
 		}
 		if len(a.Methods) == 0 {
 			a.Methods = []string{"GET"}
@@ -95,14 +105,13 @@ func oauthSection(name string, o OAuth, vals map[string]string) (OAuth, *Problem
 		for j, m := range a.Methods {
 			m = strings.ToUpper(strings.TrimSpace(m))
 			if !apiMethods[m] {
-				return o, problem("oauthmethod", m, a.URL)
+				return problem("oauthmethod", m, a.URL)
 			}
 			a.Methods[j] = m
 		}
-		o.API[i] = a
+		list[i] = a
 	}
-	o.ClientID, o.ClientSecret = vals[SettingClientID], vals[SettingClientSecret]
-	return o, nil
+	return nil
 }
 
 func isHTTPS(s string) bool {

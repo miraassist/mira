@@ -348,7 +348,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.toolsChanged = make(chan struct{}, 1)
 	// The skills' connections (docs/spec/oauth.md): a change connects or
 	// drops the skill's server at once.
-	a.oauth, err = oauth.New(ctx, oauth.Options{Store: a.store, Secrets: config.DefaultSecrets(), Skills: all,
+	a.oauth, err = oauth.New(ctx, oauth.Options{Store: a.store, Secrets: config.DefaultSecrets(), Skills: all, Version: version,
 		Logger: a.log, OnChange: func(skill string) {
 			if a.mcp != nil {
 				go a.mcp.Reconnect(context.WithoutCancel(ctx), skill)

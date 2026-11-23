@@ -19,7 +19,8 @@ const (
 
 // Request makes one request of a skill's Starlark tool
 // (docs/spec/api-tools.md): only to an address below one of the skill's api
-// prefixes that allows the method, with the connection's token; the
+// prefixes that allows the method, with the connection's token (none for a
+// skill without a login, decision 8) and Mira's name (decision 16); the
 // service's status and body (at most 2 MB).
 func (m *Manager) Request(ctx context.Context, skill, method, raw string, body []byte) (int, []byte, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
@@ -44,7 +45,11 @@ func (m *Manager) Request(ctx context.Context, skill, method, raw string, body [
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json, text/plain;q=0.9, */*;q=0.5")
-	hc := &http.Client{Transport: m.Transport(skill, m.http.Transport)}
+	req.Header.Set("User-Agent", m.agent)
+	hc := m.http
+	if m.logins[skill] != nil {
+		hc = &http.Client{Transport: m.Transport(skill, m.http.Transport)}
+	}
 	resp, err := hc.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -57,13 +62,14 @@ func (m *Manager) Request(ctx context.Context, skill, method, raw string, body [
 	return resp.StatusCode, data, nil
 }
 
-// allows reports whether an api prefix of the skill takes method at u.
+// allows reports whether an api prefix of the skill takes method at u: of
+// its login, or its own for a skill without one.
 func (m *Manager) allows(skill, method string, u *url.URL) bool {
-	o := m.logins[skill]
-	if o == nil {
-		return false
+	list := m.plain[skill]
+	if o := m.logins[skill]; o != nil {
+		list = o.API
 	}
-	for _, a := range o.API {
+	for _, a := range list {
 		if Below(u, a.URL) && slices.Contains(a.Methods, method) {
 			return true
 		}

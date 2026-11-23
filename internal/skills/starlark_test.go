@@ -83,7 +83,13 @@ func TestSL05_AnAPISectionAndToolsStarGoTogether(t *testing.T) {
 	loaded, ps := dienst(t, dienstOAuth, "")
 	// When the skill loads
 	// Then the skill does not start and its problem says which is missing
-	if len(loaded) != 0 || !strings.Contains(problemText(ps), "has an api section under oauth but no tools.star") {
+	if len(loaded) != 0 || !strings.Contains(problemText(ps), "has an api section but no tools.star") {
+		t.Errorf("%d %s", len(loaded), problemText(ps))
+	}
+	// An api section under mira beside a login's is a problem
+	// (docs/spec/api-tools.md, decision 8).
+	loaded, ps = dienst(t, "    api:\n      - url: https://dienst.example/api/\n"+dienstOAuth, dienstTools)
+	if len(loaded) != 0 || !strings.Contains(problemText(ps), "a skill with a login names it only under oauth") {
 		t.Errorf("%d %s", len(loaded), problemText(ps))
 	}
 	// Or a tools.star and no api section

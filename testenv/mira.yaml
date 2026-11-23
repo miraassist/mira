@@ -161,3 +161,4 @@ skills:
   x: {client_id: cnhCc1JBNFFKa1NkSUlwcXBxMWg6MTpjaQ, client_secret: '${MIRA_SKILL_X_CLIENT_SECRET}'}
   strava: {client_id: '298594', client_secret: '${STRAVA_CLIENT_SECRET}'}
   flug: {}
+  boerse: {}

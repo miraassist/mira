@@ -98,6 +98,9 @@ type Options struct {
 	// OnChange runs after a skill was connected, disconnected or its
 	// connection expired; it must not block.
 	OnChange func(skill string)
+	// Version names Mira in the requests of the Starlark tools
+	// (User-Agent Mira/<version>, docs/spec/api-tools.md, decision 16).
+	Version string
 }
 
 // Manager holds the connections of the enabled skills.
@@ -110,7 +113,11 @@ type Manager struct {
 	onChange func(string)
 
 	logins map[string]*skills.OAuth
-	mcp    map[string]string // the skill's MCP server address, where the token may go
+	// plain are the api prefixes of the skills without a login, whose
+	// tools send no token (docs/spec/api-tools.md, decision 8).
+	plain map[string][]skills.APIPrefix
+	agent string
+	mcp   map[string]string // the skill's MCP server address, where the token may go
 	// remote are the addresses of the skill's remote agents, where the
 	// token may go too.
 	remote map[string][]string
@@ -124,7 +131,7 @@ type Manager struct {
 // no connection, and the log says why.
 func New(ctx context.Context, o Options) (*Manager, error) {
 	m := &Manager{st: o.Store, sec: o.Secrets, http: o.HTTP, now: o.Now, log: o.Logger, onChange: o.OnChange,
-		logins: map[string]*skills.OAuth{}, mcp: map[string]string{}, remote: map[string][]string{}, tokens: map[string]Token{}}
+		logins: map[string]*skills.OAuth{}, plain: map[string][]skills.APIPrefix{}, agent: "Mira/" + o.Version, mcp: map[string]string{}, remote: map[string][]string{}, tokens: map[string]Token{}}
 	if m.http == nil {
 		m.http = http.DefaultClient
 	}
@@ -136,6 +143,9 @@ func New(ctx context.Context, o Options) (*Manager, error) {
 	}
 	for _, sk := range o.Skills {
 		if sk.OAuth == nil {
+			if len(sk.API) > 0 {
+				m.plain[sk.Name] = sk.API
+			}
 			continue
 		}
 		m.logins[sk.Name] = sk.OAuth
