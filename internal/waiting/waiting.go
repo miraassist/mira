@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 )
@@ -61,6 +62,8 @@ type Options struct {
 	// Idle is how long the wait waits for the satellite to be idle, a
 	// safety net (30 s).
 	Idle time.Duration
+	// Clock is what Idle waits on; nil is the real one.
+	Clock clock.Clock
 	// HasAction says whether Home Assistant has an action.
 	HasAction func(ctx context.Context, domain, service string) bool
 	// BaseURL is Home Assistant's address as satellites reach it.
@@ -173,6 +176,7 @@ func (w *Waiting) Start(ctx context.Context, thread string) {
 			w.untilIdle(ctx, r, sat)
 		}
 		if r.isStopped() {
+			w.log.Debug("the wait ended before it was shown", "satellite", r.node, "thread", r.thread)
 			return
 		}
 		if r.kind == video {
@@ -198,12 +202,12 @@ func (w *Waiting) untilIdle(ctx context.Context, r *run, sat string) {
 		return
 	}
 	defer unwatch()
-	t := time.NewTimer(w.o.Idle)
+	t := clock.Or(w.o.Clock).NewTimer(w.o.Idle)
 	defer t.Stop()
 	select {
 	case <-idle:
 	case <-r.done:
-	case <-t.C:
+	case <-t.C():
 		w.log.Warn("the satellite did not get idle; the wait shows anyway", "satellite", sat, "after", w.o.Idle)
 	}
 }

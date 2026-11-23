@@ -1,17 +1,17 @@
 package waiting
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"log/slog"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 )
 
 // fakeHA records the actions called and lets a test push states to the
@@ -22,6 +22,30 @@ type fakeHA struct {
 	states   map[string]string
 	watchers map[string][]func(string)
 	nextID   int
+	// changed is closed and made anew with every call, for awaitCalls.
+	changed chan struct{}
+}
+
+// awaitCalls waits until n calls start with prefix.
+func (f *fakeHA) awaitCalls(prefix string, n int) {
+	for {
+		f.mu.Lock()
+		if f.changed == nil {
+			f.changed = make(chan struct{})
+		}
+		changed := f.changed
+		got := 0
+		for _, c := range f.calls {
+			if strings.HasPrefix(c, prefix) {
+				got++
+			}
+		}
+		f.mu.Unlock()
+		if got >= n {
+			return
+		}
+		<-changed
+	}
 }
 
 func newFakeHA() *fakeHA {
@@ -36,6 +60,10 @@ func (f *fakeHA) record(domain, service string, data map[string]any, target *haw
 	}
 	f.mu.Lock()
 	f.calls = append(f.calls, call)
+	if f.changed != nil {
+		close(f.changed)
+		f.changed = nil
+	}
 	f.mu.Unlock()
 }
 
@@ -100,40 +128,10 @@ func (f *fakeHA) callsOf(prefix string) []string {
 	return out
 }
 
-// waitFor waits until cond holds (the replays run in goroutines).
-func waitFor(t *testing.T, what string, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for %s", what)
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-}
-
-// lockedBuf is a log the replays may write to while the test reads it.
-type lockedBuf struct {
-	mu sync.Mutex
-	b  bytes.Buffer
-}
-
-func (l *lockedBuf) Write(p []byte) (int, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.b.Write(p)
-}
-
-func (l *lockedBuf) String() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.b.String()
-}
-
-func newWaiting(ha *fakeHA, actions ...string) (*Waiting, *lockedBuf) {
-	logs := &lockedBuf{}
+func newWaiting(ha *fakeHA, actions ...string) (*Waiting, *logcap.Lines) {
+	log, logs := logcap.Logger()
 	w := New(Options{
-		Lang: i18n.DE, Logger: slog.New(slog.NewTextHandler(logs, nil)), HA: ha,
+		Lang: i18n.DE, Logger: log, HA: ha, Clock: clock.NewFake(time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC)),
 		Device: func(context.Context, string) string { return "dev" },
 		Node:   func(string) string { return "show" },
 		HasAction: func(_ context.Context, domain, service string) bool {
@@ -157,7 +155,7 @@ func TestWA01_PairingShowsTheWaitOnTheShow(t *testing.T) {
 	ha.states["sensor.show_video_state"] = "idle"
 	w, _ := newWaiting(ha, "esphome.show_play_video")
 	w.Start(context.Background(), thread)
-	waitFor(t, "the video", func() bool { return len(ha.callsOf("esphome.show_play_video")) == 1 })
+	ha.awaitCalls("esphome.show_play_video", 1)
 	plays := ha.callsOf("esphome.show_play_video")
 	if len(plays) != 1 || !strings.Contains(plays[0], "http://ha:8123/api/mira/panel/ui/videos/wait-de.mp4") {
 		t.Fatalf("plays = %v", plays)
@@ -166,12 +164,11 @@ func TestWA01_PairingShowsTheWaitOnTheShow(t *testing.T) {
 	ha.push("sensor.show_video_state", "loading")
 	ha.push("sensor.show_video_state", "playing")
 	ha.push("sensor.show_video_state", "idle")
-	waitFor(t, "the replay", func() bool { return len(ha.callsOf("esphome.show_play_video")) == 2 })
+	ha.awaitCalls("esphome.show_play_video", 2)
 	// Paused by a turn and playing again is no end.
 	ha.push("sensor.show_video_state", "playing")
 	ha.push("sensor.show_video_state", "paused")
-	ha.push("sensor.show_video_state", "playing")
-	time.Sleep(20 * time.Millisecond)
+	ha.push("sensor.show_video_state", "playing") // handled when push returns: a replay is decided there
 	if n := len(ha.callsOf("esphome.show_play_video")); n != 2 {
 		t.Errorf("plays after a pause = %d, want 2", n)
 	}
@@ -183,15 +180,14 @@ func TestWA02_TheDeviceTurnsUpAndTheVideoStops(t *testing.T) {
 	ha.states["sensor.show_video_state"] = "idle"
 	w, _ := newWaiting(ha, "esphome.show_play_video")
 	w.Start(context.Background(), thread)
-	waitFor(t, "the video", func() bool { return len(ha.callsOf("esphome.show_play_video")) == 1 })
+	ha.awaitCalls("esphome.show_play_video", 1)
 	ha.push("sensor.show_video_state", "playing")
 	w.Stop(context.Background(), thread)
 	if got := ha.callsOf("esphome.show_stop_video"); len(got) != 1 {
 		t.Fatalf("stops = %v", got)
 	}
 	// Its end after the stop plays nothing again.
-	ha.push("sensor.show_video_state", "idle")
-	time.Sleep(20 * time.Millisecond)
+	ha.push("sensor.show_video_state", "idle") // handled when push returns: a replay is decided there
 	if n := len(ha.callsOf("esphome.show_play_video")); n != 1 {
 		t.Errorf("plays = %d after the stop, want 1", n)
 	}
@@ -203,7 +199,7 @@ func TestWA03_CancellingStopsTheVideo(t *testing.T) {
 	ha := newFakeHA()
 	w, _ := newWaiting(ha, "esphome.show_timer_start_silent")
 	w.Start(context.Background(), thread)
-	waitFor(t, "the timer", func() bool { return len(ha.callsOf("esphome.show_timer_start_silent")) == 1 })
+	ha.awaitCalls("esphome.show_timer_start_silent", 1)
 	starts := ha.callsOf("esphome.show_timer_start_silent")
 	if len(starts) != 1 || !strings.Contains(starts[0], `"color":"#40E0D0"`) || !strings.Contains(starts[0], `"duration":"60s"`) {
 		t.Fatalf("timer = %v", starts)
@@ -213,7 +209,7 @@ func TestWA03_CancellingStopsTheVideo(t *testing.T) {
 	// A stop while the start is still answering cancels the timer once its
 	// id is there (waiting.go, timer): wait for the cancel, not right after
 	// Stop.
-	waitFor(t, "the cancel", func() bool { return len(ha.callsOf("esphome.show_timer_cancel")) == 1 })
+	ha.awaitCalls("esphome.show_timer_cancel", 1)
 	if got := ha.callsOf("esphome.show_timer_cancel"); len(got) != 1 || !strings.Contains(got[0], `"id":"local:t1"`) {
 		t.Fatalf("cancel = %v", got)
 	}
@@ -223,12 +219,12 @@ func TestWA03_TheTimerRunsAgainWhileTheThreadWaits(t *testing.T) {
 	ha := newFakeHA()
 	w, _ := newWaiting(ha, "esphome.show_timer_start_silent")
 	w.Start(context.Background(), thread)
-	waitFor(t, "the timer", func() bool { return len(ha.callsOf("esphome.show_timer_start_silent")) == 1 })
+	ha.awaitCalls("esphome.show_timer_start_silent", 1)
 	// Not there yet: no restart.
 	ha.push("sensor.show_timers", "")
 	ha.push("sensor.show_timers", "Mira wartet at 4:21 PM")
 	ha.push("sensor.show_timers", "")
-	waitFor(t, "the timer again", func() bool { return len(ha.callsOf("esphome.show_timer_start_silent")) == 2 })
+	ha.awaitCalls("esphome.show_timer_start_silent", 2)
 	w.Stop(context.Background(), thread)
 }
 
@@ -251,7 +247,7 @@ func TestWA05_TheShowsVideoSwitchIsTurnedOn(t *testing.T) {
 	ha.states["sensor.show_video_error"] = "video: videos are off on this device"
 	w, logs := newWaiting(ha, "esphome.show_play_video")
 	w.Start(context.Background(), thread)
-	waitFor(t, "the video", func() bool { return len(ha.callsOf("esphome.show_play_video")) == 1 })
+	ha.awaitCalls("esphome.show_play_video", 1)
 	on := ha.callsOf("switch.turn_on")
 	if len(on) != 1 || !strings.Contains(on[0], "switch.show_video") {
 		t.Fatalf("switch = %v", on)
@@ -272,10 +268,10 @@ func TestWaitingVideoThatDoesNotLoadIsNotPlayedAgain(t *testing.T) {
 	ha.states["sensor.show_video_state"] = "idle"
 	w, logs := newWaiting(ha, "esphome.show_play_video")
 	w.Start(context.Background(), thread)
-	waitFor(t, "the video", func() bool { return len(ha.callsOf("esphome.show_play_video")) == 1 })
+	ha.awaitCalls("esphome.show_play_video", 1)
 	ha.push("sensor.show_video_state", "loading")
 	ha.push("sensor.show_video_state", "idle")
-	waitFor(t, "the log", func() bool { return strings.Contains(logs.String(), "waiting video refused") })
+	<-logs.Await("waiting video refused")
 	if n := len(ha.callsOf("esphome.show_play_video")); n != 1 {
 		t.Errorf("plays = %d, want 1", n)
 	}
@@ -299,24 +295,24 @@ func TestWA06_TheWaitShowsOnceTheSatelliteIsIdleAfterTheAnswer(t *testing.T) {
 	w.o.Satellite = func(string) string { return "assist_satellite.show_assist_satellit" }
 	w.Start(context.Background(), thread)
 	ha.push("assist_satellite.show_assist_satellit", "responding")
-	time.Sleep(30 * time.Millisecond)
+	<-w.o.Clock.(*clock.Fake).AwaitWaiters(1) // it waits for the satellite to be idle
 	if n := len(ha.callsOf("esphome.show_timer_start_silent")); n != 0 {
 		t.Fatalf("the timer started while the satellite answers (%d)", n)
 	}
 	ha.push("assist_satellite.show_assist_satellit", "idle")
-	waitFor(t, "the timer after the answer", func() bool { return len(ha.callsOf("esphome.show_timer_start_silent")) == 1 })
+	ha.awaitCalls("esphome.show_timer_start_silent", 1)
 	w.Stop(context.Background(), thread)
 }
 
 func TestWA06_StoppedBeforeTheSatelliteIsIdleShowsNothing(t *testing.T) {
 	ha := newFakeHA()
 	ha.states["assist_satellite.show_assist_satellit"] = "responding"
-	w, _ := newWaiting(ha, "esphome.show_timer_start_silent")
+	w, logs := newWaiting(ha, "esphome.show_timer_start_silent")
 	w.o.Satellite = func(string) string { return "assist_satellite.show_assist_satellit" }
 	w.Start(context.Background(), thread)
 	w.Stop(context.Background(), thread)
 	ha.push("assist_satellite.show_assist_satellit", "idle")
-	time.Sleep(30 * time.Millisecond)
+	<-logs.Await("the wait ended before it was shown")
 	if n := len(ha.callsOf("esphome.show_timer_start_silent")); n != 0 {
 		t.Errorf("the timer started after the stop (%d)", n)
 	}
