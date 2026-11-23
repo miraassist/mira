@@ -797,7 +797,17 @@ metadata:
 
 ### A skill brings tools in Starlark
 
-Some skills need no code. Others bring scripts, blueprints or automations for Home Assistant, a program, or tools in Starlark, a small language that looks like Python. This way a skill with a sign-in gets fixed tools for its service's web API, as with an MCP server, without you writing a server: `strava` and `youtube` do it so.
+Some skills need no code. Others bring scripts, blueprints or automations for Home Assistant, a program, or tools in Starlark, a small language that looks like Python. This way a skill gets fixed tools for a service's web API, as with an MCP server, without you writing a server: `strava` and `youtube` with a sign-in, `boerse` without.
+
+Where the tools may go is in the section `api`: for a skill with a sign-in in the section `oauth` (above), for one without a sign-in directly under `mira`:
+
+```yaml
+metadata:
+  mira:
+    api:
+      - url: https://query1.finance.yahoo.com/
+        methods: [GET]                         # without it only GET
+```
 
 The tools are in the file `tools.star` in the skill's folder. Every function whose name does not begin with `_` is a tool `<skill>__<function>`; functions with `_` are helpers. What the tool does and which values it needs is in the function's docstring:
 
@@ -821,7 +831,7 @@ def suche(thema, tage = 7):
 ```
 
 - **The docstring:** the text before `Args:` is the description the model reads. Under `Args:` each value with its type: `str`, `int`, `float`, `bool` or `list` (a list of texts). A value with a default is optional. Mira checks the model's values before the function runs.
-- **What a function can do:** `api.get(address, params = {...})` fetches from the service, with the connection's token and only to the addresses under `api` in the section `oauth`; Mira puts the values into the address correctly, leaves out `None`, makes a time an ISO time. The answer has `status`, `ok`, `text` and `json`. Besides there are `json`, `time`, `math`, the skill's settings as `settings` (only those that are not secret), `fail("…")` for a message to the model and `print(…)` for the log. Nothing else: no files, no other network.
+- **What a function can do:** `api.get(address, params = {...})` fetches from the service, only to the addresses under `api`, for a skill with a sign-in with the connection's token; every request names itself `Mira/<version>`; Mira puts the values into the address correctly, leaves out `None`, makes a time an ISO time. The answer has `status`, `ok`, `text` and `json`. Besides there are `json`, `time`, `math`, the skill's settings as `settings` (only those that are not secret), `fail("…")` for a message to the model and `print(…)` for the log. Nothing else: no files, no other network.
 - **Writing:** `api.post`, `api.put`, `api.patch` and `api.delete` are only for tools the skill names under `tools:` → `writes:`; a writing tool asks first when third-party text came before, one under `confirm:` always asks.
 - **Limits:** a tool may run at most 60 seconds, each request 20. A call that needs more than 256 MB of memory ends; a tool's answer above 1 MB is refused.
 - **All the details** are in the "Reference: tools in Starlark" right after.
@@ -862,7 +872,7 @@ def suche(thema, tage = 7, sprachen = ["de"]):
 
 | Name | What it is |
 |---|---|
-| `api.get(address, params = {})` | a request to the service, with the connection's token |
+| `api.get(address, params = {})` | a request to the service, for a skill with a sign-in with the connection's token |
 | `api.delete(address, params = {})` | the same, deleting; only for tools under `writes` |
 | `api.post`, `api.put`, `api.patch` `(address, params = {}, body = …)` | writing, `body` goes along as JSON; only for tools under `writes` |
 | `json.encode`, `json.decode`, `json.indent` | JSON |
@@ -1219,6 +1229,14 @@ The data comes from Flightradar24 through an integration from HACS. It needs no 
 **Setting it up:**
 1. In HACS install the integration **Flightradar24**, restart Home Assistant and add it under Settings → Devices & services → Add integration (place and radius do not matter for Mira).
 2. Switch on the skill `flug`: Mira → Capabilities → Skills → flug → **Switch on**. At her next start Mira creates the script "Mira Flug" and the automation "Mira: verfolgter Flug gelandet". If any of it fails, Settings → Repairs shows "The skill flug is not running" with the reason. The script is meant for Mira only: she uses it when a question is about a flight. If you expose it to Assist yourself, Mira and Assist have it at every question, also without the skill and its instructions.
+
+## Share prices
+
+"Wie steht die SAP-Aktie?" – "Wo steht der DAX?" – "Was macht Siemens Energy heute?" Mira says the price, the change since yesterday and when the price is from: "Die SAP-Aktie steht bei 186,34 Euro, ein Plus von 1,5 Prozent. Stand gestern, 17:39 Uhr." It works for shares, funds and indices; for German shares she takes the price on Xetra. When a name fits several ("die Deutsche"), she asks which one you mean. She gives no advice to buy or sell. The skill speaks German.
+
+The prices come from Yahoo Finance and may be up to 15 minutes old. Yahoo offers no official access for this: the query may change or not work for a while; then Mira says the prices cannot be fetched right now.
+
+**Setting it up:** Switch on the skill `boerse`: Mira → Capabilities → Skills → boerse → **Switch on**. It needs no account and no key.
 
 ## Adding new devices
 

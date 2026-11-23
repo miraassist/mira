@@ -802,7 +802,17 @@ metadata:
 
 ### Ein Skill bringt Werkzeuge in Starlark mit
 
-Manche Skills kommen ohne Code aus. Andere bringen Skripte, Blueprints oder Automationen für Home Assistant mit, ein Programm, oder Werkzeuge in Starlark, einer kleinen Sprache, die aussieht wie Python. So bekommt ein Skill mit Anmeldung feste Werkzeuge für die Web-API seines Dienstes, wie bei einem MCP-Server, ohne dass du einen Server schreibst: `strava` und `youtube` machen es so.
+Manche Skills kommen ohne Code aus. Andere bringen Skripte, Blueprints oder Automationen für Home Assistant mit, ein Programm, oder Werkzeuge in Starlark, einer kleinen Sprache, die aussieht wie Python. So bekommt ein Skill feste Werkzeuge für die Web-API eines Dienstes, wie bei einem MCP-Server, ohne dass du einen Server schreibst: `strava` und `youtube` mit Anmeldung, `boerse` ohne.
+
+Wohin die Werkzeuge dürfen, steht im Abschnitt `api`: bei einem Skill mit Anmeldung im Abschnitt `oauth` (oben), bei einem ohne Anmeldung direkt unter `mira`:
+
+```yaml
+metadata:
+  mira:
+    api:
+      - url: https://query1.finance.yahoo.com/
+        methods: [GET]                         # ohne Angabe nur GET
+```
 
 Die Werkzeuge stehen in der Datei `tools.star` im Ordner des Skills. Jede Funktion, deren Name nicht mit `_` beginnt, ist ein Werkzeug `<skill>__<funktion>`; Funktionen mit `_` sind Helfer. Was das Werkzeug tut und welche Angaben es braucht, steht im Docstring der Funktion:
 
@@ -826,7 +836,7 @@ def suche(thema, tage = 7):
 ```
 
 - **Der Docstring:** Der Text vor `Args:` ist die Beschreibung, die das Modell liest. Unter `Args:` steht jede Angabe mit ihrem Typ: `str`, `int`, `float`, `bool` oder `list` (eine Liste von Texten). Eine Angabe mit Standardwert ist freiwillig. Mira prüft die Angaben des Modells, bevor die Funktion läuft.
-- **Was eine Funktion kann:** `api.get(adresse, params = {...})` holt etwas vom Dienst, mit dem Token der Verbindung und nur an die Adressen unter `api` im Abschnitt `oauth`; Mira setzt die Werte richtig in die Adresse, `None` lässt sie weg, eine Zeit wird ISO-Zeit. Die Antwort hat `status`, `ok`, `text` und `json`. Dazu gibt es `json`, `time`, `math`, die Einstellungen des Skills als `settings` (nur die nicht geheimen), `fail("…")` für eine Meldung an das Modell und `print(…)` fürs Log. Sonst nichts: keine Dateien, kein anderes Netz.
+- **Was eine Funktion kann:** `api.get(adresse, params = {...})` holt etwas vom Dienst, nur an die Adressen unter `api`, bei einem Skill mit Anmeldung mit dem Token der Verbindung; jede Anfrage nennt sich `Mira/<Version>`; Mira setzt die Werte richtig in die Adresse, `None` lässt sie weg, eine Zeit wird ISO-Zeit. Die Antwort hat `status`, `ok`, `text` und `json`. Dazu gibt es `json`, `time`, `math`, die Einstellungen des Skills als `settings` (nur die nicht geheimen), `fail("…")` für eine Meldung an das Modell und `print(…)` fürs Log. Sonst nichts: keine Dateien, kein anderes Netz.
 - **Schreiben:** `api.post`, `api.put`, `api.patch` und `api.delete` dürfen nur Werkzeuge, die der Skill unter `tools:` → `writes:` nennt; ein schreibendes Werkzeug fragt nach, wenn vorher fremder Text im Spiel war, eins unter `confirm:` fragt immer.
 - **Grenzen:** Ein Werkzeug darf höchstens 60 Sekunden laufen, jede Anfrage 20. Braucht ein Aufruf mehr als 256 MB Speicher, endet er; eine Antwort des Werkzeugs über 1 MB wird abgewiesen.
 - **Alles im Einzelnen** steht in der „Referenz: Werkzeuge in Starlark“ gleich danach.
@@ -867,7 +877,7 @@ def suche(thema, tage = 7, sprachen = ["de"]):
 
 | Name | Was es ist |
 |---|---|
-| `api.get(adresse, params = {})` | eine Anfrage an den Dienst, mit dem Token der Verbindung |
+| `api.get(adresse, params = {})` | eine Anfrage an den Dienst, bei einem Skill mit Anmeldung mit dem Token der Verbindung |
 | `api.delete(adresse, params = {})` | ebenso, löschen; nur für Werkzeuge unter `writes` |
 | `api.post`, `api.put`, `api.patch` `(adresse, params = {}, body = …)` | schreiben, `body` geht als JSON mit; nur für Werkzeuge unter `writes` |
 | `json.encode`, `json.decode`, `json.indent` | JSON |
@@ -1231,6 +1241,14 @@ Die Daten kommen von Flightradar24 über eine Integration aus HACS. Sie braucht 
 **Einrichten:**
 1. In HACS die Integration **Flightradar24** installieren, Home Assistant neu starten und sie unter Einstellungen → Geräte & Dienste → Integration hinzufügen einrichten (Ort und Umkreis sind für Mira egal).
 2. Den Skill `flug` einschalten: Mira → Fähigkeiten → Skills → flug → **Einschalten**. Beim nächsten Start legt Mira das Skript „Mira Flug“ und die Automation „Mira: verfolgter Flug gelandet“ an. Klappt etwas davon nicht, steht unter Einstellungen → Reparaturen „Der Skill flug läuft nicht“ mit dem Grund. Das Skript ist nur für Mira gedacht: Sie nutzt es, sobald es um einen Flug geht. Gibst du es selbst für Assist frei, steht es Mira und Assist bei jeder Frage zur Verfügung, auch ohne den Skill und seine Anleitung.
+
+## Börsenkurse
+
+„Wie steht die SAP-Aktie?“ – „Wo steht der DAX?“ – „Was macht Siemens Energy heute?“ Mira sagt den Kurs, die Veränderung seit gestern und wann der Kurs gilt: „Die SAP-Aktie steht bei 186,34 Euro, ein Plus von 1,5 Prozent. Stand gestern, 17:39 Uhr.“ Das geht für Aktien, Fonds und Indizes; bei deutschen Aktien nimmt sie den Kurs von Xetra. Passt ein Name zu mehreren („die Deutsche“), fragt sie nach, welche du meinst. Ratschläge zum Kaufen oder Verkaufen gibt sie nicht.
+
+Die Kurse kommen von Yahoo Finance und können bis zu 15 Minuten alt sein. Yahoo bietet dafür keinen offiziellen Zugang: Die Abfrage kann sich ändern oder eine Zeit lang nicht gehen; dann sagt Mira, dass die Kurse gerade nicht abrufbar sind.
+
+**Einrichten:** Den Skill `boerse` einschalten: Mira → Fähigkeiten → Skills → boerse → **Einschalten**. Ein Konto oder einen Schlüssel braucht er nicht.
 
 ## Neue Geräte einbinden
 
