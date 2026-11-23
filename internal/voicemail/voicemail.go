@@ -471,6 +471,7 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 			played := m.o.Played(ctx, sat.Speaker, limit)
 			m.setCurrent(this, "")
 			if ctx.Err() != nil {
+				m.log.Debug("a playback of the answering machine ended with its run", "message", p.msg.ID, "thread", threadID)
 				return
 			}
 			if !played {

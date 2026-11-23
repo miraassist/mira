@@ -13,6 +13,7 @@ import (
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 	"github.com/miraassist/mira/internal/tools"
 )
 
@@ -44,12 +45,26 @@ type box struct {
 	held      []bool
 	stopped   []string // speakers told to stop
 	playErr   error    // what playing on the speaker returns
+	// changed is closed and made anew when something is ticked or stopped,
+	// for settle; logs is what the machine logged.
+	changed chan struct{}
+	logs    *logcap.Lines
+}
+
+// told notes a change for settle. The caller holds b.mu.
+func (b *box) told() {
+	if b.changed != nil {
+		close(b.changed)
+		b.changed = nil
+	}
 }
 
 func (b *box) machine() *Machine {
 	loc := time.FixedZone("CET", 3600)
+	log, lines := logcap.Logger()
+	b.logs = lines
 	return New(Options{
-		Lang: i18n.DE, Location: loc,
+		Lang: i18n.DE, Location: loc, Logger: log,
 		Clock: func() time.Time { return time.Date(2026, 10, 29, 18, 0, 0, 0, loc) },
 		Ask: func(_ context.Context, service string, data map[string]any) (json.RawMessage, error) {
 			b.mu.Lock()
@@ -119,6 +134,7 @@ func (b *box) machine() *Machine {
 			b.mu.Lock()
 			defer b.mu.Unlock()
 			b.ticked = append(b.ticked, thread+" "+match)
+			b.told()
 			return nil
 		},
 		Announced: func(_ context.Context, device, thread string) {
@@ -130,6 +146,7 @@ func (b *box) machine() *Machine {
 			b.mu.Lock()
 			defer b.mu.Unlock()
 			b.stopped = append(b.stopped, speaker)
+			b.told()
 			return nil
 		},
 		Hold: func(_ context.Context, _ string, hold bool) {
@@ -377,18 +394,13 @@ func TestAB34_ANewPlayEndsTheRunningOne(t *testing.T) {
 	run(t, m, ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
 	<-first
 	run(t, m, ToolPlay, config.ChannelVoice, `{"ids":["0:12"]}`) // "weiter"
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		b.mu.Lock()
-		ticked := slices.Clone(b.ticked)
-		b.mu.Unlock()
-		if len(ticked) > 0 || time.Now().After(deadline) {
-			if len(ticked) != 1 || ticked[0] != "th1 (id 0:12)" {
-				t.Errorf("ticked %v: the replaced one must not be", ticked)
-			}
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	b.settle(t, func() bool { return len(b.ticked) > 0 })
+	<-b.logs.Await("ended with its run", "message=0:13") // the replaced run is over
+	b.mu.Lock()
+	ticked := slices.Clone(b.ticked)
+	b.mu.Unlock()
+	if len(ticked) != 1 || ticked[0] != "th1 (id 0:12)" {
+		t.Errorf("ticked %v: the replaced one must not be", ticked)
 	}
 }
 
@@ -412,6 +424,7 @@ func (b *box) live() (*Machine, func(n int) <-chan struct{}) {
 	m.o.Stop = func(_ context.Context, speaker string) error {
 		b.mu.Lock()
 		b.stopped = append(b.stopped, speaker)
+		b.told()
 		b.mu.Unlock()
 		stops <- struct{}{}
 		return nil
@@ -433,14 +446,22 @@ func (b *box) live() (*Machine, func(n int) <-chan struct{}) {
 	return m, func(n int) <-chan struct{} { return at(n) }
 }
 
+// settle waits until cond holds of what the box was told; cond runs
+// under b.mu.
 func (b *box) settle(t *testing.T, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatal("not settled")
+	for {
+		b.mu.Lock()
+		ok := cond()
+		if b.changed == nil {
+			b.changed = make(chan struct{})
 		}
-		time.Sleep(5 * time.Millisecond)
+		changed := b.changed
+		b.mu.Unlock()
+		if ok {
+			return
+		}
+		<-changed
 	}
 }
 
@@ -452,8 +473,8 @@ func TestAB39_EndingTheThreadStopsItsRecordings(t *testing.T) {
 	run(t, m, ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
 	<-started(1)
 	m.ThreadEnded(context.Background(), "th1")
-	b.settle(t, func() bool { b.mu.Lock(); defer b.mu.Unlock(); return len(b.stopped) == 1 })
-	time.Sleep(50 * time.Millisecond)
+	b.settle(t, func() bool { return len(b.stopped) == 1 })
+	<-b.logs.Await("ended with its run") // nothing more of it plays
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if len(b.played) != 1 || len(b.ticked) != 0 || b.stopped[0] != "media_player.show_speaker" {
