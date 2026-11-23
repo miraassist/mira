@@ -167,28 +167,6 @@ func deviceOf(ctx context.Context) string {
 	return id
 }
 
-type server struct {
-	cfg config.MCPServer
-
-	mu      sync.Mutex
-	session *sdk.ClientSession
-	tools   []Tool // last known, kept while disconnected
-	lastErr error
-	// failed counts the failed connects since it last worked; next is when
-	// Run tries again (docs/spec/retry.md, row 6).
-	failed int
-	next   time.Time
-	// missing are the tools the configuration names that the server does
-	// not have.
-	missing []string
-	// unlisted are the satellites whose tools could not be listed last
-	// time, with why (docs/spec/fallbacks.md, row 6).
-	unlisted map[string]error
-	// setup are the server's setup tools as it lists them, for the page
-	// only (docs/spec/skill-programs.md).
-	setup map[string]prompt.ToolDef
-}
-
 // Host owns the server connections.
 type Host struct {
 	log          *slog.Logger
@@ -259,7 +237,7 @@ func New(opts Options) *Host {
 		if cfg.Disabled {
 			continue
 		}
-		s := &server{cfg: cfg}
+		s := newServer(h, cfg)
 		h.servers = append(h.servers, s)
 		h.byName[cfg.Name] = s
 	}
@@ -276,7 +254,7 @@ func (h *Host) Start(ctx context.Context) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = h.connectServer(ctx, s) // a failure is logged where it is kept
+			_ = s.connectNow(ctx, false, false) // a failure is logged where it is kept
 		}()
 	}
 	wg.Wait()
@@ -331,7 +309,7 @@ func (h *Host) Run(ctx context.Context) error {
 				if !due {
 					continue
 				}
-				if err := h.connectServer(ctx, s); err != nil {
+				if err := s.connectNow(ctx, false, false); err != nil {
 					continue
 				}
 				h.log.Info("mcp server reconnected", "server", s.cfg.Name)
@@ -385,62 +363,8 @@ func (h *Host) Close() { h.closeAll() }
 
 func (h *Host) closeAll() {
 	for _, s := range h.servers {
-		s.mu.Lock()
-		if s.session != nil {
-			_ = s.session.Close()
-			s.session = nil
-		}
-		s.mu.Unlock()
+		s.stop()
 	}
-}
-
-func (s *server) connected() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.session != nil
-}
-
-func (h *Host) connectServer(ctx context.Context, s *server) error {
-	client := sdk.NewClient(&sdk.Implementation{Name: "mira", Version: h.version}, &sdk.ClientOptions{
-		Logger: h.log,
-		ToolListChangedHandler: func(ctx context.Context, _ *sdk.ToolListChangedRequest) {
-			h.log.Info("mcp server announced a tool list change", "server", s.cfg.Name)
-			go h.refresh(context.WithoutCancel(ctx), s)
-		},
-	})
-	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
-	defer cancel()
-	session, err := h.connect(cctx, client, s.cfg)
-	if err != nil {
-		h.failedConnect(s, err)
-		return err
-	}
-	tools, unlisted, err := h.listTools(cctx, s.cfg, session)
-	if err != nil {
-		_ = session.Close()
-		h.failedConnect(s, err)
-		return err
-	}
-	s.mu.Lock()
-	s.session = session
-	s.tools, s.missing, s.unlisted = tools, missingTools(s.cfg, tools), unlisted
-	s.lastErr, s.failed, s.next = nil, 0, time.Time{}
-	s.mu.Unlock()
-	h.log.Info("mcp server connected", "server", s.cfg.Name, "tools", len(tools))
-
-	// Notice a dropped connection so Run can reconnect.
-	go func() {
-		_ = session.Wait()
-		s.mu.Lock()
-		if s.session == session {
-			s.session = nil
-		}
-		s.mu.Unlock()
-		if ctx.Err() == nil {
-			h.log.Warn("mcp server disconnected", "server", s.cfg.Name)
-		}
-	}()
-	return nil
 }
 
 // lostSession reports a call that failed on the way, not in the tool: a
@@ -455,47 +379,8 @@ func lostSession(err error) bool {
 	return !errors.As(err, &rpc) // an answer from the server is no lost session
 }
 
-// reconnect drops a session that failed a call and connects anew, for the
-// one repeat of that call. It returns nil when the server stays away; Run
-// then keeps trying as for any server that is down.
-func (h *Host) reconnect(ctx context.Context, s *server, failed *sdk.ClientSession, cause error) *sdk.ClientSession {
-	s.mu.Lock()
-	if s.session == failed {
-		s.session = nil
-	}
-	s.mu.Unlock()
-	_ = failed.Close()
-	h.log.Warn("mcp call failed on its session, connecting anew", "server", s.cfg.Name, "error", cause)
-	if err := h.connectServer(context.WithoutCancel(ctx), s); err != nil {
-		h.log.Warn("mcp server unreachable", "server", s.cfg.Name, "error", err)
-		h.rebuild()
-		return nil
-	}
-	h.rebuild()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.session
-}
-
-func (h *Host) refresh(ctx context.Context, s *server) {
-	s.mu.Lock()
-	session := s.session
-	s.mu.Unlock()
-	if session == nil {
-		return
-	}
-	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
-	defer cancel()
-	tools, unlisted, err := h.listTools(cctx, s.cfg, session)
-	if err != nil {
-		h.log.Warn("could not refresh tool list", "server", s.cfg.Name, "error", err)
-		return
-	}
-	s.mu.Lock()
-	s.tools, s.missing, s.unlisted = tools, missingTools(s.cfg, tools), unlisted
-	s.mu.Unlock()
-	h.rebuild()
-}
+// refresh lists the tools of a server again, in its loop.
+func (h *Host) refresh(ctx context.Context, s *server) { s.refreshNow(ctx) }
 
 // DeviceTools makes sure a satellite's own tools are in the list before its
 // turn: when listing them failed last time, the servers that take the
@@ -703,10 +588,7 @@ func (h *Host) CallServer(ctx context.Context, serverName, toolName string, args
 
 func (h *Host) callOn(ctx context.Context, s *server, qualified, toolName string, args json.RawMessage) (Result, error) {
 	serverName := s.cfg.Name
-	s.mu.Lock()
-	session := s.session
-	s.mu.Unlock()
-	if session == nil {
+	if !s.connected() {
 		return Result{}, fmt.Errorf("%w: %s", ErrServerDown, serverName)
 	}
 
@@ -724,16 +606,12 @@ func (h *Host) callOn(ctx context.Context, s *server, qualified, toolName string
 	if device := deviceOf(ctx); device != "" && s.cfg.WantsDevice() {
 		params.Meta = sdk.Meta{deviceMeta: device}
 	}
-	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
-	defer cancel()
-	res, err := session.CallTool(cctx, params)
-	if lostSession(err) {
-		if fresh := h.reconnect(ctx, s, session, err); fresh != nil {
-			rctx, rcancel := context.WithTimeout(ctx, h.callTimeout)
-			defer rcancel()
-			res, err = fresh.CallTool(rctx, params)
-		}
+	call := func(session *sdk.ClientSession) (*sdk.CallToolResult, error) {
+		cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
+		defer cancel()
+		return session.CallTool(cctx, params)
 	}
+	res, err := onConn(ctx, s, call)
 	if err != nil {
 		return Result{}, fmt.Errorf("call %s: %w", qualified, err)
 	}
@@ -745,6 +623,32 @@ func (h *Host) callOn(ctx context.Context, s *server, qualified, toolName string
 		}
 	}
 	return out, nil
+}
+
+// onConn runs one request on the server's current connection; failed on a
+// lost session (not on a connection Mira closed, decision 7), it is repeated
+// once on the connection the server's loop gives (decision 6).
+func onConn[T any](ctx context.Context, s *server, do func(*sdk.ClientSession) (T, error)) (T, error) {
+	session, release, c, ok := s.use()
+	if !ok {
+		var zero T
+		return zero, fmt.Errorf("%w: %s", ErrServerDown, s.cfg.Name)
+	}
+	res, err := do(session)
+	release()
+	if !retryable(err, c) {
+		return res, err
+	}
+	fresh := s.replaced(ctx, c, err)
+	if fresh == nil {
+		return res, err
+	}
+	session, release, ok = fresh.Use()
+	if !ok {
+		return res, err
+	}
+	defer release()
+	return do(session)
 }
 
 // actedOnNothing is the failed entities of an intent answer of Home
@@ -802,16 +706,15 @@ func (h *Host) PromptAs(ctx context.Context, serverName, name, device string) (s
 	if !ok {
 		return "", fmt.Errorf("unknown mcp server %q", serverName)
 	}
-	s.mu.Lock()
-	session, tools := s.session, s.tools
-	s.mu.Unlock()
-	if session == nil {
+	if !s.connected() {
 		return "", fmt.Errorf("%w: %s", ErrServerDown, serverName)
 	}
-	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
-	defer cancel()
 	if name == "" {
-		list, err := session.ListPrompts(cctx, nil)
+		list, err := onConn(ctx, s, func(session *sdk.ClientSession) (*sdk.ListPromptsResult, error) {
+			cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
+			defer cancel()
+			return session.ListPrompts(cctx, nil)
+		})
 		if err != nil {
 			return "", fmt.Errorf("list prompts of %s: %w", serverName, err)
 		}
@@ -824,14 +727,14 @@ func (h *Host) PromptAs(ctx context.Context, serverName, name, device string) (s
 	if device != "" && s.cfg.WantsDevice() {
 		params.Meta = sdk.Meta{deviceMeta: device}
 	}
-	res, err := session.GetPrompt(cctx, params)
-	if lostSession(err) {
-		if fresh := h.reconnect(ctx, s, session, err); fresh != nil {
-			rctx, rcancel := context.WithTimeout(ctx, h.callTimeout)
-			defer rcancel()
-			res, err = fresh.GetPrompt(rctx, params)
-		}
-	}
+	res, err := onConn(ctx, s, func(session *sdk.ClientSession) (*sdk.GetPromptResult, error) {
+		cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
+		defer cancel()
+		return session.GetPrompt(cctx, params)
+	})
+	s.mu.Lock()
+	tools := s.tools
+	s.mu.Unlock()
 	if err != nil {
 		return "", fmt.Errorf("get prompt %s from %s: %w", name, serverName, err)
 	}
@@ -914,7 +817,7 @@ func (h *Host) Status() []Status {
 	out := make([]Status, 0, len(h.servers))
 	for _, s := range h.servers {
 		s.mu.Lock()
-		st := Status{Name: s.cfg.Name, Connected: s.session != nil, Tools: len(s.tools), Skill: s.cfg.Skill,
+		st := Status{Name: s.cfg.Name, Connected: s.conn != nil, Tools: len(s.tools), Skill: s.cfg.Skill,
 			Missing: append([]string(nil), s.missing...), OAuth: s.cfg.OAuth,
 			NoConnection: errors.Is(s.lastErr, ErrNoConnection)}
 		if s.lastErr != nil {
@@ -972,41 +875,26 @@ func (h *Host) dial(ctx context.Context, client *sdk.Client, cfg config.MCPServe
 // growing waits (docs/spec/context.md, 1.2).
 func (h *Host) Wake(ctx context.Context, name string) {
 	s := h.byName[name]
-	if s == nil || s.connected() {
+	if s == nil {
 		return
 	}
-	s.mu.Lock()
-	fatal := s.lastErr != nil && !retry.Retryable(s.lastErr)
-	if !fatal {
-		s.failed, s.next = 0, time.Time{}
-	}
-	s.mu.Unlock()
-	if fatal {
-		return
-	}
-	if err := h.connectServer(ctx, s); err != nil {
-		return // kept and logged by failedConnect
+	if err := s.connectNow(ctx, true, false); err != nil {
+		return // connected already, fatal, or kept and logged by failedConnect
 	}
 	h.log.Info("mcp server reconnected", "server", s.cfg.Name, "reason", "home assistant connected")
 	h.rebuild()
 }
 
 // Reconnect connects a skill's server anew after its connection changed:
-// connected, it is connected at once; disconnected or expired, its session
-// and tools are dropped.
+// connected, it is connected at once; disconnected or expired, its tools
+// are dropped. The old connection is retired: calls on it finish
+// (docs/spec/mcp-connections.md, decision 8).
 func (h *Host) Reconnect(ctx context.Context, name string) {
 	s := h.byName[name]
 	if s == nil {
 		return
 	}
-	s.mu.Lock()
-	if s.session != nil {
-		_ = s.session.Close()
-		s.session = nil
-	}
-	s.tools, s.missing, s.lastErr, s.failed, s.next = nil, nil, nil, 0, time.Time{}
-	s.mu.Unlock()
-	_ = h.connectServer(ctx, s) // a failure is logged where it is kept
+	_ = s.connectNow(ctx, false, true) // a failure is logged where it is kept
 	h.rebuild()
 }
 

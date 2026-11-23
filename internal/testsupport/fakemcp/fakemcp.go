@@ -51,6 +51,15 @@ type Server struct {
 	failList map[string]bool
 	lists    []string
 	tokens   []string
+	// inits counts the sessions clients opened (initialize).
+	inits int
+}
+
+// Inits is how many sessions clients opened.
+func (s *Server) Inits() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.inits
 }
 
 // Tokens are the bearer tokens of the requests Authorize was asked about.
@@ -150,6 +159,11 @@ func (s *Server) FailListing(device string, fail bool) {
 // device-only tools from those without a satellite.
 func (s *Server) listing(next sdk.MethodHandler) sdk.MethodHandler {
 	return func(ctx context.Context, method string, req sdk.Request) (sdk.Result, error) {
+		if method == "initialize" {
+			s.mu.Lock()
+			s.inits++
+			s.mu.Unlock()
+		}
 		if method != "tools/list" {
 			return next(ctx, method, req)
 		}
