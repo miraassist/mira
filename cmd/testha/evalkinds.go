@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/miraassist/mira/internal/clock"
 )
 
 // The steps that put a waiting message of a kind (docs/spec/evals.md,
@@ -71,7 +73,7 @@ func (r *evalRun) addDevices(ctx context.Context, devices []StepDevice, added *[
 		*added = append(*added, out.Response.DeviceID)
 	}
 	seen := 0
-	return waitLog(ctx, r.agentLog, from, kindWait, func(line string) (bool, error) {
+	return waitLog(ctx, clock.Real(), r.agentLog, from, kindWait, func(line string) (bool, error) {
 		if m := foundSaid.FindStringSubmatch(line); m != nil {
 			n, _ := strconv.Atoi(m[1])
 			seen += n
@@ -90,7 +92,7 @@ func (r *evalRun) addRecordings(ctx context.Context, names []string) error {
 	if err := r.ha(ctx, "POST", "/api/services/mira_fritz/fake_add", map[string]any{"recordings": names}, nil); err != nil {
 		return fmt.Errorf("mira_fritz.fake_add %s: %w", strings.Join(names, ", "), err)
 	}
-	return waitLog(ctx, r.agentLog, from, kindWait, func(line string) (bool, error) {
+	return waitLog(ctx, clock.Real(), r.agentLog, from, kindWait, func(line string) (bool, error) {
 		m := machineKept.FindStringSubmatch(line)
 		if m == nil {
 			return false, nil

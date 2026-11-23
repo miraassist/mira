@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/inbox"
 	"github.com/miraassist/mira/internal/mailcal"
 )
@@ -80,7 +81,7 @@ func (r *evalRun) sendMail(ctx context.Context, sm StepMail) error {
 	if !out.Queued {
 		return fmt.Errorf("the inbox did not queue the mail %q", m.Subject)
 	}
-	return waitLog(ctx, r.agentLog, from, mailRead, func(line string) (bool, error) {
+	return waitLog(ctx, clock.Real(), r.agentLog, from, mailRead, func(line string) (bool, error) {
 		if !strings.Contains(line, "component=inbox") || !strings.Contains(line, key) {
 			return false, nil
 		}
@@ -104,7 +105,7 @@ func logSize(path string) (int64, error) {
 
 // waitLog reads the log from an offset on, line by line as it grows, until
 // match says done or the wait is over.
-func waitLog(ctx context.Context, path string, from int64, wait time.Duration, match func(string) (bool, error)) error {
+func waitLog(ctx context.Context, clk clock.Clock, path string, from int64, wait time.Duration, match func(string) (bool, error)) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -114,7 +115,7 @@ func waitLog(ctx context.Context, path string, from int64, wait time.Duration, m
 		return err
 	}
 	rd := bufio.NewReader(f)
-	deadline := time.Now().Add(wait)
+	deadline := clk.Now().Add(wait)
 	var part string
 	for {
 		line, err := rd.ReadString('\n')
@@ -129,13 +130,13 @@ func waitLog(ctx context.Context, path string, from int64, wait time.Duration, m
 		if err != io.EOF {
 			return err
 		}
-		if time.Now().After(deadline) {
+		if clk.Now().After(deadline) {
 			return fmt.Errorf("the line waited for did not come in %s (%s)", wait, path)
 		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(200 * time.Millisecond):
+		case <-clk.After(200 * time.Millisecond):
 		}
 	}
 }

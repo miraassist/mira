@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 )
 
 // Schedules on Mira's page (docs/spec/schedules.md): names and mira.yaml.
@@ -134,11 +134,7 @@ func TestZP06_a_change_holds_at_once(t *testing.T) {
 	if err := r.Change("plan", "morgen", ScheduleChange{Cron: "45 6 * * *"}); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case <-wake:
-	case <-time.After(time.Second):
-		t.Fatal("the scheduler was not woken")
-	}
+	<-wake // the scheduler is woken
 	if !r.changed["plan/0"] {
 		t.Errorf("changed: %v", r.changed)
 	}
@@ -249,25 +245,18 @@ func TestZP12_miras_own_schedule_keeps_its_last_run(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Runner{Set: berlinSet(t, Skill{Name: "leer"}), Store: st, System: []*SystemJob{job}}
+	log, lines := logcap.Logger()
+	r := &Runner{Set: berlinSet(t, Skill{Name: "leer"}), Store: st, System: []*SystemJob{job}, Logger: log}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error)
 	go func() { done <- r.Run(ctx) }()
 	if err := r.RunNow(SystemSkill, "profile"); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		if run, ok, _ := st.LastRun(context.Background(), store.RunKey{Skill: "mira", Schedule: "profile"}); ok {
-			if run.Status != store.RunDone || run.Text != "2 Profile neu gebaut" {
-				t.Errorf("last run: %+v", run)
-			}
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("the job did not run")
-		}
-		time.Sleep(10 * time.Millisecond)
+	<-lines.Await("scheduled task done", "job=mira/profile")
+	if run, ok, _ := st.LastRun(context.Background(), store.RunKey{Skill: "mira", Schedule: "profile"}); !ok ||
+		run.Status != store.RunDone || run.Text != "2 Profile neu gebaut" {
+		t.Errorf("last run: %+v", run)
 	}
 	cancel()
 	<-done

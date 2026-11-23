@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/mcp"
@@ -23,9 +22,7 @@ func compatHost(t *testing.T, srv *fakemcp.Server) *mcp.Host {
 		{Name: "ha", Transport: config.TransportHTTP, URL: srv.Endpoint()},
 	}})
 	t.Cleanup(h.Close)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := h.Start(ctx); err != nil {
+	if err := h.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	return h

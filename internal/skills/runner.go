@@ -12,6 +12,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/miraassist/mira/internal/clock"
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/schedule"
@@ -55,6 +56,8 @@ type Runner struct {
 	Ready func(ctx context.Context) error
 	// ReadyWait is how long a job waits for it; PromptWait when zero.
 	ReadyWait time.Duration
+	// Clock is what ReadyWait waits on; nil is the real one.
+	Clock clock.Clock
 
 	mu      sync.Mutex
 	changed map[string]bool // jobs whose next run is to be taken anew
@@ -376,6 +379,10 @@ func (r *Runner) run(ctx context.Context, j job, log *slog.Logger) {
 			log.Error("scheduled task failed", "job", j.key(), "error", err)
 		}
 		r.keep(ctx, store.RunKey{Skill: SystemSkill, Schedule: j.sys.Name}, run)
+		r.setState(j, "") // done before it is said to be
+		if err == nil {
+			log.Info("scheduled task done", "job", j.key(), "text", text)
+		}
 		return
 	}
 	queued, err := r.RunJob(ctx, j.skill, j.index)
@@ -398,11 +405,12 @@ func (r *Runner) waitReady(ctx context.Context, j job, log *slog.Logger) {
 	if wait == 0 {
 		wait = PromptWait
 	}
-	waitCtx, cancel := context.WithTimeout(ctx, wait)
+	clk := clock.Or(r.Clock)
+	waitCtx, cancel := clock.WithTimeout(ctx, clk, wait)
 	defer cancel()
-	started := time.Now()
+	started := clk.Now()
 	err := r.Ready(waitCtx)
-	waited := time.Since(started)
+	waited := clk.Since(started)
 	switch {
 	case ctx.Err() != nil: // Mira is shutting down
 	case err != nil:
