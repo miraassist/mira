@@ -20,7 +20,8 @@ Also: [Mira chatting in German](https://youtu.be/N-RfuKgBsEs).
    2026.11: HACS → Custom repositories, the same address, type Integration. Install **Mira**, restart Home Assistant.
 2. **The Mira service:** as an app on Home Assistant OS, or with Docker on a machine in your home network: see
    [Install the Mira service](https://github.com/miraassist/mira-app#install-the-mira-service) in
-   [miraassist/mira-app](https://github.com/miraassist/mira-app).
+   [miraassist/mira-app](https://github.com/miraassist/mira-app). Installed the app from this address before? It
+   moved: see [Moving the app](https://github.com/miraassist/mira-app#moving-the-app).
 3. **Set it up:** Settings → Devices & services → **Mira** under **Discovered** → **Add** (with the app: Add
    integration → Mira, address `http://localhost:8787`). Choose the AI model (OpenAI, Google Gemini, OpenRouter,
    Mistral or Anthropic with your key, or a server of your own) and the assistants Mira answers in, then paste a
