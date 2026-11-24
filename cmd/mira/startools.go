@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/startools"
+	"github.com/miraassist/mira/internal/tools"
 	"github.com/miraassist/mira/internal/ui"
 )
 
@@ -28,7 +30,7 @@ func (s starlarkTry) Try(ctx context.Context, who, skill, tool string, args json
 	if a.oauth == nil || !sk.StarlarkUsable(a.oauth) {
 		return ui.TryResult{Error: fmt.Sprintf("%s is not connected: connect it on the page Connections", skill)}, nil
 	}
-	res := sk.Starlark.Call(ctx, tool, args, startools.Env{Requester: a.oauth, Writes: sk.WritesTool(tool)})
+	res := sk.Starlark.Call(ctx, tool, args, startools.Env{Requester: a.oauth, Writes: sk.WritesTool(tool), Reader: &a.reader, Reads: sk.Reads})
 	out := ui.TryResult{Text: res.Text, Events: res.Events, Backtrace: res.Backtrace}
 	outcome := "ok"
 	if res.Err != nil {
@@ -59,4 +61,30 @@ func starlarkInfo(sk skills.Skill, info *ui.SkillInfo) {
 		info.Tools = append(info.Tools, ui.ToolInfo{Name: t.Name, Description: t.Description,
 			Schema: json.RawMessage(t.Schema), Writes: sk.WritesTool(t.Name)})
 	}
+}
+
+// starlarkReader is how a skill's Starlark tools call Mira's read-only tools
+// with mira.tool (docs/spec/api-tools.md, decision 19): the registry, set
+// once it is built; a tool that may change something, or that returns
+// third-party text, is refused.
+type starlarkReader struct {
+	reg atomic.Pointer[tools.Registry]
+}
+
+func (s *starlarkReader) ReadTool(ctx context.Context, name string, args json.RawMessage) (string, bool, error) {
+	reg := s.reg.Load()
+	if reg == nil {
+		return "", true, fmt.Errorf("%w: %s (Mira's tools are not ready yet)", startools.ErrNoTool, name)
+	}
+	spec, ok := reg.Lookup(name)
+	if !ok {
+		return "", true, fmt.Errorf("%w: %s", startools.ErrNoTool, name)
+	}
+	if !spec.ReadOnly {
+		return "", true, fmt.Errorf("%w: %s", startools.ErrNotReadOnly, name)
+	}
+	if spec.WebContent {
+		return "", true, fmt.Errorf("%w: %s", startools.ErrWebContent, name)
+	}
+	return reg.Execute(ctx, tools.Invocation{Name: name, Args: args})
 }

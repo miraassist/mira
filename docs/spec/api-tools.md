@@ -1,6 +1,6 @@
 # API tools in Starlark – spec
 
-Status 2026-11-21: decisions 1 to 15 made (the maintainer); steps 1 to 4 built, step 5 built with [YouTube research](youtube.md). The bound on JSON's depth (SL-20) added 2026-11-21. Decision 8 changed and decision 16 added 2026-11-23, built with [Share prices](boerse.md), step 1.
+Status 2026-11-21: decisions 1 to 15 made (the maintainer); steps 1 to 4 built, step 5 built with [YouTube research](youtube.md). The bound on JSON's depth (SL-20) added 2026-11-21. Decision 8 changed and decision 16 added 2026-11-23, built with [Share prices](boerse.md), step 1. Decisions 17 to 19 added 2026-11-24; 17 and 19 built (step 7), 18 not yet.
 Scenarios: [api-tools.feature](api-tools.feature).
 
 ## Goal
@@ -90,6 +90,9 @@ helper and no tool.
 | 7 | `api_get` | Gone for every skill: a skill with an `api` section brings `tools.star`. The shipped skill `strava` is rewritten in the same step (nobody uses it yet) |
 | 8 | Without a connection | Only for a skill with a connection for now (13A of the first round): `api` exists only with an `oauth` section. **Changed 2026-11-23 (the maintainer, 2A, for the skill `boerse`):** a skill without a login writes its `api` section under `metadata.mira` itself; its tools send no token, and the same rules hold (only below its prefixes, the methods allowed there, the limits). A skill with an `oauth` section keeps its `api` there; one in both places is a problem of the skill |
 | 16 | How Mira names herself (2026-11-23, the maintainer, 2A) | Every request of a Starlark tool carries `User-Agent: Mira/<version>`. Seen 2026-11-23: Yahoo Finance answers Go's default name (`Go-http-client/1.1`) with 429 and Mira's with the quote |
+| 17 | A tool that only computes (2026-11-24, the maintainer, 1A) | A `tools.star` needs no `api` section: without one, `api` refuses every address, and its tools' answers are no third-party text (seen 2026-11-24: marked as such, they locked the plan's writing tool after a computation). A computation is code, never the model's |
+| 18 | Reading Home Assistant (2026-11-24, the maintainer, B) | The module `ha`: `ha.action(name, data)` calls an action of Home Assistant with its response (`return_response`; Home Assistant refuses an action without one) and gives the response; `ha.entries(domain)` gives the ids of a domain's config entries (an action like `nordpool.get_prices_for_date` needs one). Only actions the skill names under `tools.actions` in SKILL.md |
+| 19 | Reading Mira's tools (2026-11-24, the maintainer, A) | The module `mira`: `mira.tool(name, args)` calls one of Mira's tools by its full name and gives its text: a tool of an MCP server (also another skill's) or of the service. Only tools that count as read-only and return no third-party text, and only those the skill names under `tools.reads` in SKILL.md; any other fails. So the model carries no data from one tool to another |
 | 9 | Errors must be seen | A tool that is wrong must be recognisable, in the log and as a repair in Home Assistant; for a tool that is right but gives an unexpected result, what went over the wire must be visible (below, Seeing what went over the wire). An approach whose errors cannot be seen is not usable |
 | 10 | Costs of a call | One HTTPS request per `api` call, at most 20 s each; the turn waits for the tool; a renewal of the token about once an hour |
 | 11 | Seeing more than the log | **"Ausprobieren"** on the skill's entry in "Fähigkeiten", for admins (11A): a form per tool from its schema, as the page builds for a program's setup tools; it runs the tool and shows its answer, every request (method, address, status, time, the start of the answer) and every `print` |
@@ -207,3 +210,5 @@ happened; an error shows with its backtrace. It runs as the admin's own call: a 
 5. **`youtube`** ([YouTube research](youtube.md)) built on it.
 6. **A web API without a login and Mira's name** (decisions 8 and 16): built with [Share prices](boerse.md), step 1
    (BO-01, BO-02); `skills.Skill.API`, `oauth.Manager.Request` for both ways.
+7. **Tools that only compute, and reading Mira's tools** (decisions 17 and 19): SL-21, SL-22. The module `ha`
+   (decision 18) is not built yet.

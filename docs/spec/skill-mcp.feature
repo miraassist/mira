@@ -90,3 +90,10 @@ Feature: SM MCP servers in skills
     Given a skill without an MCP server whose tools Mira brings herself (anrufbeantworter, regel)
     When a conversation opens the skill
     Then those tools are offered in the next round and the next turns, and not before
+
+  @step3
+  Scenario: SM-15 A server's tools named under read_only_tools only read
+    Given a skill whose server marks none of its tools read-only
+    And its mcp section names its reading tools under read_only_tools
+    Then those count as read-only: an agent with the right to read the house may use them
+    And a tool not named there does not

@@ -308,3 +308,30 @@ func TestSM14_OpeningASkillBringsMirasOwnToolsThatComeWithIt(t *testing.T) {
 		t.Errorf("offered: before %v, after %v, next turn %v", has(reqs[0].Request), has(reqs[1].Request), has(h.llm.Last().Request))
 	}
 }
+
+// SM-15 A server's tools named under read_only_tools only read
+func TestSM15_AServersToolsNamedUnderReadOnlyToolsOnlyRead(t *testing.T) {
+	// Given a skill whose server marks none of its tools read-only
+	// And its mcp section names the reading tools under read_only_tools
+	p := newPaperlessWith(t, func(s *config.MCPServer) {
+		s.ReadOnly = false
+		s.WebContent = false // the right then follows read-only alone
+		s.Tools = []string{"query_documents", "get_document_content", "update_document"}
+		s.ReadOnlyTools = []string{"query_documents", "get_document_content", "nicht_da"}
+	})
+	reg := p.engine.ToolsForTest()
+	// Then they count as read-only: an agent with the right to read the house may use them
+	for name, want := range map[string]agent.Rights{
+		"paperless__query_documents": agent.ReadHouse, "paperless__get_document_content": agent.ReadHouse,
+		// And update_document does not
+		"paperless__update_document": agent.ActOnHouse,
+	} {
+		spec, ok := reg.Lookup(name)
+		if !ok {
+			t.Fatalf("%s not there", name)
+		}
+		if spec.ReadOnly != (want == agent.ReadHouse) || agent.RightFor(spec) != want {
+			t.Errorf("%s: read-only %v, right %v", name, spec.ReadOnly, agent.RightFor(spec))
+		}
+	}
+}

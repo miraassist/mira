@@ -30,10 +30,11 @@ Feature: SL API tools in Starlark
     Then the skill does not start and its problem says what is wrong, with the line
 
   @step1
-  Scenario: SL-05 An api section and tools.star go together
-    Given a skill with an api section and no tools.star, or a tools.star and no api section
+  Scenario: SL-05 An api section needs a tools.star
+    Given a skill with an api section and no tools.star
     When the skill loads
-    Then the skill does not start and its problem says which is missing
+    Then the skill does not start and its problem says that tools.star is missing
+    (A tools.star without an api section loads since 2026-11-24: SL-21.)
 
   @step1
   Scenario: SL-06 Names under writes and confirm are tools
@@ -136,3 +137,18 @@ Feature: SL API tools in Starlark
     And json.decode of such a text is the tool's error
     And a tools.star that decodes it while it loads is a problem of the skill, not a crash of Mira
     And a nesting of 1000 levels is decoded
+
+  @step7
+  Scenario: SL-21 A tools.star without an api section loads and reaches no address
+    Given a skill with a tools.star and no api section
+    Then the skill loads with its tools, whose answers are no third-party text
+    And api.get from one of them fails naming that the skill has no api section
+
+  @step7
+  Scenario: SL-22 mira.tool calls a read-only tool the skill names
+    Given a skill whose tools.reads names geraet__read_state
+    When its tool calls mira.tool("geraet__read_state", {"field": "x"})
+    Then it gets the tool's text
+    And a call of a tool not under tools.reads fails naming it
+    And a call of a tool that is not read-only fails, even when tools.reads names it
+    And a call of a tool that returns third-party text fails, even when tools.reads names it

@@ -1,6 +1,6 @@
 # MCP servers in skills
 
-Status: built. Scenarios: [skill-mcp.feature](skill-mcp.feature).
+Status: built; step 3 (read-only per tool, decision 7) built 2026-11-24. Scenarios: [skill-mcp.feature](skill-mcp.feature).
 
 ## Goal
 
@@ -102,6 +102,9 @@ skills:
 - `web_content: true` makes what the server returns third-party text, as for any MCP server: after it, Mira asks
   before keeping or passing anything on, and critical actions are locked.
 - `read_only` decides, as for any MCP server, whether background work may use the tools at all.
+- **`read_only_tools`** (decision 7) names the server's tools that only read, for a server that reads and writes and
+  does not mark its tools itself: those count as read-only, the others do not. `read_only: true`
+  still makes all of them read-only. A name the server does not have changes nothing.
 - **Mira's own code** may use a skill's server too, over the same connection, for fixed steps without a model: the
   inbox reads a document and marks it read through the skill paperless's server ([Inbox](inbox.md), decision 23). It
   calls the server's tools by their own names (`CallServer` of the MCP host), also ones the skill's `tools` list does
@@ -117,3 +120,5 @@ skills:
 5. The skill's `tools` list is the control; a read-only token is not required.
 6. The skill's agents get its tools (those their `tools` list names); with `conversation: false` the conversation
    does not, only the skill's agents and schedules.
+7. **Read-only per tool** (2026-11-24, the maintainer, 3C): `read_only_tools`
+   in the `mcp` section, also in an entry under `mcp_servers`. Built as step 3 (SM-15).

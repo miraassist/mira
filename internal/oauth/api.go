@@ -27,6 +27,9 @@ func (m *Manager) Request(ctx context.Context, skill, method, raw string, body [
 	if err != nil || u.Scheme != "https" {
 		return 0, nil, fmt.Errorf("%q is no https address", raw)
 	}
+	if !m.hasAPI(skill) {
+		return 0, nil, fmt.Errorf("%s has no api section: its tools reach no address (%s %s)", skill, method, u.Redacted())
+	}
 	if !m.allows(skill, method, u) {
 		return 0, nil, fmt.Errorf("%s %s is not allowed for %s: see the skill's api section", method, u.Redacted(), skill)
 	}
@@ -60,6 +63,14 @@ func (m *Manager) Request(ctx context.Context, skill, method, raw string, body [
 		return resp.StatusCode, nil, fmt.Errorf("reading the answer of %s %s: %w", method, u.Redacted(), err)
 	}
 	return resp.StatusCode, data, nil
+}
+
+// hasAPI reports whether the skill names any api prefix.
+func (m *Manager) hasAPI(skill string) bool {
+	if o := m.logins[skill]; o != nil {
+		return len(o.API) > 0
+	}
+	return len(m.plain[skill]) > 0
 }
 
 // allows reports whether an api prefix of the skill takes method at u: of

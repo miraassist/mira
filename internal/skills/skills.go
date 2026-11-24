@@ -115,10 +115,12 @@ type Skill struct {
 	API []APIPrefix
 	// Starlark are the skill's tools in tools.star (docs/spec/api-tools.md);
 	// nil for none. Writes and Confirm are its tools under tools.writes and
-	// tools.confirm in SKILL.md.
+	// tools.confirm in SKILL.md; Reads are Mira's tools they may call
+	// (tools.reads, decision 19).
 	Starlark *startools.File
 	Writes   []string
 	Confirm  []string
+	Reads    []string
 	// Random are the skill's axes (metadata.mira.random), which random_pick
 	// draws from (docs/spec/random-pick.md); nil for none.
 	Random []Axis

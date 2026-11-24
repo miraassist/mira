@@ -80,7 +80,7 @@ func stravaManager(t *testing.T) (*oauth.Manager, *requests) {
 // manager's connection.
 func stravaTools(t *testing.T, m *oauth.Manager) []tools.InternalTool {
 	t.Helper()
-	return skills.StarlarkTools([]skills.Skill{stravaSkill(t)}, m, nil)
+	return skills.StarlarkTools([]skills.Skill{stravaSkill(t)}, m, nil, nil)
 }
 
 func toolNames(list []tools.InternalTool) []string {

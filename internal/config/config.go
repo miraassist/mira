@@ -448,6 +448,10 @@ type MCPServer struct {
 	// ReadOnly marks every tool of this server as safe for background jobs.
 	// Servers that are not read-only are hidden from watchers entirely.
 	ReadOnly bool `yaml:"read_only"`
+	// ReadOnlyTools names the server's tools that only read, for a server
+	// that reads and writes and marks none itself (docs/spec/skill-mcp.md,
+	// decision 7); the others are not read-only.
+	ReadOnlyTools []string `yaml:"read_only_tools"`
 	// WebContent marks servers that return untrusted third-party text
 	// (search, fetch). Using one locks critical tools for the rest of the turn.
 	WebContent bool `yaml:"web_content"`

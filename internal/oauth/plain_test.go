@@ -14,6 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/startools"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 )
@@ -109,5 +110,46 @@ func TestBO02_EveryRequestOfAStarlarkToolNamesMira(t *testing.T) {
 	// Then the request carries the header User-Agent Mira and her version
 	if agent != "Mira/1.2.3" {
 		t.Errorf("User-Agent %q", agent)
+	}
+}
+
+// SL-21 A tools.star without an api section loads and reaches no address
+func TestSL21_AToolsStarWithoutAnAPISectionLoadsAndReachesNoAddress(t *testing.T) {
+	// Given a skill with a tools.star and no api section
+	dir := filepath.Join(t.TempDir(), "rechnen")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	md := "---\nname: rechnen\ndescription: Rechnet\n---\nRechnet.\n"
+	star := "def doppelt(x):\n    \"\"\"Verdoppelt.\n\n    Args:\n        x (int): Zahl\n    \"\"\"\n    return {\"x\": x * 2}\n\n" +
+		"def holen():\n    \"\"\"Holt.\"\"\"\n    return api.get(\"https://example.com/x\").json\n"
+	for name, body := range map[string]string{"SKILL.md": md, "tools.star": star} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded, problems := skills.Load([]string{filepath.Dir(dir)}, map[string]map[string]any{"rechnen": {}})
+	// Then the skill loads with its tools
+	if len(problems) > 0 || len(loaded) != 1 || loaded[0].Starlark == nil {
+		t.Fatalf("the skill did not load: %v", problems)
+	}
+	sk := loaded[0]
+	m := plainManager(t, sk, http.DefaultClient)
+	for _, tl := range skills.StarlarkTools(loaded, m, nil, nil) {
+		if tl.WebContent {
+			t.Errorf("%s counts as third-party text", tl.Name)
+		}
+	}
+	if !sk.StarlarkUsable(m) {
+		t.Error("its tools are not usable")
+	}
+	res := sk.Starlark.Call(context.Background(), "doppelt", []byte(`{"x":21}`), startools.Env{Requester: m})
+	if res.Err != nil || res.Text != `{"x": 42}` && res.Text != `{"x":42}` {
+		t.Errorf("doppelt: %q %v", res.Text, res.Err)
+	}
+	// And api.get from one of them fails naming that the skill has no api section
+	res = sk.Starlark.Call(context.Background(), "holen", []byte(`{}`), startools.Env{Requester: m})
+	if res.Err == nil || !strings.Contains(res.Err.Error(), "rechnen has no api section") {
+		t.Errorf("holen: %v", res.Err)
 	}
 }

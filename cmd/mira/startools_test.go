@@ -61,7 +61,7 @@ def kaputt():
 	if err := a.oauth.Put(context.Background(), "dienst", oauth.Handover{AccessToken: access, RefreshToken: refresh, ExpiresIn: 7200}); err != nil {
 		t.Fatal(err)
 	}
-	skills.StarlarkTools(a.skillsOn, a.oauth, a.log)
+	skills.StarlarkTools(a.skillsOn, a.oauth, &a.reader, a.log)
 	return a, svc, &logs
 }
 

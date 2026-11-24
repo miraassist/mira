@@ -78,7 +78,7 @@ func problemText(ps []skills.Problem) string {
 }
 
 // SL-05 An api section and tools.star go together
-func TestSL05_AnAPISectionAndToolsStarGoTogether(t *testing.T) {
+func TestSL05_AnAPISectionNeedsAToolsStar(t *testing.T) {
 	// Given a skill with an api section and no tools.star
 	loaded, ps := dienst(t, dienstOAuth, "")
 	// When the skill loads
@@ -90,11 +90,6 @@ func TestSL05_AnAPISectionAndToolsStarGoTogether(t *testing.T) {
 	// (docs/spec/api-tools.md, decision 8).
 	loaded, ps = dienst(t, "    api:\n      - url: https://dienst.example/api/\n"+dienstOAuth, dienstTools)
 	if len(loaded) != 0 || !strings.Contains(problemText(ps), "a skill with a login names it only under oauth") {
-		t.Errorf("%d %s", len(loaded), problemText(ps))
-	}
-	// Or a tools.star and no api section
-	loaded, ps = dienst(t, "    privacy: local", dienstTools)
-	if len(loaded) != 0 || !strings.Contains(problemText(ps), "has a tools.star but no api section") {
 		t.Errorf("%d %s", len(loaded), problemText(ps))
 	}
 	// A tools.star that does not load names it.
@@ -148,7 +143,7 @@ func TestSL12_OnlyTheToolsUnderWritesWriteFlags(t *testing.T) {
 	if len(ps) > 0 {
 		t.Fatal(problemText(ps))
 	}
-	got := byName(skills.StarlarkTools(loaded, connector{on: true}, nil))
+	got := byName(skills.StarlarkTools(loaded, connector{on: true}, nil, nil))
 	// Then post is no read-only tool, asks first after third-party text and is marked to always ask
 	post, suche := got["dienst__post"], got["dienst__suche"]
 	if post.ReadOnly || !post.AskAfterWeb || !post.Confirm {
@@ -167,7 +162,7 @@ func TestSL14_TheToolsComeWithTheirSkillAndItsConnection(t *testing.T) {
 		t.Fatal(problemText(ps))
 	}
 	// When Mira offers its tools
-	got := byName(skills.StarlarkTools(loaded, connector{on: true}, nil))
+	got := byName(skills.StarlarkTools(loaded, connector{on: true}, nil, nil))
 	// Then each is the tool <skill>__<function> of its skill, given to its schedules and agents too, its answer
 	// third-party text
 	s, ok := got["dienst__suche"]
@@ -180,7 +175,7 @@ func TestSL14_TheToolsComeWithTheirSkillAndItsConnection(t *testing.T) {
 		t.Errorf("%q %v", out, err)
 	}
 	// And without a connection it is not offered
-	if byName(skills.StarlarkTools(loaded, connector{on: false}, nil))["dienst__suche"].Enabled() {
+	if byName(skills.StarlarkTools(loaded, connector{on: false}, nil, nil))["dienst__suche"].Enabled() {
 		t.Error("offered without a connection")
 	}
 }
@@ -190,7 +185,7 @@ func TestSL15_TheWebAPIToolsAreGone(t *testing.T) {
 	// Given a skill with an api section and tools.star
 	loaded, _ := dienst(t, dienstOAuth, dienstTools)
 	// When Mira offers its tools
-	got := byName(append(skills.StarlarkTools(loaded, connector{on: true}, nil),
+	got := byName(append(skills.StarlarkTools(loaded, connector{on: true}, nil, nil),
 		(&skills.Set{Lang: i18n.DE, Skills: loaded}).Tools()...))
 	// Then there is no <skill>__api_get and no <skill>__api_write
 	for n := range got {

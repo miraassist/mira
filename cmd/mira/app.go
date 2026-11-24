@@ -79,7 +79,10 @@ import (
 
 // app is the wired service. Fields are nil for disabled parts.
 type app struct {
-	cfg config.Config
+	// reader lets the skills' Starlark tools read Mira's read-only tools
+	// (docs/spec/api-tools.md, decision 19), once the registry exists.
+	reader starlarkReader
+	cfg    config.Config
 	// configPath is the mira.yaml the page edits (edit.go); empty for the
 	// commands that do not serve the page.
 	configPath string
@@ -550,7 +553,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// (docs/spec/random-pick.md).
 	internal = append(internal, skills.RandomTools(a.lang, usable)...)
 	// The skills' tools in tools.star (docs/spec/api-tools.md).
-	internal = append(internal, skills.StarlarkTools(loaded, a.oauth, a.log)...)
+	internal = append(internal, skills.StarlarkTools(loaded, a.oauth, &a.reader, a.log)...)
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules))
 		// A scheduled job that is wrong does not run; the skill does
@@ -898,6 +901,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	internal = append(internal, a.threads.Tools()...)
 	registry := tools.NewRegistry(a.mcp, internal...)
+	a.reader.reg.Store(registry)
 	if ducker != nil {
 		registry.Observe(func(inv tools.Invocation) { volumeCall(a.log, ducker, inv) })
 	}

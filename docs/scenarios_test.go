@@ -26,7 +26,7 @@ var builtSteps = map[string][]int{
 	"HK": {1, 2},
 	"HW": {1, 2, 3},                    // docs/spec/hooks.md, Steps
 	"MO": {1, 2, 3, 4, 5, 7},           // docs/spec/models.md, Steps; step 6 in Go (MO-50 to 54) and pytest (MO-55)
-	"SM": {1, 2},                       // docs/spec/skill-mcp.md
+	"SM": {1, 2, 3},                    // docs/spec/skill-mcp.md
 	"MX": {1, 2},                       // docs/spec/mcp-connections.md
 	"EN": {1},                          // docs/spec/endings.md
 	"BO": {1, 2},                       // docs/spec/boerse.md
@@ -75,7 +75,7 @@ var builtSteps = map[string][]int{
 	"HE": {1, 2},                       // docs/spec/ha-api.md, Steps
 	"OA": {1, 2},                       // docs/spec/openapi.md, Steps
 	"SV": {1, 4},                       // docs/spec/strava.md, Steps; step 2 is the run end to end on the test HA
-	"SL": {1, 2, 3, 4},                 // docs/spec/api-tools.md, Steps
+	"SL": {1, 2, 3, 4, 7},              // docs/spec/api-tools.md, Steps
 	"YT": {2},                          // docs/spec/youtube.md, Steps; step 3 is the run end to end on the test HA
 	"SJ": {1, 2, 3},                    // docs/spec/scheduled-jobs.md, Steps
 	"MU": {1, 2, 4, 5, 6, 7, 8, 9, 10}, // docs/spec/music-players.md, Steps; step 3 is the run on live
@@ -177,7 +177,12 @@ func readTests(t *testing.T) map[string]string {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && (strings.HasPrefix(d.Name(), ".") && d.Name() != ".." || d.Name() == "testenv" || d.Name() == "node_modules") {
+		if d.IsDir() && (strings.HasPrefix(d.Name(), ".") && d.Name() != ".." || d.Name() == "node_modules") {
+			return filepath.SkipDir
+		}
+		// Of the test environment only the fakes' folders: the rest is the
+		// test HA's data.
+		if d.IsDir() && filepath.Base(filepath.Dir(path)) == "testenv" && !strings.HasSuffix(d.Name(), "_fake") {
 			return filepath.SkipDir
 		}
 		if d.IsDir() || !strings.HasSuffix(path, "_test.go") {

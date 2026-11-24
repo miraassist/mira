@@ -495,7 +495,7 @@ func (h *Host) listOne(ctx context.Context, cfg config.MCPServer, session *sdk.C
 		if len(cfg.Tools) > 0 && !slices.Contains(cfg.Tools, t.Name) {
 			continue // not among the tools Mira takes from this server
 		}
-		readOnly := cfg.ReadOnly || h.readOnly[def.QualifiedName()] ||
+		readOnly := cfg.ReadOnly || slices.Contains(cfg.ReadOnlyTools, t.Name) || h.readOnly[def.QualifiedName()] ||
 			(t.Annotations != nil && t.Annotations.ReadOnlyHint)
 		out = append(out, Tool{ToolDef: def, ReadOnly: readOnly, WebContent: cfg.WebContent, Skill: cfg.Skill,
 			AgentsOnly: cfg.Skill != "" && !cfg.ForConversation(), Confirm: slices.Contains(cfg.Confirm, t.Name)})

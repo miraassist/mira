@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"runtime/metrics"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -56,9 +57,32 @@ type Requester interface {
 	Request(ctx context.Context, skill, method, rawURL string, body []byte) (int, []byte, error)
 }
 
+// Reader calls one of Mira's tools that counts as read-only, by its full
+// name (docs/spec/api-tools.md, decision 19): its text and whether it is an
+// error. ErrNoTool when there is no such tool now, ErrNotReadOnly when it may
+// change something.
+type Reader interface {
+	ReadTool(ctx context.Context, name string, args json.RawMessage) (text string, isError bool, err error)
+}
+
+var (
+	// ErrNoTool: Mira has no tool of that name now (its skill or server is
+	// off or not reached).
+	ErrNoTool = errors.New("no such tool")
+	// ErrNotReadOnly: the tool may change something.
+	ErrNotReadOnly = errors.New("the tool is not read-only")
+	// ErrWebContent: the tool returns third-party text, which a tool that
+	// computes must not pass on as its own.
+	ErrWebContent = errors.New("the tool returns third-party text")
+)
+
 // Env is what a call needs besides its arguments.
 type Env struct {
 	Requester Requester
+	// Reader and Reads: mira.tool calls the tools under tools.reads in
+	// SKILL.md through Reader (decision 19).
+	Reader Reader
+	Reads  []string
 	// Writes: the tool is under writes in SKILL.md and may use a method
 	// other than GET (decision 15).
 	Writes bool
@@ -72,7 +96,8 @@ type Env struct {
 // Event is one thing a call did, in order: a request or a print
 // (docs/spec/api-tools.md, Seeing what went over the wire).
 type Event struct {
-	Kind    string `json:"kind"` // "request" or "print"
+	Kind    string `json:"kind"` // "request", "tool" or "print"
+	Tool    string `json:"tool,omitempty"`
 	Method  string `json:"method,omitempty"`
 	URL     string `json:"url,omitempty"`
 	Status  int    `json:"status,omitempty"`
@@ -337,13 +362,90 @@ func (f *File) predeclared() starlark.StringDict {
 		methods[strings.ToLower(m)] = starlark.NewBuiltin("api."+strings.ToLower(m), request(m))
 	}
 	return starlark.StringDict{
-		"api":      &starlarkstruct.Module{Name: "api", Members: methods},
+		"api": &starlarkstruct.Module{Name: "api", Members: methods},
+		"mira": &starlarkstruct.Module{Name: "mira", Members: starlark.StringDict{
+			"tool": starlark.NewBuiltin("mira.tool", miraTool),
+		}},
 		"json":     jsonModule,
 		"math":     starmath.Module,
 		"time":     starlarktime.Module,
 		"settings": f.settings,
 	}
 }
+
+// miraTool is mira.tool(name, args): one of Mira's read-only tools under
+// tools.reads (decision 19), and none that returns third-party text. Its answer: ok, text, json (the text decoded
+// when it is JSON) and error. A tool that is not there or fails is an
+// answer with ok False, so the function can go on (another source); a
+// name not under tools.reads, or a tool that writes, fails the call.
+func miraTool(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var name string
+	var params starlark.Value = starlark.None
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "name", &name, "args?", &params); err != nil {
+		return nil, err
+	}
+	c, _ := thread.Local("call").(*call)
+	if c == nil {
+		return nil, fmt.Errorf("%s works only inside a tool, not while %s loads", b.Name(), FileName)
+	}
+	if !slices.Contains(c.env.Reads, name) {
+		c.f.log.Warn("starlark tool: reading a tool refused", "skill", c.skill, "tool", c.tool, "read", name)
+		return nil, &apiError{fmt.Errorf("%s may not call %s: only the tools under tools.reads in SKILL.md", c.tool, name)}
+	}
+	if c.env.Reader == nil {
+		return nil, &apiError{fmt.Errorf("%s: Mira's tools cannot be read here", b.Name())}
+	}
+	payload := []byte("{}")
+	if params != starlark.None {
+		enc, err := starlark.Call(thread, starjson.Module.Members["encode"], starlark.Tuple{params}, nil)
+		if err != nil {
+			return nil, fmt.Errorf("%s: the args are no JSON: %v", b.Name(), err)
+		}
+		payload = []byte(enc.(starlark.String))
+	}
+	start := clock.Or(c.env.Clock).Now()
+	text, isError, err := c.env.Reader.ReadTool(c.ctx, name, payload)
+	ev := Event{Kind: "tool", Tool: name, MS: clock.Or(c.env.Clock).Since(start).Milliseconds(), Size: len(text)}
+	if errors.Is(err, ErrNotReadOnly) || errors.Is(err, ErrWebContent) {
+		ev.Error = err.Error()
+		c.events = append(c.events, ev)
+		c.f.log.Warn("starlark tool: reading a tool refused", "skill", c.skill, "tool", c.tool, "read", name, "error", err)
+		return nil, &apiError{fmt.Errorf("%s may not call %s: %v", c.tool, name, err)}
+	}
+	failure := ""
+	switch {
+	case err != nil:
+		failure = err.Error()
+	case isError:
+		failure = text
+	}
+	ev.Start = text
+	if len(ev.Start) > startLen {
+		ev.Start = ev.Start[:startLen] + "…"
+	}
+	ev.Error = failure
+	c.events = append(c.events, ev)
+	if failure != "" {
+		c.f.log.Info("starlark tool read a tool: it failed", "skill", c.skill, "tool", c.tool, "read", name, "ms", ev.MS,
+			"error", failure[:min(len(failure), 200)])
+	} else {
+		c.f.log.Info("starlark tool read a tool", "skill", c.skill, "tool", c.tool, "read", name, "ms", ev.MS, "bytes", len(text))
+	}
+	resp, deep := response(thread, 200, []byte(text))
+	if deep {
+		c.f.log.Warn("starlark tool: the answer nests too deep to decode; its json is None, its text stays",
+			"skill", c.skill, "tool", c.tool, "read", name, "limit", maxJSONDepth)
+	}
+	d := resp.(*starlarkstruct.Struct)
+	return starlarkstruct.FromStringDict(starlark.String("tool_result"), starlark.StringDict{
+		"ok":    starlark.Bool(failure == ""),
+		"text":  starlark.String(text),
+		"json":  must(d.Attr("json")),
+		"error": starlark.String(failure),
+	}), nil
+}
+
+func must(v starlark.Value, _ error) starlark.Value { return v }
 
 // apiError is a request that could not be made or got no answer; the tool
 // fails with it (Starlark has no try).

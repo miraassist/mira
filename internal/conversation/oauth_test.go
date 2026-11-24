@@ -57,7 +57,7 @@ def post(text):
 	set := &skills.Set{Lang: i18n.DE, Skills: []skills.Skill{sk}, Connection: m.State,
 		OnOpen: func(ctx context.Context, key, skill string) error { return h.store.AddSessionSkill(ctx, key, skill) }}
 	// And a turn in which the model has read third-party text
-	h = newHarnessTools(t, nil, append(set.Tools(), skills.StarlarkTools([]skills.Skill{sk}, m, nil)...),
+	h = newHarnessTools(t, nil, append(set.Tools(), skills.StarlarkTools([]skills.Skill{sk}, m, nil, nil)...),
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("o1", "skill_open", `{"name":"dienst"}`)}},
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("s1", "search__web_search", `{"query":"Spruch des Tages"}`)}},
 		// When the model calls the skill's writing tool
@@ -73,7 +73,7 @@ def post(text):
 		t.Errorf("the tool's answer: %q", res)
 	}
 	// Without third-party text in the turn it runs as the skill says (CO-18).
-	h2 := newHarnessTools(t, nil, append(set.Tools(), skills.StarlarkTools([]skills.Skill{sk}, m, nil)...),
+	h2 := newHarnessTools(t, nil, append(set.Tools(), skills.StarlarkTools([]skills.Skill{sk}, m, nil, nil)...),
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("o1", "skill_open", `{"name":"dienst"}`)}},
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("p1", "dienst__post", post)}},
 		fakellm.Step{Content: "Gepostet."},
