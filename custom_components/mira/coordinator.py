@@ -15,33 +15,36 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .access import revoke_made_token, token_works
 from .api import MiraClient, MiraError, MiraInvalidConfig
-from .const import CONF_AGENT_TOKEN, CONF_IMPORTED, DOMAIN, VERSION
+from .const import CONF_AGENT_TOKEN, CONF_IMPORTED, DOMAIN, MIN_SERVICE, VERSION
 from .mail import show_missing_calendars
 from .managed import async_config, exposed_entities, exposed_hash
 
 _LOGGER = logging.getLogger(__name__)
 
-# The repair when the service and this integration are not the same version
-# (major.minor; a patch apart is fine): docs/spec/versions.md.
-ISSUE_VERSION = "version_mismatch"
+# The repairs when one side is below the other's minimum
+# (docs/spec/versions.md, Minimum versions instead of one version); the old
+# repair for two different versions is deleted where it is still there.
+ISSUE_SERVICE_OLD = "service_too_old"
+ISSUE_INTEGRATION_OLD = "integration_too_old"
+ISSUE_VERSION_OLD = "version_mismatch"
 # The repair while the token an admin gave Mira does not work, or none was
 # given yet (docs/spec/hacs-default.md, 4).
 ISSUE_ACCESS = "new_access"
 
 
-def _minor(version: Any) -> tuple[int, int] | None:
-    """major.minor of a version like 0.9.0 or v0.9.0; None for anything else."""
-    if m := re.match(r"v?(\d+)\.(\d+)", str(version or "")):
-        return int(m[1]), int(m[2])
-    return None
-
-
 def _full(version: Any) -> tuple[int, int, int] | None:
-    """major.minor.patch of a version like 0.9.1 or v0.9 (a missing patch is
-    0); None for anything else."""
-    if m := re.match(r"v?(\d+)\.(\d+)(?:\.(\d+))?", str(version or "")):
-        return int(m[1]), int(m[2]), int(m[3] or 0)
+    """major.minor.patch of a version like 0.9.1 or v0.9.1; None for anything
+    else ("dev", a build without a version): such a version is never below a
+    minimum (docs/spec/versions.md, decision 9)."""
+    if m := re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", str(version or "")):
+        return int(m[1]), int(m[2]), int(m[3])
     return None
+
+
+def _below(version: Any, minimum: Any) -> bool:
+    """version is a version below minimum; False when either is none."""
+    v, m = _full(version), _full(minimum)
+    return v is not None and m is not None and v < m
 
 
 # The repair's text per source of a problem Mira reports; an unknown source
@@ -73,13 +76,21 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """
 
     def __init__(
-        self, hass: HomeAssistant, entry: ConfigEntry, client: MiraClient, agent_version: str | None = None
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        client: MiraClient,
+        agent_version: str | None = None,
+        agent_min_integration: str | None = None,
     ) -> None:
         super().__init__(hass, _LOGGER, config_entry=entry, name=DOMAIN, update_interval=timedelta(seconds=60))
         self.client = client
         self._synced = False
         # From /v1/health at setup; a newer service says it in /v1/status too.
         self.agent_version = agent_version
+        self.agent_min_integration = agent_min_integration
+        # The versions that were no x.y.z, logged once each.
+        self._odd_versions: set[str] = set()
         # The Supervisor was asked once to look for the app's update.
         self._store_reloaded = False
 
@@ -92,7 +103,10 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         show_missing_calendars(self.hass, list(status.get("mail_apps") or []))
         await self._check_access(bool(status.get("ha_token_refused")))
         self._show_problems(status.get("problems") or [])
-        self._show_version(status.get("version") or self.agent_version)
+        self._show_version(
+            status.get("version") or self.agent_version,
+            status.get("min_integration") or self.agent_min_integration,
+        )
         return status
 
     async def _check_access(self, refused: bool = False) -> None:
@@ -130,39 +144,52 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             translation_key=ISSUE_ACCESS,
         )
 
-    def _show_version(self, agent: Any) -> None:
-        """A repair while the service and this integration are not the same
-        version, saying which of the two to update; gone once they match. The
-        app's update is asked for a patch apart too: the repair leaves that
-        alone, the Supervisor offers it all the same (docs/spec/versions.md).
-        An older service is updated as the HA app on Home Assistant OS, else
-        as a container of one's own: the repair names only that way."""
-        full_ours, full_theirs = _full(VERSION), _full(agent)
-        if full_ours is not None and full_theirs is not None and full_theirs < full_ours:
+    def _show_version(self, agent: Any, min_integration: Any = None) -> None:
+        """A repair while one side is below the other's minimum
+        (docs/spec/versions.md, Minimum versions instead of one version): the
+        service below MIN_SERVICE asks to update the service (the HA app on
+        Home Assistant OS, else the container), this integration below the
+        service's min_integration asks to update the integration. Being apart
+        is no problem in itself; the old repair for that is deleted. A service
+        without min_integration (older) asks nothing of the integration; a
+        version that is no x.y.z is never below a minimum."""
+        ir.async_delete_issue(self.hass, DOMAIN, ISSUE_VERSION_OLD)
+        for value in (agent, min_integration):
+            if value and _full(value) is None and str(value) not in self._odd_versions:
+                self._odd_versions.add(str(value))
+                _LOGGER.debug("Mira's version %r is no x.y.z: no version repair for it", value)
+        service = str(agent or "").lstrip("v")
+        if _below(agent, MIN_SERVICE):
             self._ask_for_the_app_update()
-        ours, theirs = _minor(VERSION), _minor(agent)
-        if ours is None or theirs is None or ours == theirs:
-            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_VERSION)
-            return
-        ir.async_create_issue(
-            self.hass,
-            DOMAIN,
-            ISSUE_VERSION,
-            is_fixable=False,
-            severity=ir.IssueSeverity.WARNING,
-            translation_key=self._older_key() if theirs < ours else "version_agent_newer",
-            translation_placeholders={"integration": VERSION, "agent": str(agent).lstrip("v")},
-        )
-
-    def _older_key(self) -> str:
-        """The repair's text for an older service: the HA app on Home
-        Assistant OS, a container of one's own elsewhere."""
-        return "version_agent_older_app" if is_hassio(self.hass) else "version_agent_older"
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                ISSUE_SERVICE_OLD,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="service_too_old_app" if is_hassio(self.hass) else "service_too_old",
+                translation_placeholders={"minimum": MIN_SERVICE, "service": service},
+            )
+        else:
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SERVICE_OLD)
+        if _below(VERSION, min_integration):
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                ISSUE_INTEGRATION_OLD,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_INTEGRATION_OLD,
+                translation_placeholders={"minimum": str(min_integration).lstrip("v"), "integration": VERSION},
+            )
+        else:
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_INTEGRATION_OLD)
 
     def _ask_for_the_app_update(self) -> None:
         """On Home Assistant OS, the Supervisor reloads its app store once, so
-        the HA app's update shows now and not at its next check
-        (docs/spec/versions.md, Both updates offered together)."""
+        the HA app's update shows now and not at its next check, when the
+        service is below MIN_SERVICE (docs/spec/versions.md, Both updates
+        offered together)."""
         if self._store_reloaded or not is_hassio(self.hass):
             return
         self._store_reloaded = True

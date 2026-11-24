@@ -476,18 +476,6 @@
       "title": "Die Regel {name} ist nicht aktiv",
       "description": "Mira ist ohne sie gestartet. {text}\n\nÄndere die Datei im Ordner hooks neben der mira.yaml. Die Meldung verschwindet hier, sobald die Datei lädt."
     },
-    "version_agent_older": {
-      "title": "Mira-Service aktualisieren",
-      "description": "Die Mira-Integration hat die Version {integration}, der Mira-Service erst {agent}. Aktualisiere den Mira-Service: Stell das Image seines Containers auf {integration} und starte ihn neu.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
-    },
-    "version_agent_older_app": {
-      "title": "Mira-App aktualisieren",
-      "description": "Die Mira-Integration hat die Version {integration}, der Mira-Service erst {agent}. Aktualisiere die Mira-App unter Einstellungen → Updates auf {integration}. Wird das Update noch nicht angeboten, erscheint es in wenigen Minuten.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
-    },
-    "version_agent_newer": {
-      "title": "Mira-Integration aktualisieren",
-      "description": "Der Mira-Service hat die Version {agent}, die Mira-Integration erst {integration}. Aktualisiere die Integration unter Einstellungen → Updates auf {agent} (vor Home Assistant 2026.11: in HACS) und starte Home Assistant neu.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
-    },
     "satellite_no_area": {
       "title": "Mira weiß nicht, wo {name} steht",
       "description": "{name} hat in Home Assistant keinen Bereich, deshalb kennt Mira keinen Raum dafür. Du kannst mit ihm sprechen, aber Mira meldet sich dort nicht von selbst, sein Ring zeigt nichts an, für einen Timer, das Radio oder Musik dort musst du den Raum nennen, und Musik im Raum wird nicht leiser, während du mit ihm sprichst.\n\n[{name} öffnen]({link}) und in seinen Einstellungen einen Bereich wählen. Diese Meldung verschwindet, sobald er einen Bereich hat."
@@ -567,6 +555,18 @@
     "model_problem": {
       "title": "Miras KI-Modell {name} antwortet nicht",
       "description": "{text}\n\nPrüfe das Modell auf Miras Seite unter Modelle: seinen Schlüssel und seine Adresse. Die Meldung verschwindet hier, sobald das Modell wieder antwortet."
+    },
+    "service_too_old": {
+      "title": "Mira-Service aktualisieren",
+      "description": "Diese Mira-Integration braucht den Mira-Service in Version {minimum} oder neuer; er läuft mit {service}. Aktualisiere den Mira-Service: Stell das Image seines Containers auf {minimum} oder neuer und starte ihn neu.\n\nDie Meldung verschwindet, sobald der Service neu genug ist."
+    },
+    "service_too_old_app": {
+      "title": "Mira-App aktualisieren",
+      "description": "Diese Mira-Integration braucht den Mira-Service in Version {minimum} oder neuer; die Mira-App läuft mit {service}. Aktualisiere die Mira-App unter Einstellungen → Updates. Wird das Update noch nicht angeboten, erscheint es in wenigen Minuten.\n\nDie Meldung verschwindet, sobald die App neu genug ist."
+    },
+    "integration_too_old": {
+      "title": "Mira-Integration aktualisieren",
+      "description": "Der Mira-Service braucht die Mira-Integration in Version {minimum} oder neuer; diese ist {integration}. Aktualisiere die Integration unter Einstellungen → Updates (vor Home Assistant 2026.11: in HACS) und starte Home Assistant neu.\n\nDie Meldung verschwindet, sobald die Integration neu genug ist."
     }
   },
   "exceptions": {

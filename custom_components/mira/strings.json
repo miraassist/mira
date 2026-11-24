@@ -476,18 +476,6 @@
       "title": "The rule {name} is not active",
       "description": "Mira started without it. {text}\n\nChange the file in the folder hooks next to mira.yaml. The problem disappears here once the file loads."
     },
-    "version_agent_older": {
-      "title": "Update the Mira service",
-      "description": "The Mira integration is version {integration}, the Mira service only {agent}. Update the Mira service: set its container's image to {integration} and start it again.\n\nThis message disappears once both have the same version."
-    },
-    "version_agent_older_app": {
-      "title": "Update the Mira app",
-      "description": "The Mira integration is version {integration}, the Mira service only {agent}. Update the Mira app to {integration} under Settings → Updates. If the update is not offered yet, it appears within a few minutes.\n\nThis message disappears once both have the same version."
-    },
-    "version_agent_newer": {
-      "title": "Update the Mira integration",
-      "description": "The Mira service is version {agent}, the Mira integration only {integration}. Update the integration to {agent} under Settings → Updates (before Home Assistant 2026.11: in HACS) and restart Home Assistant.\n\nThis message disappears once both have the same version."
-    },
     "satellite_no_area": {
       "title": "Mira does not know where {name} stands",
       "description": "{name} has no area in Home Assistant, so Mira knows no room for it. You can talk to it, but Mira does not speak there on her own, its ring shows nothing, a timer, the radio or music there needs the room named, and music in the room does not get quieter while you talk to it.\n\n[Open {name}]({link}) and choose an area in its settings. This message disappears once it has an area."
@@ -567,6 +555,18 @@
     "model_problem": {
       "title": "Mira's AI model {name} does not answer",
       "description": "{text}\n\nCheck the model on Mira's page under Models: its key and its address. The message disappears here once the model answers again."
+    },
+    "service_too_old": {
+      "title": "Update the Mira service",
+      "description": "This Mira integration needs the Mira service in version {minimum} or newer; it runs {service}. Update the Mira service: set its container's image to {minimum} or newer and start it again.\n\nThis message disappears once the service is new enough."
+    },
+    "service_too_old_app": {
+      "title": "Update the Mira app",
+      "description": "This Mira integration needs the Mira service in version {minimum} or newer; the Mira app runs {service}. Update the Mira app under Settings → Updates. If the update is not offered yet, it appears within a few minutes.\n\nThis message disappears once the app is new enough."
+    },
+    "integration_too_old": {
+      "title": "Update the Mira integration",
+      "description": "The Mira service needs the Mira integration in version {minimum} or newer; this is {integration}. Update the integration under Settings → Updates (before Home Assistant 2026.11: in HACS) and restart Home Assistant.\n\nThis message disappears once the integration is new enough."
     }
   },
   "exceptions": {

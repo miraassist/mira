@@ -5,6 +5,10 @@ DOMAIN = "mira"
 # once, at start, so after files are replaced only a restart changes it.
 # Kept equal to manifest.json.
 VERSION = "0.40.0"
+# The oldest Mira service this integration works with (docs/spec/versions.md,
+# Minimum versions instead of one version, decisions 5, 7 and 8): raised only
+# when an older service would fail, not when it only misses a feature.
+MIN_SERVICE = "0.40.0"
 
 CONF_PERSONA = "persona"
 # Mira's own web search, switched at the service (docs/spec/web-search.md).
