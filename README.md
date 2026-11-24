@@ -18,37 +18,23 @@ Also: [Mira chatting in German](https://youtu.be/N-RfuKgBsEs).
 1. **The integration:** [![Open in the Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=miraassist&repository=mira&category=integration)
    or Settings → Marketplace → **Add from link** → `https://github.com/miraassist/mira`. Before Home Assistant
    2026.11: HACS → Custom repositories, the same address, type Integration. Install **Mira**, restart Home Assistant.
-2. **The Mira service**, one of:
-   - **Home Assistant OS:** Settings → Apps → App store → Repositories → `https://github.com/miraassist/mira`, then
-     install and start **Mira**.
-   - **Docker** on a machine in your home network: a `compose.yaml` in an empty folder, then `docker compose up -d`.
-     ```yaml
-     services:
-       mira:
-         image: ghcr.io/miraassist/mira
-         container_name: mira
-         restart: unless-stopped
-         network_mode: host
-         environment:
-           TZ: Europe/Berlin
-         volumes:
-           - ./config:/etc/mira     # mira.yaml, your own skills, what skills bring along
-           - ./data:/var/lib/mira   # memory, messages, database
-     ```
+2. **The Mira service:** as an app on Home Assistant OS, or with Docker on a machine in your home network: see
+   [Install the Mira service](https://github.com/miraassist/mira-app#install-the-mira-service) in
+   [miraassist/mira-app](https://github.com/miraassist/mira-app).
 3. **Set it up:** Settings → Devices & services → **Mira** under **Discovered** → **Add** (with the app: Add
    integration → Mira, address `http://localhost:8787`). Choose the AI model (OpenAI, Google Gemini, OpenRouter,
    Mistral or Anthropic with your key, or a server of your own) and the assistants Mira answers in, then paste a
    long-lived token of an administrator (your profile → Security → Long-lived access tokens). Done.
 
-More: [Installing Mira in detail](docs/install.md) · the guide's setup: [Deutsch](docs/guide/de.md#einrichtung) ·
-[English](docs/guide/en.md#setup).
+More: [Installing Mira in detail](https://github.com/miraassist/mira-app/blob/main/docs/install.md) · the guide's setup: [Deutsch](https://github.com/miraassist/mira-app/blob/main/docs/guide/de.md#einrichtung) ·
+[English](https://github.com/miraassist/mira-app/blob/main/docs/guide/en.md#setup).
 
 [![CI](https://github.com/miraassist/mira/actions/workflows/ci.yml/badge.svg)](https://github.com/miraassist/mira/actions/workflows/ci.yml)
 
 # Mira
 
-**User guide:** [Deutsch](docs/guide/de.md) · [English](docs/guide/en.md) – also in the web UI under "Anleitung" / "Guide".
-**System documentation:** [docs/system.md](docs/system.md) – components, the main flows as diagrams, data, security.
+**User guide:** [Deutsch](https://github.com/miraassist/mira-app/blob/main/docs/guide/de.md) · [English](https://github.com/miraassist/mira-app/blob/main/docs/guide/en.md) – also in the web UI under "Anleitung" / "Guide".
+**System documentation:** [docs/system.md](https://github.com/miraassist/mira-app/blob/main/docs/system.md) – components, the main flows as diagrams, data, security.
 
 An always-on voice assistant for Home Assistant. Mira thinks with a language
 model of your choice (a cloud provider or a server of your own), talks to you
@@ -56,13 +42,12 @@ through Assist voice satellites and, through Home Assistant's Telegram
 integration, in Telegram, controls the house through Home Assistant's MCP
 server, and speaks up on her own when something needs attention.
 
-This repository holds both parts, released together under one version:
+Mira has two parts in two repositories, released together under one version:
 
-| Part | Where | What it does |
+| Part | Repository | What it does |
 | --- | --- | --- |
-| Mira service (Go) | `cmd/mira`, `internal/` | Prompting, tools, memory, messages, security policy |
-| Integration (Marketplace) | `custom_components/mira` | Thin Assist conversation agent that forwards each turn to the Mira service |
-| HA app | `app/` | Runs the Mira service as a Home Assistant app |
+| Integration (Marketplace) | this one: `custom_components/mira` | Thin Assist conversation agent that forwards each turn to the Mira service |
+| Mira service (Go) and HA app | [miraassist/mira-app](https://github.com/miraassist/mira-app) | Prompting, tools, memory, messages, security policy; the app runs the service in Home Assistant OS |
 
 The integration does not use Home Assistant's LLM API and runs no tools. All
 logic lives in the Mira service.
@@ -71,7 +56,7 @@ logic lives in the Mira service.
 
 Web UI: `http://<mira>:8787/ui` edits the settings (models, skills, the
 notifier, and the satellites and persons unless the HA integration manages
-them, see [the integration](docs/install.md#the-integration)); it lists open messages and the memory. It asks for
+them, see [the integration](https://github.com/miraassist/mira-app/blob/main/docs/install.md#the-integration)); it lists open messages and the memory. It asks for
 `MIRA_API_TOKEN` once. The page writes `mira.yaml` itself, the one truth for
 the settings: comments and order stay, a token or secret setting goes into
 Mira's secrets file in the data folder and the file gets a `${NAME}`
@@ -140,7 +125,7 @@ person, otherwise the last at all, and before anyone spoke, Home Assistant's
 server language. There is no setting for it. The English prompt is written
 but not yet tuned against a model (see `internal/prompt/testdata/prefix_voice_en.txt`).
 
-More, each explained in the guide ([de](docs/guide/de.md), [en](docs/guide/en.md)):
+More, each explained in the guide ([de](https://github.com/miraassist/mira-app/blob/main/docs/guide/de.md), [en](https://github.com/miraassist/mira-app/blob/main/docs/guide/en.md)):
 
 - **Watches**: "Pass auf die Spülmaschine auf" – Mira learns what is normal for
   a device and says when it departs from it; watches for groups (lights left
@@ -199,19 +184,18 @@ an urgent message. These rules are enforced in code, not only in the prompt.
 ## Development
 
 ```sh
-go test -race -timeout 120s ./...                     # Mira service
 uv venv --python 3.14 && uv pip install -r requirements_test.txt
 .venv/bin/python -m pytest                            # integration
-go run ./cmd/testha up                                # test Home Assistant in Docker
 scripts/check.sh                                      # all CI checks incl. hassfest, before a push
 ```
 
-`testenv/` holds a throwaway Home Assistant for tests against a real HA; see
-[testenv/README.md](testenv/README.md).
+The Mira service, the test Home Assistant and the docs are in
+[miraassist/mira-app](https://github.com/miraassist/mira-app); with a checkout of it beside this one,
+`scripts/check.sh` also checks the automations the service builds.
 
-Releases: the Mira service and the integration share one version. Bump it in
-`cmd/mira/main.go`, `custom_components/mira/const.py` and
-`custom_components/mira/manifest.json`, then tag `vX.Y.Z`. The release workflow refuses a tag that does not match.
+Releases: the integration and the Mira service share one version. Bump it in `custom_components/mira/const.py` and
+`custom_components/mira/manifest.json` here and in the service's `cmd/mira/main.go`; tag `vX.Y.Z` in
+miraassist/mira-app first, then here. The release workflow refuses a tag that does not match.
 
 ## License
 

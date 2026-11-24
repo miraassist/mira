@@ -1,8 +1,0 @@
-name: hermes-recherche
-description: Eine Recherche, die keinen Agenten nennt, darf Mira selbst machen (Skill nachdenken) oder dem Recherche-Agenten geben
-skills: [hermes]
-steps:
-  - say: Finde heraus, welche Wärmepumpe zu einem Altbau passt
-    expect:
-      behaviour:
-        must: ["thread:hermes|tool:nachdenken"]

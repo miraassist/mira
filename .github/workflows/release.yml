@@ -1,21 +1,15 @@
 name: Release
 
-# Agent and integration share one version. A tag vX.Y.Z releases both: the Marketplace
-# picks the tag up for the integration, the agent binaries are attached and
-# the image goes to ghcr.io/<owner>/mira (amd64, arm64). Once the image is
-# there, the Home Assistant app (app/config.yaml) gets the version, so Home
-# Assistant never offers an update whose image does not exist yet
-# (docs/spec/app.md). The release is a draft until then and is published
-# last, so the integration's update and the app's come out together
-# (docs/spec/versions.md, Both updates offered together); a failed image or
-# app job leaves it a draft, and nothing is offered.
+# The integration and the Mira service (its own repository, miraassist/mira-app)
+# share one version; each repository releases its side with the same tag
+# vX.Y.Z, the service and the app first. Here the Marketplace picks the tag up:
+# the release carries the integration as a zip.
 on:
   push:
     tags: ["v*"]
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   release:
@@ -37,19 +31,7 @@ jobs:
             echo "const.py says $code, tag says $want" >&2
             exit 1
           fi
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      - run: go test -timeout 60s ./...
-      - name: Build agent binaries
-        run: |
-          mkdir dist
-          for arch in amd64 arm64; do
-            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath \
-              -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
-              -o "dist/mira-linux-$arch" ./cmd/mira
-          done
-          cp mira.example.yaml dist/
+      - run: mkdir dist
       - name: Integration as a zip for HACS
         # HACS installs the integration from this asset (hacs.json: zip_release),
         # so GitHub counts its downloads (docs/spec/hacs-default.md, decision 4).
@@ -60,62 +42,3 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
-          draft: true
-
-  image:
-    name: Container image
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-          labels: |
-            org.opencontainers.image.title=Mira
-            org.opencontainers.image.description=Household voice agent for Home Assistant
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          build-args: VERSION=${{ github.ref_name }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  app:
-    name: App version
-    needs: image
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: main
-      - name: Give the app the tag's version, now that its image exists
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          sed -i "s/^version: .*/version: \"$version\"/" app/config.yaml
-          if git diff --quiet; then
-            echo "app/config.yaml is at $version already"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "App: version $version"
-          git push origin main
-      - name: Publish the release, now that the app has its version
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false --repo "$GITHUB_REPOSITORY"

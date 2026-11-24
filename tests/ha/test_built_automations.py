@@ -2,10 +2,13 @@
 Assistant's own check and the rule what a task may call
 (mira/automation/validate). The service writes them in its tests
 (internal/timer/testdata, internal/alarm/testdata); here Home Assistant checks
-them (docs/spec/scheduled-actions.md, docs/spec/alarm.md)."""
+them (docs/spec/scheduled-actions.md, docs/spec/alarm.md). The service is in its
+own repository, miraassist/mira-app: MIRA_APP names its checkout (scripts/check.sh
+takes the one beside this one); without one these tests are skipped."""
 
 import copy
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -14,11 +17,13 @@ from homeassistant.setup import async_setup_component
 
 from custom_components.mira.automations import validate
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get("MIRA_APP", "")) if os.environ.get("MIRA_APP") else None
 FORBIDDEN = {"domains": ["lock", "alarm_control_panel"], "entities": ["cover.garage_door"]}
 
 
 def _built(path: str) -> list[dict]:
+    if ROOT is None:
+        pytest.skip("MIRA_APP names no checkout of the Mira service")
     return json.loads((ROOT / path).read_text())
 
 

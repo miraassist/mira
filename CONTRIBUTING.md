@@ -7,7 +7,7 @@ Everyone here follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 ## Something does not work
 
 1. Update first: only the latest release gets fixes.
-2. Look in the guide ([Deutsch](docs/guide/de.md) · [English](docs/guide/en.md)) and under Settings → System →
+2. Look in the guide ([Deutsch](https://github.com/miraassist/mira-app/blob/main/docs/guide/de.md) · [English](https://github.com/miraassist/mira-app/blob/main/docs/guide/en.md)) and under Settings → System →
    **Repairs** in Home Assistant; many problems explain themselves there.
 3. Open an issue with the form **Bug report**. What helps most: the exact sentence you said or wrote, what Mira
    answered or did, and the lines of Mira's log from that moment (for the Home Assistant app: Settings → Apps → Mira →
@@ -35,17 +35,19 @@ vocabulary test) also have an English `SKILL.en.md` next to them.
 
 ## A pull request
 
-Talk about a larger change in an issue first, so no work is lost. Then:
+This repository holds the integration; the Mira service, the HA app, the skills and the specs are in
+[miraassist/mira-app](https://github.com/miraassist/mira-app), with its own CONTRIBUTING. Talk about a larger change
+in an issue first, so no work is lost. Then:
 
-- **Spec first.** A feature starts as `docs/spec/<topic>.md`: its goal, the decisions, what it does, numbered steps,
+- **Spec first** (in miraassist/mira-app, but for the integration's own spec, `docs/spec/ha-integration.md`). A
+  feature starts as `docs/spec/<topic>.md`: its goal, the decisions, what it does, numbered steps,
   and what happens when a step fails. Its testable rules go into `docs/spec/<topic>.feature`, each scenario with a
   fixed id (`AB-07`) and a tag for the step that builds it.
 - **Tests carry the scenario's name**: `TestAB07_…` in Go, `test_AB07_…` in pytest. A built step is entered in
   `docs/scenarios_test.go`; the check fails when a scenario of it has no test.
-- **Run `scripts/check.sh` before you push.** It runs what CI runs: gofmt, go vet, staticcheck, `go test -race`, ruff,
-  pytest, a syntax check of the page's JavaScript, and hassfest. It needs Go (the version in `go.mod`), Python with
-  the packages of `requirements_test.txt`, [uv](https://docs.astral.sh/uv/) for ruff, Node.js, and Docker for
-  hassfest (`--no-docker` skips it).
+- **Run `scripts/check.sh` before you push.** It runs what CI runs: ruff, pytest and hassfest. It needs Python with
+  the packages of `requirements_test.txt`, [uv](https://docs.astral.sh/uv/) for ruff, and Docker for hassfest
+  (`--no-docker` skips it).
 - **Language.** Code, comments, specs and commit messages in English. Texts users see (pages, setup, repairs) and the
   guide in German and English.
 - **Commit messages** say what changes for the user, as a sentence: "A plan can be ended on the page".
@@ -62,7 +64,7 @@ Talk about a larger change in an issue first, so no work is lost. Then:
   service and an older integration keep working.
 - **No facts of a real setup** in the repository: no addresses, host names, users or secrets.
 
-[docs/system.md](docs/system.md) describes the parts and the main flows.
+[docs/system.md](https://github.com/miraassist/mira-app/blob/main/docs/system.md) describes the parts and the main flows.
 
 ## License
 

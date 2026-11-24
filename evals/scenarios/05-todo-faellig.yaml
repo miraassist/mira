@@ -1,9 +1,0 @@
-name: todo-faellig
-description: Eintrag mit Fälligkeit ohne genannte Liste; nur Einkauf kann eine Fälligkeit speichern und gehört niemandem, also kommt er dorthin
-steps:
-  - say: Setz Batterien AAA auf die Liste, bis übermorgen
-    expect:
-      result:
-        - todo_item: { list: todo.einkauf, contains: Batterien AAA, due: "+2" }
-      behaviour:
-        must: [thread:todo, action:todo.create]

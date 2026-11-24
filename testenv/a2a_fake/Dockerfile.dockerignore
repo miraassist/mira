@@ -1,6 +1,0 @@
-# Only what the fake's image needs (the repository's .dockerignore leaves
-# testenv out).
-*
-!go.mod
-!go.sum
-!testenv/a2a_fake

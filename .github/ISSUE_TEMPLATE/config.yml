@@ -7,5 +7,5 @@ contact_links:
     url: https://github.com/miraassist/mira/security/advisories/new
     about: Report it privately, not as an issue.
   - name: Guide
-    url: https://github.com/miraassist/mira/blob/main/docs/guide/en.md
+    url: https://github.com/miraassist/mira-app/blob/main/docs/guide/en.md
     about: Setup, skills, settings (Deutsch in docs/guide/de.md).

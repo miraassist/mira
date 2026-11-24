@@ -1,77 +1,36 @@
 #!/usr/bin/env bash
-# Run the CI checks locally before a push: gofmt, go vet, staticcheck, go test -race,
-# ruff (lint and format) and pytest for the integration, the syntax of the
-# page's JavaScript (Node, from nvm when it is not on the PATH), and Home
-# Assistant's hassfest (Docker image).
-# The HACS validation needs the GitHub repository and only runs in CI.
+# Run the CI checks of the integration locally before a push: ruff (lint and
+# format), pytest, and Home Assistant's hassfest (Docker image). The HACS
+# validation needs the GitHub repository and only runs in CI. The Mira service
+# is in its own repository (miraassist/mira-app) with its own checks; with a
+# checkout of it beside this one (or MIRA_APP naming it), pytest also checks
+# the automations the service builds.
 #
 #   scripts/check.sh              # everything
 #   scripts/check.sh --no-docker  # without hassfest
-#   scripts/check.sh --release    # before a release: Go tests again, none from the cache
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 cd "$repo"
 docker=1
-# staticcheck 2026.2.2; the same version as in .github/workflows/ci.yml.
-staticcheck_version=v0.8.2
 # ruff with its default rules; the same version as in .github/workflows/ci.yml.
 ruff_version=0.17.3
-# Go keeps the result of a package that did not change; before a release
-# every test runs again, so a test that fails only now and then shows.
-count=()
 for arg in "$@"; do
 	case "$arg" in
 	--no-docker) docker=0 ;;
-	--release) count=(-count=1) ;;
 	*)
 		echo "unknown option: $arg"
 		exit 1
 		;;
 	esac
 done
+export MIRA_APP="${MIRA_APP:-$repo/../mira-app}"
+if [[ ! -d "$MIRA_APP/internal" ]]; then
+	echo "no Mira service at $MIRA_APP: its automations are not checked (set MIRA_APP)"
+	unset MIRA_APP
+fi
 
 step() { printf '\n== %s\n' "$*"; }
-
-step gofmt
-unformatted=$(gofmt -l .)
-if [[ -n "$unformatted" ]]; then
-	echo "$unformatted"
-	exit 1
-fi
-
-step "tests without time"
-# docs/spec/tests.md, rule 1 and step 6: no Go test waits in real time; it
-# waits for a signal or moves the test's clock. The clock's own tests are
-# the one exception.
-waits=$(grep -rnE --include='*_test.go' \
-	'time\.(Sleep|After|NewTimer|NewTicker|Tick)\(|context\.WithTimeout\(|time\.Now\(\)\.(Before|After)\(|time\.Since\(' \
-	internal cmd testenv | grep -v '^internal/clock/' || true)
-# The integration's tests: no sleep but the one that yields to the loop.
-waits+=$(grep -rnE --include='*.py' 'time\.sleep\(|asyncio\.sleep\([^0)]' tests || true)
-if [[ -n "$waits" ]]; then
-	echo "$waits"
-	echo "a test waits in real time: wait for a signal or move the clock (docs/spec/tests.md)"
-	exit 1
-fi
-
-step "go vet"
-go vet ./...
-
-step staticcheck
-go run "honnef.co/go/tools/cmd/staticcheck@$staticcheck_version" ./...
-
-step "go test -race"
-# A small deadline: a hanging test must not cost Go's default of 10 minutes
-# per package; the panic names the test that stands (CLAUDE.md, Releasing).
-# On two cores like GitHub's runners: a test that waits for a signal too
-# briefly, or a race between goroutines, shows here and not only in CI.
-if command -v taskset >/dev/null; then
-	taskset -c 0,1 go test -race ${count[@]+"${count[@]}"} -timeout 120s ./... | grep -v '^?'
-else
-	echo "taskset not found: the tests run on all cores, not on two like CI"
-	go test -race ${count[@]+"${count[@]}"} -timeout 120s ./... | grep -v '^?'
-fi
 
 step ruff
 uvx "ruff@$ruff_version" check custom_components tests
@@ -83,19 +42,6 @@ if [[ -x .venv/bin/pytest ]]; then
 else
 	python3 -m pytest -q tests
 fi
-
-step "page scripts"
-if ! command -v node >/dev/null && [[ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]]; then
-	set +u
-	# shellcheck disable=SC1091
-	. "${NVM_DIR:-$HOME/.nvm}/nvm.sh"
-	set -u
-fi
-if ! command -v node >/dev/null; then
-	echo "node not found: install it with nvm (nvm install --lts)"
-	exit 1
-fi
-node scripts/check-js.mjs
 
 if ((docker)); then
 	step hassfest
