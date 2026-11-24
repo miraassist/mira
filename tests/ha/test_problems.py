@@ -135,3 +135,30 @@ async def test_PA01_entries_mira_cannot_read_are_a_repair(hass, aioclient_mock, 
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
     await entry.runtime_data.coordinator.async_refresh()
     assert registry.async_get_issue(DOMAIN, "registry_registry") is None
+
+
+# MF-15 The integration shows the moving problem as its own repair
+# (docs/spec/main-in-file.md in miraassist/mira-app)
+async def test_MF15_the_integration_shows_the_moving_problem_as_its_own_repair(hass, aioclient_mock, entry):
+    # Given /v1/status with a problem of source "model_file"
+    problem = {
+        "source": "model_file",
+        "name": "main",
+        "text": "/config/mira.yaml: /config/mira.yaml is read-only: change it by hand",
+    }
+    aioclient_mock.get(
+        f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": [problem]}
+    )
+    # When the integration reads it
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    # Then a repair "Mira kann ihr KI-Modell nicht in die mira.yaml übernehmen" shows the cause
+    registry = ir.async_get(hass)
+    issue = registry.async_get_issue(DOMAIN, "model_file_main")
+    assert issue is not None and issue.translation_key == "model_file_problem"
+    assert issue.translation_placeholders == {"name": "main", "text": problem["text"]}
+    # And it goes when the problem is gone
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
+    await entry.runtime_data.coordinator.async_refresh()
+    assert registry.async_get_issue(DOMAIN, "model_file_main") is None

@@ -56,6 +56,8 @@ def _below(version: Any, minimum: Any) -> bool:
 # "registry": entries of Home Assistant's registries Mira cannot read
 # (docs/spec/parsing.md, PA-01).
 # "config": mira.yaml cannot be read, Mira runs limited (PA-07).
+# "model_file": the setup's model of before cannot move into mira.yaml
+# (docs/spec/main-in-file.md in miraassist/mira-app, decision 3).
 _PROBLEM_KEYS = {
     "skill": "skill_problem",
     "agent": "agent_problem",
@@ -64,6 +66,7 @@ _PROBLEM_KEYS = {
     "model": "model_problem",
     "registry": "registry_problem",
     "config": "config_problem",
+    "model_file": "model_file_problem",
 }
 
 

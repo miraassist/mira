@@ -556,6 +556,10 @@
       "title": "Miras KI-Modell {name} antwortet nicht",
       "description": "{text}\n\nPrüfe das Modell auf Miras Seite unter Modelle: seinen Schlüssel und seine Adresse. Die Meldung verschwindet hier, sobald das Modell wieder antwortet."
     },
+    "model_file_problem": {
+      "title": "Mira kann ihr KI-Modell nicht in die mira.yaml übernehmen",
+      "description": "{text}\n\nMira arbeitet mit dem KI-Modell weiter wie bisher, auf Miras Seite lässt es sich aber noch nicht ändern. Mach die Datei mira.yaml beschreibbar und starte Mira dann neu. Die Meldung verschwindet, sobald das Modell in der Datei steht."
+    },
     "service_too_old": {
       "title": "Mira-Service aktualisieren",
       "description": "Diese Mira-Integration braucht den Mira-Service in Version {minimum} oder neuer; er läuft mit {service}. Aktualisiere den Mira-Service: Stell das Image seines Containers auf {minimum} oder neuer und starte ihn neu.\n\nDie Meldung verschwindet, sobald der Service neu genug ist."

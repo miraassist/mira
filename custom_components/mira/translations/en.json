@@ -556,6 +556,10 @@
       "title": "Mira's AI model {name} does not answer",
       "description": "{text}\n\nCheck the model on Mira's page under Models: its key and its address. The message disappears here once the model answers again."
     },
+    "model_file_problem": {
+      "title": "Mira can't move her AI model into mira.yaml",
+      "description": "{text}\n\nMira keeps working with the AI model as before, but it cannot be changed on Mira's page yet. Make the file mira.yaml writable, then restart Mira. The message disappears once the model is in the file."
+    },
     "service_too_old": {
       "title": "Update the Mira service",
       "description": "This Mira integration needs the Mira service in version {minimum} or newer; it runs {service}. Update the Mira service: set its container's image to {minimum} or newer and start it again.\n\nThis message disappears once the service is new enough."
