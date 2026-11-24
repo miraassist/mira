@@ -76,7 +76,7 @@
       },
       "finish": {
         "title": "Access for Mira",
-        "description": "Mira creates your tasks and timers as automations, the way one does in the automation editor. In Home Assistant only an administrator may do that. In your profile under **Security → Long-lived access tokens**, click **Create token**, name it for example “Mira”, and paste it here. You can revoke it there at any time; Mira then asks for a new one under Repairs.",
+        "description": "Mira creates your tasks and timers as automations, the way one does in the automation editor. In Home Assistant only an administrator may do that. With the token Mira can also change automations you made yourself in the editor; she deletes only those she created. The token itself allows everything an administrator may do. In your profile under **Security → Long-lived access tokens**, click **Create token**, name it for example “Mira”, and paste it here. You can revoke it there at any time; Mira then asks for a new one under Repairs.",
         "data": {
           "token": "Token"
         },
@@ -547,7 +547,7 @@
         "step": {
           "confirm": {
             "title": "Give Mira a new access",
-            "description": "Mira's access to Home Assistant does not work any more: the token was revoked, or its user is no longer an administrator. Until you give her a new one, what Home Assistant refuses fails, such as new tasks and timers.\n\nMira creates your tasks and timers as automations, the way one does in the automation editor. In Home Assistant only an administrator may do that. In your profile under **Security → Long-lived access tokens**, click **Create token**, name it for example “Mira”, and paste it here. You can revoke it there at any time; Mira then asks for a new one under Repairs.",
+            "description": "Mira's access to Home Assistant does not work any more: the token was revoked, or its user is no longer an administrator. Until you give her a new one, what Home Assistant refuses fails, such as new tasks and timers.\n\nMira creates your tasks and timers as automations, the way one does in the automation editor. In Home Assistant only an administrator may do that. With the token Mira can also change automations you made yourself in the editor; she deletes only those she created. The token itself allows everything an administrator may do. In your profile under **Security → Long-lived access tokens**, click **Create token**, name it for example “Mira”, and paste it here. You can revoke it there at any time; Mira then asks for a new one under Repairs.",
             "data": {
               "token": "Token"
             }

@@ -76,7 +76,7 @@
       },
       "finish": {
         "title": "Zugang für Mira",
-        "description": "Mira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in Home Assistant nur ein Administrator. Klicke dafür in deinem Profil unter **Sicherheit → Langlebige Zugriffstoken** auf **Token erstellen**, nenne es zum Beispiel „Mira“ und füge es hier ein. Du kannst es dort jederzeit widerrufen; Mira fragt dann unter Reparaturen nach einem neuen.",
+        "description": "Mira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in Home Assistant nur ein Administrator. Mit dem Token kann Mira auch Automationen ändern, die ihr selbst im Editor angelegt habt; löschen kann sie nur die, die sie selbst angelegt hat. Das Token selbst erlaubt alles, was ein Administrator darf. Klicke dafür in deinem Profil unter **Sicherheit → Langlebige Zugriffstoken** auf **Token erstellen**, nenne es zum Beispiel „Mira“ und füge es hier ein. Du kannst es dort jederzeit widerrufen; Mira fragt dann unter Reparaturen nach einem neuen.",
         "data": {
           "token": "Token"
         },
@@ -547,7 +547,7 @@
         "step": {
           "confirm": {
             "title": "Mira einen neuen Zugang geben",
-            "description": "Miras Zugang zu Home Assistant funktioniert nicht mehr: Das Token wurde widerrufen, oder sein Benutzer ist kein Administrator mehr. Bis du ihr ein neues gibst, schlägt fehl, was Home Assistant ablehnt, zum Beispiel neue Aufgaben und Timer.\n\nMira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in Home Assistant nur ein Administrator. Klicke dafür in deinem Profil unter **Sicherheit → Langlebige Zugriffstoken** auf **Token erstellen**, nenne es zum Beispiel „Mira“ und füge es hier ein. Du kannst es dort jederzeit widerrufen; Mira fragt dann unter Reparaturen nach einem neuen.",
+            "description": "Miras Zugang zu Home Assistant funktioniert nicht mehr: Das Token wurde widerrufen, oder sein Benutzer ist kein Administrator mehr. Bis du ihr ein neues gibst, schlägt fehl, was Home Assistant ablehnt, zum Beispiel neue Aufgaben und Timer.\n\nMira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in Home Assistant nur ein Administrator. Mit dem Token kann Mira auch Automationen ändern, die ihr selbst im Editor angelegt habt; löschen kann sie nur die, die sie selbst angelegt hat. Das Token selbst erlaubt alles, was ein Administrator darf. Klicke dafür in deinem Profil unter **Sicherheit → Langlebige Zugriffstoken** auf **Token erstellen**, nenne es zum Beispiel „Mira“ und füge es hier ein. Du kannst es dort jederzeit widerrufen; Mira fragt dann unter Reparaturen nach einem neuen.",
             "data": {
               "token": "Token"
             }
