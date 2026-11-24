@@ -1,9 +1,8 @@
 name: Release
 
-# The integration and the Mira service (its own repository, miraassist/mira-app)
-# share one version; each repository releases its side with the same tag
-# vX.Y.Z, the service and the app first. Here the Marketplace picks the tag up:
-# the release carries the integration as a zip.
+# The integration has its own version, the Mira service (its own repository,
+# miraassist/mira-app) its own; each is released apart. Here the Marketplace
+# picks the tag up: the release carries the integration as a zip.
 on:
   push:
     tags: ["v*"]

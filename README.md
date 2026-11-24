@@ -44,7 +44,7 @@ through Assist voice satellites and, through Home Assistant's Telegram
 integration, in Telegram, controls the house through Home Assistant's MCP
 server, and speaks up on her own when something needs attention.
 
-Mira has two parts in two repositories, released together under one version:
+Mira has two parts in two repositories, each with its own version:
 
 | Part | Repository | What it does |
 | --- | --- | --- |
@@ -195,9 +195,10 @@ The Mira service, the test Home Assistant and the docs are in
 [miraassist/mira-app](https://github.com/miraassist/mira-app); with a checkout of it beside this one,
 `scripts/check.sh` also checks the automations the service builds.
 
-Releases: the integration and the Mira service share one version. Bump it in `custom_components/mira/const.py` and
-`custom_components/mira/manifest.json` here and in the service's `cmd/mira/main.go`; tag `vX.Y.Z` in
-miraassist/mira-app first, then here. The release workflow refuses a tag that does not match.
+Releases: the integration has its own version. Raise it in `custom_components/mira/const.py` and
+`custom_components/mira/manifest.json` and tag `vX.Y.Z`; the release workflow refuses a tag that does not match. It
+names the oldest Mira service it works with (`MIN_SERVICE` in `const.py`), raised only when an older service would
+fail; such a release says so first in its notes.
 
 ## License
 

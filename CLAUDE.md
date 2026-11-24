@@ -120,8 +120,10 @@ wrong action like a tool run twice, a lost result, a false error).
 
 ## Releasing
 
-- **Semantic versioning**: a patch for fixes, a minor version for features and changed configuration. Every live
-  change raises the version of the service and of the integration.
+- **Semantic versioning**: a patch for fixes, a minor version for features and changed configuration. The service
+  and the integration each have their own version and release apart; a live change raises the version of the side it
+  changes. Each names the oldest version of the other it works with (`MinIntegration`, `MIN_SERVICE`), raised only
+  when an older partner would fail, and such a release says so first in its notes.
 - **The guide is updated before a release**: new pages, new skills, screenshots. Part of it is a **cross-check of
   the user-facing documents** against the code, the skills and the specs: the guide in both languages (against each
   other too), README, the HA app's DOCS.md, `mira.example.yaml`, the integration's texts, CONTRIBUTING and
