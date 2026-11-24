@@ -18,7 +18,8 @@ Also: [Mira chatting in German](https://youtu.be/N-RfuKgBsEs).
 1. **The integration:** [![Open in the Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=miraassist&repository=mira&category=integration)
    or Settings → Marketplace, search for **Mira**. Install it, restart Home Assistant. Before Home Assistant
    2026.11: HACS, search for **Mira**, **Download**, restart Home Assistant.
-2. **The Mira service:** as an app on Home Assistant OS, or with Docker on a machine in your home network: see
+2. **The Mira service:** as an app on Home Assistant OS ([![Add the app repository to my Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmiraassist%2Fmira-app)),
+   or with Docker on a machine in your home network: see
    [Install the Mira service](https://github.com/miraassist/mira-app#install-the-mira-service) in
    [miraassist/mira-app](https://github.com/miraassist/mira-app). Installed the app from this address before? It
    moved: see [Moving the app](https://github.com/miraassist/mira-app#moving-the-app).
