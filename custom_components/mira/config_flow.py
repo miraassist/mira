@@ -73,7 +73,7 @@ SETUP_WAIT = 60
 _LOGGER = logging.getLogger(__name__)
 
 # The guide's setup section, linked from the first form.
-GUIDE = "https://github.com/miraassist/mira/blob/main/docs/guide/{}.md#{}"
+GUIDE = "https://github.com/miraassist/mira-app/blob/main/docs/guide/{}.md#{}"
 
 # What the service says went wrong with a model, as the form's error.
 MODEL_ERRORS = {"unreachable", "bad_key", "no_model", "no_tools", "server_error"}
@@ -90,7 +90,7 @@ WORDS = {
         "missing": "fehlt noch",
         "bad_code": "Der Kopplungscode stimmt nicht oder ist schon verbraucht. Er steht im Protokoll von Mira; gib ihn neu ein.",
         "failed": "Das Koppeln hat nicht geklappt: {error}",
-        "not_started": "Mira ist gekoppelt, startet aber nicht: {error}. Warum, steht im Protokoll der Mira-App. Füge Mira danach hier erneut hinzu; ein Kopplungscode ist dafür nicht nötig.",
+        "not_started": "Mira ist gekoppelt, startet aber nicht: {error}. Warum, steht in Miras Protokoll (bei der Mira-App unter Einstellungen → Apps → Mira → Protokoll, bei Docker docker logs mira). Füge Mira danach hier erneut hinzu; ein Kopplungscode ist dafür nicht nötig.",
     },
     "en": {
         "custom": "Own server (enter its address)",
@@ -102,7 +102,7 @@ WORDS = {
         "missing": "still missing",
         "bad_code": "The pairing code is wrong or used up. It is in Mira's log; enter it again.",
         "failed": "Pairing did not work: {error}",
-        "not_started": "Mira is paired but does not start: {error}. The Mira app's log says why. Then add Mira here again; no pairing code is needed.",
+        "not_started": "Mira is paired but does not start: {error}. Mira's log says why (for the Mira app under Settings → Apps → Mira → Log, for Docker docker logs mira). Then add Mira here again; no pairing code is needed.",
     },
 }
 

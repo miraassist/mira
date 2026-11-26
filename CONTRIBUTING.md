@@ -44,7 +44,7 @@ in an issue first, so no work is lost. Then:
   and what happens when a step fails. Its testable rules go into `docs/spec/<topic>.feature`, each scenario with a
   fixed id (`AB-07`) and a tag for the step that builds it.
 - **Tests carry the scenario's name**: `TestAB07_…` in Go, `test_AB07_…` in pytest. A built step is entered in
-  `docs/scenarios_test.go`; the check fails when a scenario of it has no test.
+  `docs/scenarios_test.go` (in [miraassist/mira-app](https://github.com/miraassist/mira-app)); the check fails when a scenario of it has no test.
 - **Run `scripts/check.sh` before you push.** It runs what CI runs: ruff, pytest and hassfest. It needs Python with
   the packages of `requirements_test.txt`, [uv](https://docs.astral.sh/uv/) for ruff, and Docker for hassfest
   (`--no-docker` skips it).

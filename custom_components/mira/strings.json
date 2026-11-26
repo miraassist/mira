@@ -104,7 +104,7 @@
       "setup_failed": "Setting up did not work: {error}",
       "connected": "Connected. Mira keeps the connection.",
       "connect_failed": "Mira could not take the connection; see the log.",
-      "limited": "Mira cannot read her settings: the file mira.yaml cannot be read. The Mira app's log says what is wrong. Correct the file; Mira then starts anew by herself. Afterwards add Mira here again."
+      "limited": "Mira cannot read her settings: the file mira.yaml cannot be read. Mira's log says what is wrong (for the Mira app under Settings → Apps → Mira → Log, for Docker docker logs mira). Correct the file; Mira then starts anew by herself. Afterwards add Mira here again."
     },
     "flow_title": "{name} ({host})",
     "create_entry": {
@@ -558,7 +558,7 @@
       "description": "{text}\n\nCheck the model on Mira's page under Models: its key and its address. The message disappears here once the model answers again."
     },
     "model_file_problem": {
-      "title": "Mira can't move her AI model into mira.yaml",
+      "title": "Mira cannot move her AI model into mira.yaml",
       "description": "{text}\n\nMira keeps working with the AI model as before, but it cannot be changed on Mira's page yet. Make the file mira.yaml writable, then restart Mira. The message disappears once the model is in the file."
     },
     "service_too_old": {

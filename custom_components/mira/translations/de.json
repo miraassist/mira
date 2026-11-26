@@ -104,7 +104,7 @@
       "setup_failed": "Die Einrichtung hat nicht geklappt: {error}",
       "connected": "Verbunden. Mira behält die Verbindung.",
       "connect_failed": "Mira konnte die Verbindung nicht übernehmen; siehe Protokoll.",
-      "limited": "Mira kann ihre Einstellungen nicht lesen: Die Datei mira.yaml lässt sich nicht lesen. Was falsch ist, steht im Protokoll der Mira-App. Korrigiere die Datei; Mira startet dann von selbst neu. Füge Mira danach hier erneut hinzu."
+      "limited": "Mira kann ihre Einstellungen nicht lesen: Die Datei mira.yaml lässt sich nicht lesen. Was falsch ist, steht in Miras Protokoll (bei der Mira-App unter Einstellungen → Apps → Mira → Protokoll, bei Docker docker logs mira). Korrigiere die Datei; Mira startet dann von selbst neu. Füge Mira danach hier erneut hinzu."
     },
     "flow_title": "{name} ({host})",
     "create_entry": {
