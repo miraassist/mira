@@ -20,6 +20,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState, ConfigFl
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import section
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.config_entry_oauth2_flow import AbstractOAuth2FlowHandler
@@ -32,6 +33,7 @@ from .access import (
     ensure_mcp_server,
     forget_rejoin,
     ha_url,
+    keep_rejoin,
     rejoin_token,
 )
 from .api import MiraAuthError, MiraBadCode, MiraClient, MiraError, MiraInvalidConfig, proof, rejoin_key
@@ -88,6 +90,7 @@ WORDS = {
         "missing": "fehlt noch",
         "bad_code": "Der Kopplungscode stimmt nicht oder ist schon verbraucht. Er steht im Protokoll von Mira; gib ihn neu ein.",
         "failed": "Das Koppeln hat nicht geklappt: {error}",
+        "not_started": "Mira ist gekoppelt, startet aber nicht: {error}. Warum, steht im Protokoll der Mira-App. Füge Mira danach hier erneut hinzu; ein Kopplungscode ist dafür nicht nötig.",
     },
     "en": {
         "custom": "Own server (enter its address)",
@@ -99,6 +102,7 @@ WORDS = {
         "missing": "still missing",
         "bad_code": "The pairing code is wrong or used up. It is in Mira's log; enter it again.",
         "failed": "Pairing did not work: {error}",
+        "not_started": "Mira is paired but does not start: {error}. The Mira app's log says why. Then add Mira here again; no pairing code is needed.",
     },
 }
 
@@ -606,6 +610,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         ha_token = user_input["token"].strip()
         words = _words(self.hass)
         self._error = ""
+        handed = False
         try:
             await ensure_mcp_server(self.hass)
             if self._token:
@@ -614,6 +619,8 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
                 self._token = await self._client().pair(
                     self._code or "", ha_url(self.hass), ha_token, self._llm, self._rejoin
                 )
+                await self._keep_token()
+            handed = True
             await self._wait_ready()
         except MiraBadCode:
             self._error = words["bad_code"]
@@ -622,13 +629,32 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
                 # the code from its log, then.
                 self._rejoin, self._code = "", ""
         except (MiraError, RuntimeError, TimeoutError) as err:
-            self._error = words["failed"].format(error=err)
+            # Handed over, the service has this Home Assistant; only its
+            # start failed (docs/spec/setup-recovery.md, decision 2).
+            self._error = words["not_started" if handed else "failed"].format(error=err)
         if self._error:
             return await self.async_step_summary()
         if self.unique_id:
             await forget_rejoin(self.hass, self.unique_id)
         self._data = {CONF_IMPORTED: True, CONF_AGENT_TOKEN: refresh.id, CONF_TOKEN_GIVEN: True}
         return self._create()
+
+    async def _keep_token(self) -> None:
+        """The pairing answered: the service is paired with this Home
+        Assistant from now on. Its token is kept at once, so that a new
+        dialog needs no code when this one ends without an entry
+        (docs/spec/setup-recovery.md, decision 2)."""
+        if not self.unique_id:
+            return
+        try:
+            await keep_rejoin(self.hass, self.unique_id, self._token)
+        except (HomeAssistantError, OSError) as err:
+            _LOGGER.warning(
+                "Could not keep the token of Mira %s; should this setup end without an entry, adding Mira "
+                "again needs a reset of Mira: %s",
+                self.unique_id,
+                err,
+            )
 
     def _create(self) -> ConfigFlowResult:
         data = {CONF_URL: self._url, CONF_TOKEN: self._token, **(self._data or {})}

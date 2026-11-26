@@ -7,6 +7,7 @@ import pytest
 from homeassistant import config_entries
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.mira.access import keep_rejoin, rejoin_token
@@ -77,13 +78,13 @@ PROVIDERS = [
 ]
 
 
-def _new_agent(aioclient_mock, models=("qwen3", "gemma3"), model=""):
+def _new_agent(aioclient_mock, models=("qwen3", "gemma3"), model="", health="ok"):
     aioclient_mock.get(
         f"{AGENT_URL}/v1/pair", json={"id": AGENT_ID, "pairs": True, "open": True, "setup_mode": True, "model": model}
     )
     aioclient_mock.get(f"{AGENT_URL}/v1/setup/providers", json={"providers": PROVIDERS})
     aioclient_mock.post(f"{AGENT_URL}/v1/setup/models", json={"models": list(models)})
-    aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": AGENT_ID})
+    aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": health, "id": AGENT_ID})
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False})
     aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
 
@@ -351,3 +352,99 @@ async def test_RY51_setup_waits_for_a_service_that_restarts(hass, aioclient_mock
     with patch("custom_components.mira.config_flow.asyncio.sleep", side_effect=tick):
         await flow._wait_ready()
     assert calls == 3
+
+
+# A setup that does not finish: docs/spec/setup-recovery.md, step 2.
+
+
+async def _added(hass):
+    result = await _start(hass)
+    return await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
+
+
+async def _paired_without_entry(hass, aioclient_mock, token=None):
+    """A new agent that answers the pairing and then stays in setup mode
+    (a service whose limited start says setup): the wait gives up."""
+    _new_agent(aioclient_mock, model="qwen3", health="setup")
+    aioclient_mock.post(f"{AGENT_URL}/v1/pair", json={"token": "agent-token"})
+    result = await _added(hass)
+    with patch("custom_components.mira.config_flow.SETUP_WAIT", 0):
+        result, _ = await _finish(hass, result, token)
+    return result
+
+
+async def test_su05_the_setup_finishes_on_a_limited_start(hass, aioclient_mock, hass_owner_user):
+    """The limited start says limited after the pairing: the wait ends with
+    its first answer, the entry is made, the kept token is forgotten."""
+    _new_agent(aioclient_mock, model="qwen3", health="limited")
+    aioclient_mock.post(f"{AGENT_URL}/v1/pair", json={"token": "agent-token"})
+    result = await _added(hass)
+    with patch("custom_components.mira.config_flow.asyncio.sleep", AsyncMock()) as sleep:
+        result, _ = await _finish(hass, result)
+    assert result["type"] is FlowResultType.CREATE_ENTRY, result
+    assert result["data"][CONF_TOKEN] == "agent-token"
+    assert sleep.await_count == 1
+    assert await rejoin_token(hass, AGENT_ID) is None
+
+
+async def test_su06_the_token_is_kept_as_soon_as_the_pairing_answers(hass, aioclient_mock, hass_owner_user):
+    """The wait gives up after the pairing: no entry, the token kept, and
+    the summary says what is true."""
+    result = await _paired_without_entry(hass, aioclient_mock)
+    assert result["type"] is FlowResultType.MENU and result["step_id"] == "summary", result
+    assert not hass.config_entries.async_entries(DOMAIN)
+    assert await rejoin_token(hass, AGENT_ID) == "agent-token"
+    error = result["description_placeholders"]["error"]
+    assert "Mira is paired but does not start" in error and "no pairing code is needed" in error
+    assert "Pairing did not work" not in error
+
+
+async def test_su07_a_new_dialog_after_a_failed_setup_needs_no_code(hass, aioclient_mock, hass_owner_user):
+    """The dialog is closed after the failed wait; the service says it is
+    paired. Added again: no code, the setup with the kept token, the entry."""
+    _, token = await admin_token(hass, hass_owner_user)
+    result = await _paired_without_entry(hass, aioclient_mock, token)
+    hass.config_entries.flow.async_abort(result["flow_id"])
+    aioclient_mock.clear_requests()
+    _paired_agent(aioclient_mock, rejoin=False)
+    aioclient_mock.post(f"{AGENT_URL}/v1/setup", json={"status": "restarting"})
+    result = await _added(hass)
+    assert result["step_id"] == "summary"
+    assert "pair" not in result["menu_options"] and "finish" in result["menu_options"]
+    result, _ = await _finish(hass, result, token)
+    assert result["type"] is FlowResultType.CREATE_ENTRY, result
+    assert result["data"][CONF_TOKEN] == "agent-token"
+    assert not _calls(aioclient_mock, "/v1/pair") and _calls(aioclient_mock, "/v1/setup")
+    assert await rejoin_token(hass, AGENT_ID) is None
+
+
+async def test_su08_keeping_the_token_fails(hass, aioclient_mock, hass_owner_user, caplog):
+    """Home Assistant's storage refuses the write: a warning with the
+    service's id, never the token, and the setup goes on."""
+    _new_agent(aioclient_mock, model="qwen3")
+    aioclient_mock.post(f"{AGENT_URL}/v1/pair", json={"token": "agent-token"})
+    result = await _added(hass)
+    with (
+        patch(
+            "custom_components.mira.config_flow.keep_rejoin",
+            AsyncMock(side_effect=HomeAssistantError("disk full")),
+        ),
+        patch("custom_components.mira.config_flow.asyncio.sleep", AsyncMock()),
+    ):
+        result, _ = await _finish(hass, result)
+    assert result["type"] is FlowResultType.CREATE_ENTRY, result
+    (warning,) = [r for r in caplog.records if "Could not keep the token" in r.getMessage()]
+    assert AGENT_ID in warning.getMessage() and "disk full" in warning.getMessage()
+    assert "agent-token" not in caplog.text
+
+
+async def test_su09_a_pairing_that_fails_keeps_nothing(hass, aioclient_mock, hass_owner_user):
+    """The service refuses the pairing: nothing kept, and the summary says
+    the pairing did not work."""
+    _new_agent(aioclient_mock, model="qwen3")
+    aioclient_mock.post(f"{AGENT_URL}/v1/pair", status=500, json={"error": "store broken"})
+    result = await _added(hass)
+    result, _ = await _finish(hass, result)
+    assert result["type"] is FlowResultType.MENU and result["step_id"] == "summary", result
+    assert "Pairing did not work" in result["description_placeholders"]["error"]
+    assert await rejoin_token(hass, AGENT_ID) is None
