@@ -449,6 +449,11 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         """A service that pairs: the first time a click (for a discovered
         one), later a code; a service whose token is in its mira.yaml, or
         from before pairing, wants that token."""
+        if status and status.get("limited"):
+            # mira.yaml cannot be read: nothing is paired until it is
+            # corrected (docs/spec/setup-recovery.md, decision 6).
+            _LOGGER.info("Mira at %s cannot read her mira.yaml; the setup ends until it is corrected", self._url)
+            return self.async_abort(reason="limited")
         if not status or not status.get("pairs"):
             return await self.async_step_token()
         self._agent_model = str(status.get("model") or "")

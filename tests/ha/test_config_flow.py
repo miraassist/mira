@@ -448,3 +448,55 @@ async def test_su09_a_pairing_that_fails_keeps_nothing(hass, aioclient_mock, has
     assert result["type"] is FlowResultType.MENU and result["step_id"] == "summary", result
     assert "Pairing did not work" in result["description_placeholders"]["error"]
     assert await rejoin_token(hass, AGENT_ID) is None
+
+
+# The dialog on a limited start: docs/spec/setup-recovery.md, step 4.
+
+
+def _nothing_done(aioclient_mock):
+    return not _calls(aioclient_mock, "/v1/pair") and not _calls(aioclient_mock, "/v1/setup")
+
+
+@pytest.mark.parametrize("paired", [False, True], ids=["never paired", "paired before"])
+async def test_su11_the_dialog_ends_on_a_limited_start_after_the_address(hass, aioclient_mock, paired):
+    """mira.yaml cannot be read: the dialog ends with what to do; nothing
+    is paired, set up or kept, also for a service this Home Assistant
+    holds a kept token of."""
+    if paired:
+        await keep_rejoin(hass, AGENT_ID, "old-token")
+    aioclient_mock.get(
+        f"{AGENT_URL}/v1/pair",
+        json={"id": AGENT_ID, "pairs": True, "open": not paired, "rejoin": paired, "model": "", "limited": True},
+    )
+    result = await _added(hass)
+    assert result["type"] is FlowResultType.ABORT and result["reason"] == "limited", result
+    assert _nothing_done(aioclient_mock)
+    assert await rejoin_token(hass, AGENT_ID) == ("old-token" if paired else None)
+    assert not hass.config_entries.async_entries(DOMAIN)
+
+
+async def test_su12_the_dialog_ends_on_a_discovered_limited_start(hass, aioclient_mock):
+    """A limited start announced on the network: the same end, before
+    anything else."""
+    from ipaddress import ip_address
+
+    from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+
+    host = "192.168.1.20"
+    aioclient_mock.get(
+        f"http://{host}:8787/v1/pair", json={"id": AGENT_ID, "pairs": True, "open": True, "limited": True}
+    )
+    info = ZeroconfServiceInfo(
+        ip_address=ip_address(host),
+        ip_addresses=[ip_address(host)],
+        hostname="mira.local.",
+        name="Mira._mira._tcp.local.",
+        port=8787,
+        type="_mira._tcp.local.",
+        properties={"id": AGENT_ID, "version": "dev"},
+    )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=info
+    )
+    assert result["type"] is FlowResultType.ABORT and result["reason"] == "limited", result
+    assert _nothing_done(aioclient_mock)

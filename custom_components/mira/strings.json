@@ -103,7 +103,8 @@
       "not_proven": "A Mira announced itself at a new address but could not show it is yours. The address stays as it is.",
       "setup_failed": "Setting up did not work: {error}",
       "connected": "Connected. Mira keeps the connection.",
-      "connect_failed": "Mira could not take the connection; see the log."
+      "connect_failed": "Mira could not take the connection; see the log.",
+      "limited": "Mira cannot read her settings: the file mira.yaml cannot be read. The Mira app's log says what is wrong. Correct the file; Mira then starts anew by herself. Afterwards add Mira here again."
     },
     "flow_title": "{name} ({host})",
     "create_entry": {
