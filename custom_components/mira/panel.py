@@ -105,6 +105,7 @@ def async_register_views(hass: HomeAssistant) -> None:
     hass.http.register_view(MiraMySettingsView())
     hass.http.register_view(MiraOAuthView())
     hass.http.register_view(MiraOAuthStartView())
+    hass.http.register_view(MiraCallerView())
 
 
 @callback
@@ -193,6 +194,25 @@ def _allowed(method: str, path: str) -> bool:
     if method == "DELETE" and NON_ADMIN_PLAN.fullmatch(path):
         return True
     return method in ("PUT", "DELETE") and NON_ADMIN_FACT.fullmatch(path) is not None
+
+
+class MiraCallerView(HomeAssistantView):
+    """The address Home Assistant sees the caller at, for a service in the
+    house that offers Home Assistant something of its own (a Wyoming server,
+    an MCP server) and cannot tell its address from its own end, e.g. in a
+    container (docs/spec/companions.md, decisions 37 to 39). Home Assistant's
+    rules for forwarded addresses (trusted proxies) decide which it is."""
+
+    url = "/api/mira/caller"
+    name = "api:mira:caller"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        address = request.remote
+        if not address:
+            _LOGGER.error("No address known for a call of %s; the caller is told so", self.url)
+            return web.json_response({"error": "no address known for this request"}, status=500)
+        return web.json_response({"address": address})
 
 
 class MiraPanelView(HomeAssistantView):

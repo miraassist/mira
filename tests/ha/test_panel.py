@@ -204,3 +204,17 @@ async def test_waiting_video_passes_without_login(hass, aioclient_mock, entry, h
     assert await resp.read() == b"mp4"
     resp = await client.get("/api/mira/panel/ui/videos/../v1/status")
     assert resp.status == 404
+
+
+async def test_bs28_the_caller_learns_the_address_home_assistant_sees(hass, aioclient_mock, entry, hass_client):
+    # docs/spec/companions.md, decisions 37 to 39: the test client calls from 127.0.0.1.
+    await _setup(hass, aioclient_mock, entry)
+    resp = await (await hass_client()).get("/api/mira/caller")
+    assert resp.status == 200
+    assert await resp.json() == {"address": "127.0.0.1"}
+
+
+async def test_bs29_without_a_token_the_address_is_not_named(hass, aioclient_mock, entry, hass_client_no_auth):
+    await _setup(hass, aioclient_mock, entry)
+    resp = await (await hass_client_no_auth()).get("/api/mira/caller")
+    assert resp.status == 401
